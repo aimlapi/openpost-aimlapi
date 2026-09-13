@@ -1,0 +1,134 @@
+name: Diagnose Chromium browser contexts
+
+on:
+  push:
+    branches: [diagnose-browser-context-ci]
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  BUN_VERSION: "1.3.11"
+
+jobs:
+  browser-context:
+    name: Chromium context (${{ matrix.variant }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [baseline, fake-output, chromium]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: |
+            /*
+            !/apps/web/static/image-editor-models/
+          sparse-checkout-cone-mode: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: apps/server/go.mod
+          cache-dependency-path: apps/server/go.sum
+      - name: Download the exact canonical frontend artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run download 34736125947 \
+            --repo "$GITHUB_REPOSITORY" \
+            --name frontend-public-24b56c38583168c53a69b4ff2137a0b988517a9e-1 \
+            --dir apps/server/cmd/openpost/public
+      - run: bun install --frozen-lockfile
+      - run: bunx playwright install --with-deps chromium
+      - run: sudo apt-get update && sudo apt-get install --yes ffmpeg
+      - name: Generate an isolated config with the original test settings
+        run: |
+          cat > tests/app/.browser-context-diagnostic.config.ts <<'EOF'
+          import { resolve } from 'node:path';
+          import base from './playwright.config';
+
+          const variant = process.env.OPENPOST_DIAGNOSTIC_VARIANT;
+          if (variant !== 'baseline' && variant !== 'fake-output' && variant !== 'chromium') {
+            throw new Error('invalid Chromium diagnostic variant');
+          }
+
+          export default {
+            ...base,
+            testDir: resolve(process.cwd(), 'tests/app'),
+            reporter: [['list'], ['github']],
+            workers: 1,
+            retries: 0,
+            projects: base.projects?.map((project) => ({
+              ...project,
+              use: {
+                ...project.use,
+                ...(variant === 'chromium' ? { channel: 'chromium' } : {}),
+                launchOptions: {
+                  ...project.use?.launchOptions,
+                  args: [
+                    ...(project.use?.launchOptions?.args ?? []),
+                    ...(variant === 'fake-output' ? ['--disable-audio-output'] : [])
+                  ]
+                }
+              }
+            }))
+          };
+          EOF
+      - name: Repeat the unchanged integration settings assertions
+        env:
+          OPENPOST_E2E_PREBUILT: "1"
+          OPENPOST_DIAGNOSTIC_VARIANT: ${{ matrix.variant }}
+          DEBUG: pw:browser,pw:protocol
+          DEBUG_COLORS: "0"
+        shell: bash
+        run: |
+          set -u
+          diagnostics="$RUNNER_TEMP/browser-context-diagnostic"
+          mkdir -p "$diagnostics"
+          printf 'variant=%s\nsource_revision=%s\nrun_start_utc=%s\n' \
+            "$OPENPOST_DIAGNOSTIC_VARIANT" "$GITHUB_SHA" "$(date -u +%FT%TZ)" \
+            > "$diagnostics/run.txt"
+          vmstat -t 5 > "$diagnostics/vmstat.log" 2>&1 &
+          vmstat_pid=$!
+          (
+            while true; do
+              date -u +'%FT%TZ'
+              uptime
+              free -m
+              ps -eo pid,ppid,stat,pcpu,pmem,rss,etimes,comm | \
+                awk 'NR == 1 || /chrome|playwright|bun|node|go/'
+              sleep 5
+            done
+          ) > "$diagnostics/processes.log" 2>&1 &
+          process_pid=$!
+          set +e
+          bunx playwright test integration-settings.spec.ts \
+            --config tests/app/.browser-context-diagnostic.config.ts \
+            --repeat-each=3 --workers=1 --retries=0 \
+            > "$diagnostics/stdout.log" 2> "$diagnostics/stderr.log"
+          test_status=$?
+          set -e
+          printf 'run_end_utc=%s\ntest_exit_code=%s\n' "$(date -u +%FT%TZ)" "$test_status" \
+            >> "$diagnostics/run.txt"
+          kill "$vmstat_pid" "$process_pid" 2>/dev/null || true
+          wait "$vmstat_pid" "$process_pid" 2>/dev/null || true
+          cat "$diagnostics/stdout.log"
+          if [ "$test_status" -ne 0 ]; then
+            tail -n 100 "$diagnostics/stderr.log"
+          fi
+          exit "$test_status"
+      - name: Upload both passing and failing diagnostics
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: browser-context-${{ matrix.variant }}-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/browser-context-diagnostic
+            playwright-report
+            test-results
+          if-no-files-found: warn
+          retention-days: 7
