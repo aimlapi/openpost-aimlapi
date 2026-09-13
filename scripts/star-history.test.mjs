@@ -9,6 +9,35 @@ const workflow = readFileSync(".github/workflows/readme-assets.yml", "utf8");
 const probe = workflow
   .match(/- name: Check for new stars[\s\S]*?run: \|\n((?: {10}[^\n]*\n)+)/)?.[1]
   .replace(/^ {10}/gm, "");
+const refreshDayProbe = workflow
+  .match(/- name: Check refresh day[\s\S]*?run: \|\n((?: {10}[^\n]*\n)+)/)?.[1]
+  .replace(/^ {10}/gm, "");
+
+for (const [name, lastRefresh, expected] of [
+  ["a second run on the same UTC day skips asset generation", "2026-09-13", "skip=true\n"],
+  ["a run on the next UTC day can refresh assets", "2026-09-12", "skip=false\n"],
+]) {
+  test(name, () => {
+    assert.ok(refreshDayProbe, "workflow must guard against a second daily refresh");
+    const dir = mkdtempSync(join(tmpdir(), "readme-assets-test-"));
+    try {
+      mkdirSync(join(dir, "assets"), { recursive: true });
+      writeFileSync(join(dir, "assets/.readme-assets-refreshed-on"), `${lastRefresh}\n`);
+      const output = join(dir, "output");
+      execFileSync(
+        "bash",
+        ["-e", "-o", "pipefail", "-c", `date() { printf '2026-09-13\\n'; }\n${refreshDayProbe}`],
+        {
+          cwd: dir,
+          env: { ...process.env, GITHUB_OUTPUT: output },
+        },
+      );
+      assert.equal(readFileSync(output, "utf8"), expected);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+}
 
 for (const [name, previous, current, expected] of [
   ["unchanged stars skip the update", "42", "42", "changed=false\n"],
