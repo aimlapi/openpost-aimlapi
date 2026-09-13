@@ -51,30 +51,34 @@ jobs:
           import { resolve } from 'node:path';
           import base from './playwright.config';
 
-          if (!base.use?.trace || typeof base.use.trace !== 'object') {
-            throw new Error('expected the base trace configuration');
-          }
-
           export default {
             ...base,
             testDir: resolve(process.cwd(), 'tests/app'),
             reporter: [['list'], ['github']],
             workers: 1,
             retries: 0,
-            use: {
-              ...base.use,
-              trace: { ...base.use.trace, screenshots: false }
-            },
-            projects: base.projects?.map((project) => ({
-              ...project,
-              use: {
-                ...project.use,
-                channel: 'chromium'
+            projects: base.projects?.map((project) => {
+              const args = project.use?.launchOptions?.args ?? [];
+              if (!args.includes('--use-angle=swiftshader')) {
+                throw new Error('expected the base SwiftShader ANGLE flag');
               }
-            }))
+              return {
+                ...project,
+                use: {
+                  ...project.use,
+                  channel: 'chromium',
+                  launchOptions: {
+                    ...project.use?.launchOptions,
+                    args: args.map((arg) =>
+                      arg === '--use-angle=swiftshader' ? '--use-angle=swiftshader-webgl' : arg
+                    )
+                  }
+                }
+              };
+            })
           };
           EOF
-      - name: Repeat unchanged 1440px Social Set assertions without trace screenshots
+      - name: Compare desktop Social Set and export behavior with WebGL-only SwiftShader
         env:
           OPENPOST_E2E_PREBUILT: "1"
           OPENPOST_DIAGNOSTIC_VARIANT: ${{ matrix.variant }}
@@ -85,7 +89,7 @@ jobs:
           set -u
           diagnostics="$RUNNER_TEMP/browser-context-diagnostic"
           mkdir -p "$diagnostics"
-          printf 'variant=%s\ntrace_screenshots=false\nsource_revision=%s\nrun_start_utc=%s\n' \
+          printf 'variant=%s\nangle_flag=swiftshader-webgl\ntrace_screenshots=true\nsource_revision=%s\nrun_start_utc=%s\n' \
             "$OPENPOST_DIAGNOSTIC_VARIANT" "$GITHUB_SHA" "$(date -u +%FT%TZ)" \
             > "$diagnostics/run.txt"
           vmstat -t 5 > "$diagnostics/vmstat.log" 2>&1 &
@@ -106,20 +110,32 @@ jobs:
             --config tests/app/.browser-context-diagnostic.config.ts \
             --grep 'Discord Social Set defaults persist at 1440px' \
             --repeat-each=3 --workers=1 --retries=0 \
-            --output "$diagnostics/focus-results" \
-            > "$diagnostics/stdout.log" 2> "$diagnostics/stderr.log"
-          test_status=$?
+            --output "$diagnostics/social-set-results" \
+            > "$diagnostics/social-set-stdout.log" 2> "$diagnostics/social-set-stderr.log"
+          social_set_status=$?
+          bunx playwright test video-editor.spec.ts video-editor-shaders.spec.ts \
+            --config tests/app/.browser-context-diagnostic.config.ts \
+            --grep 'Video Editor quick export saves an MP4 in the workspace|shader clips preserve edits, seek and export an MP4' \
+            --workers=1 --retries=0 \
+            --output "$diagnostics/export-results" \
+            > "$diagnostics/export-stdout.log" 2> "$diagnostics/export-stderr.log"
+          export_status=$?
           set -e
-          printf 'run_end_utc=%s\ntest_exit_code=%s\n' \
-            "$(date -u +%FT%TZ)" "$test_status" \
+          printf 'run_end_utc=%s\nsocial_set_exit_code=%s\nexport_exit_code=%s\n' \
+            "$(date -u +%FT%TZ)" "$social_set_status" "$export_status" \
             >> "$diagnostics/run.txt"
           kill "$vmstat_pid" "$process_pid" 2>/dev/null || true
           wait "$vmstat_pid" "$process_pid" 2>/dev/null || true
-          cat "$diagnostics/stdout.log"
-          if [ "$test_status" -ne 0 ]; then
-            tail -n 100 "$diagnostics/stderr.log"
+          cat "$diagnostics/social-set-stdout.log" "$diagnostics/export-stdout.log"
+          if [ "$social_set_status" -ne 0 ]; then
+            tail -n 100 "$diagnostics/social-set-stderr.log"
           fi
-          exit "$test_status"
+          if [ "$export_status" -ne 0 ]; then
+            tail -n 100 "$diagnostics/export-stderr.log"
+          fi
+          if [ "$social_set_status" -ne 0 ] || [ "$export_status" -ne 0 ]; then
+            exit 1
+          fi
       - name: Upload both passing and failing diagnostics
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
