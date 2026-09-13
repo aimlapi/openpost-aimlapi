@@ -1,0 +1,31 @@
+---
+title: Install from a binary
+description: Run OpenPost as a single Go binary with systemd, without Docker.
+icon: SquareTerminal
+---
+
+> This page surfaces the maintained [binary reference](https://github.com/getopenpost/openpost/blob/main/docs/reference/installation/binary.md) inside the self-hosting guide. The reference stays the source of truth for commands and unit files.
+
+Run OpenPost as a single Go binary with the frontend embedded when you prefer no container runtime: a small VPS, an existing Linux server, or a Windows service host. The binary supports `linux/amd64`, `darwin/arm64`, and Windows x86_64 release assets. Docker users should stay on the [Compose setup](/self-hosting) instead.
+
+## When this fits
+
+- You already manage the host with systemd (or a Windows service wrapper) and want one unit to supervise.
+- You want split roles (`migrate`, then `web` plus `worker`) on a larger host instead of the default combined `all` role.
+- You are on macOS Apple Silicon, where a native `darwin/arm64` binary exists but the published container image is `linux/amd64` only.
+
+## Install
+
+1. Download the release asset for your platform from [GitHub Releases](https://github.com/getopenpost/openpost/releases) and make it executable.
+2. Create a working directory with a private `.env` (see the [reference](https://github.com/getopenpost/openpost/blob/main/docs/reference/installation/binary.md#2-create-env) for the full template): the three public URLs, `OPENPOST_JWT_SECRET`, `OPENPOST_ENCRYPTION_KEY`, and stable `OPENPOST_DATABASE_PATH` / `OPENPOST_MEDIA_PATH` locations such as `/var/lib/openpost`.
+3. Put a reverse proxy in front of port `8080` and set the three URLs to the real HTTPS origin before connecting social accounts. OAuth callbacks derive from `OPENPOST_APP_URL`; Threads, Facebook, Instagram, and TikTok fetch media from `OPENPOST_MEDIA_URL` over public HTTPS. See [Configuration](/self-hosting/configuration) for the full URL table.
+4. Install the [systemd unit](https://github.com/getopenpost/openpost/blob/main/docs/reference/installation/binary.md#6-run-it-as-a-service) (or the Windows service wrapper) so the binary starts at boot, then open the app and create the first account. It becomes the instance administrator.
+
+## Updates and backups
+
+Back up the database, media directory, and `.env` together first, following the same rules as [Maintenance](/self-hosting/maintenance). Stop the service, replace the binary with the new release asset, confirm ownership and execute permissions, start the service, and check `/api/v1/ready` for `"status":"ready"` and `"database":"ok"`. To roll back, restore the matching data backup too; an older binary may not understand a newer database schema.
+
+## Next steps
+
+- [Configure integrations](/self-hosting/integrations) for your social platforms.
+- [Back up your instance](/self-hosting/maintenance) before relying on it for scheduled posts.

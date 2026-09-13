@@ -1,0 +1,64 @@
+---
+title: Install on Dockge
+description: Manage OpenPost as a Dockge stack from the canonical Compose file.
+icon: Ship
+---
+
+> This is a community-tested recipe: it was written from the published Dockge stack workflow and the files below, not from a team-run deploy on Dockge infrastructure. If you deploy it, please report back so this note can be updated.
+
+Dockge manages plain Compose files on disk, so there is no special packaging to learn. Use the ready-to-use [`deploy/dockge/compose.yaml`](https://github.com/getopenpost/openpost/blob/main/deploy/dockge/compose.yaml): it is the canonical single-container setup, and the Dockge UI stays in sync with the files on the host.
+
+The published image supports `linux/amd64` only. Choose an x86_64 Docker host; other architectures need amd64 emulation.
+
+## What you need
+
+- Dockge running against a Docker host (default stacks directory `/opt/stacks`).
+- A public HTTPS address for OpenPost before connecting social accounts. A working local deploy does not mean publishing works.
+
+## Create the stack
+
+1. In Dockge, choose **Create Stack** and name it `openpost` (lowercase letters, numbers, underscores, and hyphens only).
+2. Paste the contents of `deploy/dockge/compose.yaml` as the stack's `compose.yaml`.
+3. Add a `.env` file to the stack with one line per `${...}` value:
+
+```dotenv
+OPENPOST_APP_URL=https://post.example.com
+OPENPOST_PUBLIC_URL=https://post.example.com
+OPENPOST_MEDIA_URL=https://post.example.com/media
+OPENPOST_JWT_SECRET=paste-openssl-rand-base64-32-output-here
+OPENPOST_ENCRYPTION_KEY=paste-a-second-independent-value-here
+OPENPOST_DISABLE_REGISTRATIONS=false
+```
+
+Generate the two secrets with `openssl rand -base64 32`, one per line. Keep them stable across restarts and restores; the encryption key protects saved provider credentials.
+
+4. Deploy the stack. On disk this lands at `/opt/stacks/openpost/compose.yaml` with the matching `/opt/stacks/openpost/.env`, so plain `docker compose` commands keep working alongside the UI. A `/opt/stacks/global.env` file, if you use one, also applies to this stack; keep OpenPost secrets in the stack `.env` instead.
+5. Verify readiness:
+
+```sh
+curl https://post.example.com/api/v1/ready
+```
+
+Expect `"status":"ready"` and `"database":"ok"`. If the domain check fails, confirm the three URL variables match the public origin exactly.
+
+## What the file sets up
+
+| Setting      | Value                                                                                              |
+| ------------ | -------------------------------------------------------------------------------------------------- |
+| Image        | `ghcr.io/getopenpost/openpost:latest` (`linux/amd64`)                                              |
+| Web port     | `8080`, published to the host                                                                      |
+| Storage      | Named volume `openpost_data` at `/data` (SQLite at `/data/db/openpost.db`, media at `/data/media`) |
+| Health check | Process liveness on `/api/v1/health`; gate traffic on `/api/v1/ready`                              |
+
+Open `https://post.example.com` and create the first account; it becomes the instance administrator. Then configure the [provider integrations](/self-hosting/integrations) you need.
+
+## Updates and backups
+
+To upgrade, use Dockge's **Update** action or change the `image:` tag to the release you want and redeploy, then re-check `/api/v1/ready`. To roll back, restore the matching data backup too; an older binary may not understand a newer database schema.
+
+Back up the `openpost_data` volume contents (database plus media) together with the stack's `compose.yaml` and `.env`, and record the image tag, following the same rules as [Maintenance](/self-hosting/maintenance). The backup contains account data and secrets, so keep it private and off the server.
+
+## Next steps
+
+- [Configure integrations](/self-hosting/integrations) for your social platforms.
+- [Back up your instance](/self-hosting/maintenance) before relying on it for scheduled posts.

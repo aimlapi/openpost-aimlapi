@@ -1,0 +1,56 @@
+# Portainer-ready Stack file for OpenPost (Docker Standalone environment).
+#
+# Three ways to use it:
+#   1. Stacks > Add stack > Web editor: paste this file, add the ${...}
+#      values below under "Environment variables", Deploy.
+#   2. Stacks > Add stack > Upload: upload this file, same env handling.
+#   3. Stacks > Add stack > Git repository: point at this repository with
+#      Compose path "deploy/portainer/docker-compose.yml", same env handling.
+#
+# Enter each variable in the Portainer UI ("Add an environment variable") or
+# with "Load variables from .env file". The file keeps ${...} references so
+# Portainer substitutes them at deploy time; the stored file never changes.
+# On Docker Standalone you can alternatively add `stack.env` as an env_file
+# entry to consume every variable Portainer holds for the stack (uploaded
+# .env included). That trick does not work on Swarm, so it stays commented
+# out here. Do not commit secrets to the repository.
+services:
+  openpost:
+    image: ghcr.io/getopenpost/openpost:latest
+    platform: linux/amd64
+    restart: unless-stopped
+    stop_grace_period: 15s
+    ports:
+      - "8080:8080"
+    volumes:
+      - openpost_data:/data
+    # env_file:
+    #   - stack.env
+    environment:
+      OPENPOST_PORT: 8080
+      OPENPOST_DATABASE_PATH: /data/db/openpost.db
+      OPENPOST_MEDIA_PATH: /data/media
+      OPENPOST_APP_URL: ${OPENPOST_APP_URL}
+      OPENPOST_PUBLIC_URL: ${OPENPOST_PUBLIC_URL}
+      OPENPOST_MEDIA_URL: ${OPENPOST_MEDIA_URL}
+      OPENPOST_JWT_SECRET: ${OPENPOST_JWT_SECRET}
+      OPENPOST_ENCRYPTION_KEY: ${OPENPOST_ENCRYPTION_KEY}
+      OPENPOST_DISABLE_REGISTRATIONS: ${OPENPOST_DISABLE_REGISTRATIONS:-false}
+    # Process liveness only. Gate traffic and rollouts on /api/v1/ready.
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "--no-verbose",
+          "--tries=1",
+          "--spider",
+          "http://localhost:8080/api/v1/health",
+        ]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  openpost_data:
