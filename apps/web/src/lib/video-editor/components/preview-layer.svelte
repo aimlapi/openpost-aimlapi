@@ -1025,10 +1025,12 @@
 		animatedRevision = 0;
 		let disposed = false;
 		const unsubscribe = animatedImageCache.subscribe(item.mediaId, (frames) => {
-			if (disposed || !frames.isComplete) return;
-			animatedFrames = frames;
-			animatedRevision += 1;
-			onsourcechange?.();
+			untrack(() => {
+				if (disposed || !frames.isComplete) return;
+				animatedFrames = frames;
+				animatedRevision += 1;
+				onsourcechange?.();
+			});
 		});
 		const media = mediaPool.get(item.mediaId);
 		if (media) void animatedImageCache.getAnimatedImage(media).catch(() => undefined);
