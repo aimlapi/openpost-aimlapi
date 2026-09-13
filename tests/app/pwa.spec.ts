@@ -53,32 +53,50 @@ test("service worker updates wait for every open app window to close", async ({
   expect(await reopened.evaluate(() => caches.has("openpost-pages-1"))).toBe(false);
 });
 
-test("desktop PWA is discoverable and controls a direct editor visit", async ({ page }) => {
-  await page.goto("/image-editor/local_design_pwa_probe");
-  await expect(page.locator('link[rel="manifest"]')).toHaveAttribute(
-    "href",
-    "/manifest.webmanifest",
-  );
-  await expect
-    .poll(() =>
-      page.evaluate(async () => {
-        const registration = await navigator.serviceWorker.getRegistration();
-        return registration?.active?.scriptURL;
-      }),
-    )
-    .toBe(`${new URL(page.url()).origin}/sw.js`);
-  const manifest = await page.request.get("/manifest.webmanifest");
-  const data = await manifest.json();
-  expect(data.id).toBe("/");
-  expect(data.icons).toEqual(
-    expect.arrayContaining([
-      expect.objectContaining({ sizes: "192x192", type: "image/png" }),
-      expect.objectContaining({ sizes: "512x512", type: "image/png" }),
-    ]),
-  );
-  const session = await page.context().newCDPSession(page);
-  await session.send("Page.enable");
-  expect((await session.send("Page.getInstallabilityErrors")).installabilityErrors).toEqual([]);
+test("desktop PWA is discoverable and controls a direct editor visit", async ({
+  playwright,
+  launchOptions,
+  headless,
+  channel,
+  baseURL,
+}) => {
+  // Installation requires a regular profile. Playwright owns and removes this temporary one.
+  const context = await playwright.chromium.launchPersistentContext("", {
+    ...launchOptions,
+    headless,
+    channel,
+    baseURL,
+  });
+  try {
+    const page = context.pages()[0];
+    await page.goto("/image-editor/local_design_pwa_probe");
+    await expect(page.locator('link[rel="manifest"]')).toHaveAttribute(
+      "href",
+      "/manifest.webmanifest",
+    );
+    await expect
+      .poll(() =>
+        page.evaluate(async () => {
+          const registration = await navigator.serviceWorker.getRegistration();
+          return registration?.active?.scriptURL;
+        }),
+      )
+      .toBe(`${new URL(page.url()).origin}/sw.js`);
+    const manifest = await page.request.get("/manifest.webmanifest");
+    const data = await manifest.json();
+    expect(data.id).toBe("/");
+    expect(data.icons).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ sizes: "192x192", type: "image/png" }),
+        expect.objectContaining({ sizes: "512x512", type: "image/png" }),
+      ]),
+    );
+    const session = await page.context().newCDPSession(page);
+    await session.send("Page.enable");
+    expect((await session.send("Page.getInstallabilityErrors")).installabilityErrors).toEqual([]);
+  } finally {
+    await context.close();
+  }
 });
 
 test("a cached image editor restores and exports a design offline", async ({ page, context }) => {

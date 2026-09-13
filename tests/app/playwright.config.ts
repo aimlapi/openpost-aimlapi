@@ -20,9 +20,12 @@ const usePrebuiltArtifact = process.env.OPENPOST_E2E_PREBUILT === "1";
 const workers = Number(process.env.OPENPOST_APP_E2E_WORKERS ?? (process.env.CI ? 1 : 2));
 const chromiumExecutablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH;
 const chromiumUse = {
+  // Use the full browser's headless backend; headless shell can stall context creation.
+  channel: "chromium",
   launchOptions: {
     ...(chromiumExecutablePath ? { executablePath: chromiumExecutablePath } : {}),
-    args: ["--enable-unsafe-swiftshader", "--use-gl=angle", "--use-angle=swiftshader"],
+    // Keep software WebGL available without emulating a GPU for the whole browser.
+    args: ["--enable-unsafe-swiftshader", "--use-gl=angle", "--use-angle=swiftshader-webgl"],
   },
 };
 
