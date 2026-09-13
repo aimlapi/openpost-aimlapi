@@ -22,10 +22,17 @@ export function postHogSourceMaps(surface: "app" | "marketing" | "docs") {
     );
   }
 
+  // The UI host selects the region the symbols are uploaded to. There is no
+  // silent default: uploading EU project symbols to the US host (or vice
+  // versa) leaves production errors unsymbolicated with no build-time signal.
+  const uiHost = process.env.POSTHOG_UI_HOST?.trim();
+  if (!uiHost) {
+    throw new Error("POSTHOG_UI_HOST is required when PostHog source-map upload is enabled");
+  }
   const plugin = posthogRollupPlugin({
     personalApiKey,
     projectId,
-    host: process.env.POSTHOG_UI_HOST?.trim() || "https://us.posthog.com",
+    host: uiHost,
     logLevel: "info",
     sourcemaps: {
       enabled: true,
