@@ -1109,13 +1109,19 @@ func firstCapabilityIntent(capability Capability) string {
 	return capability.Intents[0]
 }
 
+type AccountConstraintInput struct {
+	Segments    []ResolveSegment
+	Settings    map[string]any
+	Constraints map[string]any
+}
+
 // ApplyAccountConstraints replaces account-varying text and media limits, then
 // revalidates every segment against the effective connected-account capability.
-func ApplyAccountConstraints(resolved *ResolvedCapability, segments []ResolveSegment, constraints map[string]any) {
+func ApplyAccountConstraints(resolved *ResolvedCapability, input AccountConstraintInput) {
 	if resolved == nil {
 		return
 	}
-	applyResolvedConstraintValues(resolved, constraints)
+	applyResolvedConstraintValues(resolved, input.Constraints)
 
 	issues := make([]ValidationIssue, 0, len(resolved.Issues))
 	for _, issue := range resolved.Issues {
@@ -1123,8 +1129,8 @@ func ApplyAccountConstraints(resolved *ResolvedCapability, segments []ResolveSeg
 			issues = append(issues, issue)
 		}
 	}
-	for _, segment := range segments {
-		issues = append(issues, validateAccountConstraintSegment(*resolved, segment, constraints)...)
+	for _, segment := range input.Segments {
+		issues = append(issues, validateAccountConstraintSegment(*resolved, segment, input.Settings, input.Constraints)...)
 	}
 	resolved.Issues = issues
 	resolved.Compatible = !hasErrorIssues(issues)
@@ -1166,14 +1172,14 @@ func constraintStrings(value any) []string {
 	}
 }
 
-func validateAccountConstraintSegment(resolved ResolvedCapability, segment ResolveSegment, constraints map[string]any) []ValidationIssue {
+func validateAccountConstraintSegment(resolved ResolvedCapability, segment ResolveSegment, settings, constraints map[string]any) []ValidationIssue {
 	segmentIssues := validateCapability(
 		resolved.Capability,
 		segment.Body,
 		segment.Title,
 		"",
 		segment.Media,
-		nil,
+		settings,
 	)
 	for index := range segmentIssues {
 		segmentIssues[index].SegmentID = segment.ID

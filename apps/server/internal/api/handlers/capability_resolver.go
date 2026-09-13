@@ -320,6 +320,12 @@ func (h *CapabilityResolverHandler) publicationReadiness(
 	if h.readiness == nil {
 		return providerreadiness.Decision{State: providerreadiness.EffectiveStateDegraded}
 	}
+	// Publication jobs certify the catalog contract; account limits only change preview validation.
+	if canonical, found := capabilities.FindOutput(account.Platform, capability.OutputProfile); found {
+		capability = canonical
+	} else if canonical, found := capabilities.Find(account.Platform, capability.Profile); found {
+		capability = canonical
+	}
 	return h.readiness.DecideAccountPublication(
 		ctx,
 		account,
@@ -464,7 +470,7 @@ func (h *CapabilityResolverHandler) mergeAccountCapability(
 ) {
 	applyAccountDestinationSettings(account, settings, resolved)
 	if account.Platform == capabilities.ProviderX {
-		applyDynamicCapabilityConstraints(resolved, standardXPublishingCapabilities().Constraints, segments)
+		applyDynamicCapabilityConstraints(resolved, standardXPublishingCapabilities().Constraints, segments, settings)
 	}
 	adapter := h.adapterForResolveAccount(account)
 	provider, ok := adapter.(platform.AccountCapabilityProvider)
@@ -526,7 +532,7 @@ func (h *CapabilityResolverHandler) mergeAccountCapability(
 	for key, value := range result.Constraints {
 		resolved.ActiveConstraints[key] = value
 	}
-	applyDynamicCapabilityConstraints(resolved, result.Constraints, segments)
+	applyDynamicCapabilityConstraints(resolved, result.Constraints, segments, settings)
 	for settingIndex := range resolved.Settings {
 		setting := &resolved.Settings[settingIndex]
 		if available, exists := result.AvailableFeatures[setting.Key]; exists {
@@ -599,8 +605,10 @@ func satisfyCanonicalURLRequirement(
 	}
 }
 
-func applyDynamicCapabilityConstraints(resolved *capabilities.ResolvedCapability, constraints map[string]interface{}, segments []capabilities.ResolveSegment) {
-	capabilities.ApplyAccountConstraints(resolved, segments, constraints)
+func applyDynamicCapabilityConstraints(resolved *capabilities.ResolvedCapability, constraints map[string]interface{}, segments []capabilities.ResolveSegment, settings map[string]any) {
+	capabilities.ApplyAccountConstraints(resolved, capabilities.AccountConstraintInput{
+		Segments: segments, Settings: settings, Constraints: constraints,
+	})
 	resolved.ActiveConstraints["text_limit"] = resolved.TextLimit
 	resolved.ActiveConstraints["media"] = resolved.Media
 	for index := range resolved.Settings {

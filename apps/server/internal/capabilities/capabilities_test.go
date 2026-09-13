@@ -417,22 +417,22 @@ func TestApplyAccountConstraintsRevalidatesXTextAndVideo(t *testing.T) {
 	require.Contains(t, issueCodes(resolved.Issues), "media_duration")
 	require.Contains(t, issueCodes(resolved.Issues), "media_size")
 
-	ApplyAccountConstraints(&resolved, segments, map[string]any{
+	ApplyAccountConstraints(&resolved, AccountConstraintInput{Segments: segments, Constraints: map[string]any{
 		"text_limit":                 280,
 		"max_video_duration_seconds": 140,
 		"max_video_size_bytes":       int64(512 * 1024 * 1024),
-	})
+	}})
 
 	require.Contains(t, issueCodes(resolved.Issues), "text_too_long")
 	require.Contains(t, issueCodes(resolved.Issues), "media_duration")
 	require.Contains(t, issueCodes(resolved.Issues), "media_size")
 	require.False(t, resolved.Compatible)
 
-	ApplyAccountConstraints(&resolved, segments, map[string]any{
+	ApplyAccountConstraints(&resolved, AccountConstraintInput{Segments: segments, Constraints: map[string]any{
 		"text_limit":                 25_000,
 		"max_video_duration_seconds": 4 * 60 * 60,
 		"max_video_size_bytes":       int64(16 * 1024 * 1024 * 1024),
-	})
+	}})
 	require.NotContains(t, issueCodes(resolved.Issues), "text_too_long")
 	require.NotContains(t, issueCodes(resolved.Issues), "media_duration")
 	require.NotContains(t, issueCodes(resolved.Issues), "media_size")
@@ -535,10 +535,10 @@ func TestApplyAccountConstraintsRefreshesVideoMIMEsAndSize(t *testing.T) {
 	require.Contains(t, issueCodes(resolved.Issues), "media_size")
 	require.NotContains(t, issueCodes(resolved.Issues), "media_type")
 
-	ApplyAccountConstraints(&resolved, segments, map[string]any{
+	ApplyAccountConstraints(&resolved, AccountConstraintInput{Segments: segments, Constraints: map[string]any{
 		"max_video_size_bytes": int64(200 * 1024 * 1024),
 		"allowed_mimes":        []any{"video/mp4", "video/webm"},
-	})
+	}})
 	require.NotContains(t, issueCodes(resolved.Issues), "media_size")
 	require.NotContains(t, issueCodes(resolved.Issues), "media_type")
 	require.Contains(t, resolved.Media.AllowedMIMEs, "video/webm")

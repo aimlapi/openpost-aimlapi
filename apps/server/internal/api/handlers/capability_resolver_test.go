@@ -9,6 +9,7 @@ import (
 	"github.com/openpost/backend/internal/capabilities"
 	"github.com/openpost/backend/internal/models"
 	"github.com/openpost/backend/internal/platform"
+	"github.com/openpost/backend/internal/services/providerreadiness"
 	"github.com/stretchr/testify/require"
 )
 
@@ -112,6 +113,47 @@ func TestXAccountCapabilityResolutionFailsClosedAndUpgradesVerifiedPremium(t *te
 	require.Equal(t, platform.XPremiumTextLimit, premium.TextLimit)
 	require.True(t, premium.Compatible)
 	require.NotContains(t, capabilityIssueCodes(premium.Issues), "text_too_long")
+}
+
+func TestDynamicDiscordCapabilityKeepsSavedChannelAndCanonicalReadinessContract(t *testing.T) {
+	segments := []capabilities.ResolveSegment{{ID: "segment-1", Body: "A normal update"}}
+	settings := map[string]any{"channel_id": "channel-1"}
+	account := models.SocialAccount{
+		ID: "discord-account", Platform: capabilities.ProviderDiscord,
+		CapabilityState: `{"connection_type":"bot"}`,
+	}
+	resolved := capabilities.Resolve(account.Platform, capabilities.ResolveInput{
+		CreationPreset: capabilities.IntentPost,
+		Segments:       segments,
+		Settings:       settings,
+	})
+	provider := xCapabilityResolverAdapter{result: platform.AccountCapabilityResult{
+		Constraints: map[string]any{"text_limit": 1000},
+		Options: map[string][]platform.DestinationOption{
+			"discord_channels": {{Value: "channel-1", Label: "#updates"}},
+		},
+	}}
+	handler := NewCapabilityResolverHandler(nil, nil, map[string]platform.Adapter{
+		"discord:bot": provider,
+	}, capabilityResolverTokenSource{})
+	readiness := providerreadiness.NewService(nil, providerreadiness.ServiceOptions{})
+	handler.SetProviderReadiness(readiness)
+	handler.mergeAccountCapability(t.Context(), account, "en-US", "US", settings, segments, &resolved)
+
+	require.Equal(t, 1000, resolved.TextLimit)
+	require.True(t, resolved.Compatible)
+	canonical, found := capabilities.FindOutput(account.Platform, resolved.OutputProfile)
+	require.True(t, found)
+	operation := providerreadiness.OperationPublishImmediate
+	policyMode := providerreadiness.PublicationPolicyMode(account, canonical, settings)
+	expected := readiness.DecideAccountPublication(
+		t.Context(), account, canonical, operation, providerreadiness.ExecutionIntentProduction, policyMode,
+	)
+	actual := handler.publicationReadiness(t.Context(), account, resolved.Capability, operation, settings)
+	require.NotEmpty(t, expected.ContractDigest)
+	require.Equal(t, expected.ContractDigest, actual.ContractDigest)
+	require.Equal(t, expected.State, actual.State)
+	require.NotContains(t, capabilityIssueCodes(resolved.Issues), "setting_required")
 }
 
 func capabilityIssueCodes(issues []capabilities.ValidationIssue) []string {

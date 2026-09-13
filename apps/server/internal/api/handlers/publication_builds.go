@@ -720,13 +720,13 @@ func (h *PublicationBuildHandler) publicationBuildOutputProfiles(
 			if accountConstraints == nil {
 				accountConstraints = h.capabilityResolver.publicationBuildAccountConstraints(ctx, account, capability.OutputProfile)
 			}
-			capabilities.ApplyAccountConstraints(&resolved, nil, accountConstraints)
+			capabilities.ApplyAccountConstraints(&resolved, capabilities.AccountConstraintInput{Constraints: accountConstraints})
 		} else if account.Platform == capabilities.ProviderX {
 			accountCapabilities := standardXPublishingCapabilities()
 			if accountLimitProfile(account) == "x-premium" {
 				accountCapabilities = platform.XPublishingCapabilities(platform.XSubscriptionTypePremium)
 			}
-			capabilities.ApplyAccountConstraints(&resolved, nil, accountCapabilities.Constraints)
+			capabilities.ApplyAccountConstraints(&resolved, capabilities.AccountConstraintInput{Constraints: accountCapabilities.Constraints})
 		}
 		profiles = append(profiles, publicationbuilder.OutputProfile{
 			Key: capability.OutputProfile, TextLimit: resolved.TextLimit, MaxSegments: maxSegments,
