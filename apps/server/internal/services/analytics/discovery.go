@@ -729,11 +729,10 @@ func (s *Service) discoveryAccessToken(ctx context.Context, discoverer platform.
 	return s.accessToken(ctx, accountID)
 }
 
+// accountContentDiscoverer resolves the discovery adapter registered for
+// the account-specific provider key, or nil when none matches.
 func (s *Service) accountContentDiscoverer(account models.SocialAccount) platform.AccountContentDiscoverer {
-	key := account.Platform
-	if account.Platform == "mastodon" {
-		key = "mastodon:" + account.InstanceURL
-	}
+	key := platform.AccountProviderKey(account.Platform, account.InstanceURL, account.CapabilityState)
 	s.providersMu.RLock()
 	adapter := s.providers[key]
 	s.providersMu.RUnlock()
