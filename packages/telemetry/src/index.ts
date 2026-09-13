@@ -2,6 +2,9 @@ export type TelemetrySurface = "app" | "marketing" | "docs";
 export type TelemetryPreference = "persistent" | "cookieless" | "off";
 export type TelemetryPreferenceStatus = TelemetryPreference | "undecided" | "unavailable";
 
+export * from "./chunk-recovery";
+import { extractFirstPartyAssetPath, isChunkLoadError } from "./chunk-recovery";
+
 export const telemetryPreferenceCookie = "openpost_analytics";
 export const telemetryPreferencesEvent = "openpost:telemetry-preferences";
 

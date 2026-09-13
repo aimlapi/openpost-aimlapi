@@ -8,10 +8,13 @@ test("recovers a failed route import during initial hydration", async ({ page })
     if (request.isNavigationRequest() && request.frame() === page.mainFrame()) documents++;
   });
   await page.route("**/_app/immutable/nodes/*.js", async (route) => {
-    // Root layout and error nodes are eager imports; fail only the page node.
+    // Root layout and error nodes are eager imports; expire only the page node.
+    // A 404 stands in for an asset from a previous deployment that the host no
+    // longer serves. The follow-up probe sees the live asset again, which the
+    // recovery policy treats as a transient failure worth one bounded reload.
     if (!/\/(0|1)\.[^/]+\.js$/.test(route.request().url()) && failedImports === 0) {
       failedImports++;
-      await route.abort("failed");
+      await route.fulfill({ status: 404, body: "Not found" });
       return;
     }
     await route.continue();
@@ -41,9 +44,12 @@ test("failed route imports preserve their cause and allow recovery @desktop", as
   });
   await page.goto("/");
   await dismissTelemetryConsent(page);
-  // Exhaust automatic retries to inspect the error the visitor would otherwise see briefly.
+  // Exhaust the automatic recovery budget to inspect the error the visitor would otherwise see briefly.
   await page.evaluate(() => {
-    sessionStorage.setItem("openpost:chunk-reload", JSON.stringify({ count: 3, at: Date.now() }));
+    sessionStorage.setItem(
+      "openpost:chunk-recovery:v1",
+      JSON.stringify({ total: 3, perAsset: {} }),
+    );
   });
   await page.route("**/_app/immutable/nodes/*.js", (route) => route.abort("failed"));
   await page.getByRole("link", { name: "Pricing", exact: true }).first().click();

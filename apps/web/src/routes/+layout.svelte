@@ -63,6 +63,16 @@
 		event.returnValue = '';
 	}
 
+	// Mirror dirty state for chunk recovery: hooks.client has no access to
+	// this Svelte context, so an automatic import reload must never fire while
+	// the marker reports unsaved work. Recording and exports register here.
+	$effect(() => {
+		const dirty = unsavedChanges.hasChanges;
+		if (typeof document !== 'undefined') {
+			document.documentElement.dataset.unsavedChanges = dirty ? '1' : '0';
+		}
+	});
+
 	let authState = $derived($auth);
 	let currentPath = $derived($page.url.pathname);
 	let isPreviewRoute = $derived(currentPath === '/preview');
