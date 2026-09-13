@@ -1,12 +1,6 @@
-# Coolify-ready Compose file for OpenPost.
-#
-# Deploy it with the Git-repository Docker Compose build pack:
-#   Base Directory:         /
-#   Docker Compose Location: deploy/coolify/docker-compose.yml
-#
-# Set every ${...} value in Coolify under Configuration > Environment
-# Variables (Runtime scope is enough; these are only read after the
-# container starts). Do not commit secrets to the repository.
+# Coolify Docker Compose build pack: base directory `/`, Compose location
+# `deploy/coolify/docker-compose.yml`. Add each ${...} value as a Runtime
+# environment variable.
 services:
   openpost:
     image: ghcr.io/getopenpost/openpost:latest

@@ -14,14 +14,11 @@ services:
       OPENPOST_PORT: 8080
       OPENPOST_DATABASE_PATH: /data/db/openpost.db
       OPENPOST_MEDIA_PATH: /data/media
-      # Replace with the address you open in a browser. For a first local
-      # test this can stay as the ZimaOS IP below; set the real HTTPS origin
-      # before connecting social accounts.
+      # Use the local address for setup, then set the public HTTPS origin.
       OPENPOST_APP_URL: http://10.0.0.1:8080
       OPENPOST_PUBLIC_URL: http://10.0.0.1:8080
       OPENPOST_MEDIA_URL: http://10.0.0.1:8080/media
-      # Generate two values with `openssl rand -base64 32` and paste them
-      # here before installing. Keep them stable across restarts and restores.
+      # Generate each secret with `openssl rand -base64 32`.
       OPENPOST_JWT_SECRET: REPLACE-WITH-GENERATED-JWT-SECRET
       OPENPOST_ENCRYPTION_KEY: REPLACE-WITH-GENERATED-ENCRYPTION-KEY
     # Process liveness only. Gate traffic and rollouts on /api/v1/ready.

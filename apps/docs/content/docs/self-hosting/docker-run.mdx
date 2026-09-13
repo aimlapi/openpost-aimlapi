@@ -1,16 +1,14 @@
 ---
 title: Try it with Docker run
 description: A one-line throwaway test of the published image.
-icon: Play
+icon: docker
 ---
 
-> This page surfaces the maintained [docker-run reference](https://github.com/getopenpost/openpost/blob/main/docs/reference/installation/docker-run.md) inside the self-hosting guide. The reference stays the source of truth for the command.
-
-Use `docker run` for a quick look at OpenPost, not for an instance you keep. Anything persistent belongs on the [Compose setup](/self-hosting): the run command below keeps data on a named volume but leaves you to retype every flag on each restart, with no file to back up or version.
+Use `docker run` for a local trial. Use [Docker Compose](/self-hosting) for a lasting installation so its configuration can be reviewed, backed up, and updated as one file.
 
 ## Try it
 
-The published image supports `linux/amd64` only; the explicit `--platform` flag keeps other hosts from silently pulling the wrong expectation. See the [reference](https://github.com/getopenpost/openpost/blob/main/docs/reference/installation/docker-run.md) for the full command and `.env` guidance.
+Create `.env` with the URLs and secrets from the [Compose setup](/self-hosting#install-with-docker-compose), then run the published `linux/amd64` image:
 
 ```sh
 docker volume create openpost_data
@@ -22,8 +20,8 @@ docker run -d --platform linux/amd64 --name openpost --restart unless-stopped \
   ghcr.io/getopenpost/openpost:latest
 ```
 
-Then open `http://localhost:8080`, create the first account, and check `http://localhost:8080/api/v1/ready` for `"status":"ready"` and `"database":"ok"`.
+Open `http://localhost:8080`, create the first account, and check `http://localhost:8080/api/v1/ready` for `"status":"ready"` and `"database":"ok"`.
 
 ## Make it permanent
 
-When the trial convinces you, move to [Self-host OpenPost](/self-hosting) and copy your `.env` secrets over so saved provider credentials stay readable. Set the three public URLs to the real HTTPS origin before connecting social accounts; `localhost` URLs never survive that move. Then work through [provider integrations](/self-hosting/integrations) and [backups](/self-hosting/maintenance) before relying on the instance for scheduled posts.
+Move to [Docker Compose](/self-hosting) before connecting social accounts. Keep the same secrets, attach the existing `openpost_data` volume if you need the trial data, and replace the local URLs with the final HTTPS origin. Then configure [provider integrations](/self-hosting/integrations) and [backups](/self-hosting/maintenance).

@@ -1,22 +1,18 @@
 ---
 title: Install on Coolify
 description: Deploy OpenPost on Coolify with the Git-repository Docker Compose build pack.
-icon: Container
+icon: coolify
 ---
 
-> This is a community-tested recipe: it follows the published Coolify Docker Compose documentation and the Compose file below, not a team-run deploy on Coolify infrastructure. If you deploy it, please report back so this note can be updated.
-
-Deploy OpenPost with the [Git repository Docker Compose build pack](https://coolify.io/docs/applications/builds/docker-compose). It keeps the Compose file in version control and supports branch deploys, webhooks, and previews. Do not build OpenPost from source on Coolify; use the published image through the ready-to-use [`deploy/coolify/docker-compose.yml`](https://github.com/getopenpost/openpost/blob/main/deploy/coolify/docker-compose.yml).
-
-The published image supports `linux/amd64` only. Choose an x86_64 Coolify server; other architectures need amd64 emulation.
-
-Being listed in Coolify's built-in service catalogue is a separate step with its own eligibility rules. This guide works without a catalogue listing.
+Deploy OpenPost from Git with Coolify's [Docker Compose build pack](https://coolify.io/docs/applications/builds/docker-compose) and the supplied [`deploy/coolify/docker-compose.yml`](https://github.com/getopenpost/openpost/blob/main/deploy/coolify/docker-compose.yml). The image supports x86_64 servers. Other architectures need amd64 emulation.
 
 ## What you need
 
-- A Coolify project and environment on an x86_64 server.
+- A Coolify project and environment.
 - A domain pointed at the server (for example `post.example.com`).
-- These values, entered in Coolify under Configuration → Environment Variables with Runtime scope:
+- Two independent secrets generated with `openssl rand -base64 32`.
+
+Add these values under **Configuration → Environment Variables** with Runtime scope:
 
 | Variable                         | What to enter                                                              |
 | -------------------------------- | -------------------------------------------------------------------------- |
@@ -27,38 +23,29 @@ Being listed in Coolify's built-in service catalogue is a separate step with its
 | `OPENPOST_ENCRYPTION_KEY`        | A second, independent `openssl rand -base64 32` value                      |
 | `OPENPOST_DISABLE_REGISTRATIONS` | `true` once the first administrator exists (optional, defaults to `false`) |
 
-Keep both secrets stable across restarts and restores; the encryption key protects saved provider credentials. Do not commit them to the repository.
+Keep both secrets stable across restarts and restores. Do not commit them to the repository.
 
 ## Deploy
 
-1. Create a resource: **+ New → Public Repository** (or deploy key / Git App for a private fork) with this repository's URL.
+1. Create a **Public Repository** resource with `https://github.com/getopenpost/openpost`. Use a deploy key or GitHub App for a private fork.
 2. Set the build pack to **Docker Compose**, with **Base Directory** `/` and **Docker Compose Location** `deploy/coolify/docker-compose.yml`.
-3. Save, review the loaded definition, and enter the environment variables above.
-4. For the `openpost` service, enter the domain as `https://post.example.com:8080`. The `:8080` suffix tells the Coolify proxy which container port receives the request; visitors still use normal HTTPS.
-5. Select **Deploy**, wait for it to finish, then verify:
+3. Enter the environment variables above.
+4. Set the `openpost` service domain to `https://post.example.com:8080`. The port suffix tells Coolify where to route traffic; visitors still use normal HTTPS.
+5. Deploy, then verify:
 
 ```sh
 curl https://post.example.com/api/v1/ready
 ```
 
-Expect `"status":"ready"` and `"database":"ok"`. If the domain check fails, inspect the deployment logs and confirm the three URL variables match the public origin exactly.
+Expect `"status":"ready"` and `"database":"ok"`. If it fails, inspect the deployment logs and confirm that all three URL variables use the same public origin.
 
-## What the file sets up
-
-| Setting      | Value                                                                                              |
-| ------------ | -------------------------------------------------------------------------------------------------- |
-| Image        | `ghcr.io/getopenpost/openpost:latest` (`linux/amd64`)                                              |
-| Web port     | `8080`, exposed for the Coolify proxy (no `ports:` binding; Coolify routes the domain)             |
-| Storage      | Named volume `openpost_data` at `/data` (SQLite at `/data/db/openpost.db`, media at `/data/media`) |
-| Health check | Process liveness on `/api/v1/health`; gate traffic on `/api/v1/ready`                              |
-
-Open `https://post.example.com` and create the first account; it becomes the instance administrator. Then configure the [provider integrations](/self-hosting/integrations) you need.
+Open the app and create the first account. It becomes the instance administrator. The deployment stores SQLite and media in the `openpost_data` volume.
 
 ## Updates and backups
 
-To upgrade, change the `image:` tag in your copy of the Compose file to the release you want, redeploy the selected commit in Coolify, and re-check `/api/v1/ready`. To roll back, restore the matching data backup too; an older binary may not understand a newer database schema.
+Pin `image:` to a release tag, then redeploy that commit to upgrade. Before changing it, back up the `openpost_data` volume and environment values, and record the current image tag. Coolify stores the volume on its host, not inside the container.
 
-Back up the `openpost_data` volume contents (database plus media) together with the environment values and record the image tag, following the same rules as [Maintenance](/self-hosting/maintenance). The backup contains account data and secrets, so keep it private and off the server. Coolify-managed volumes live on the Coolify host; snapshot or copy them there, not inside the container.
+Keep backups private and off the server. A rollback may require the backup made for the previous version. Follow the [maintenance checklist](/self-hosting/maintenance).
 
 ## Next steps
 

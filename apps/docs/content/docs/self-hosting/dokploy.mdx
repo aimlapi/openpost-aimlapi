@@ -1,34 +1,27 @@
 ---
 title: Install on Dokploy
-description: Deploy OpenPost on Dokploy from a staged catalogue template or a manual Compose fallback.
-icon: Layers
+description: Deploy OpenPost on Dokploy as a Docker Compose service.
+icon: dokploy
 ---
 
-> This is a community-tested recipe: it follows the published Dokploy template format and the files below, not a team-run deploy on Dokploy infrastructure. If you deploy it, please report back so this note can be updated.
+Deploy OpenPost as a Dokploy Compose service with the supplied [`deploy/dokploy/docker-compose.yml`](https://github.com/getopenpost/openpost/blob/main/deploy/dokploy/docker-compose.yml). The image supports x86_64 servers. Other architectures need amd64 emulation.
 
-There are two ways to install OpenPost on Dokploy. The template is the fastest; the manual fallback works today without waiting for a catalogue submission.
-
-The published image supports `linux/amd64` only. Choose an x86_64 Dokploy server; other architectures need amd64 emulation.
-
-## Option A: template (staged, not yet submitted)
-
-The staged submission lives in [`deploy/dokploy/`](https://github.com/getopenpost/openpost/tree/main/deploy/dokploy): `docker-compose.yml`, `template.toml`, `meta.json`, and the logo. It wires the domain to the `openpost` service on port `8080`, generates `OPENPOST_JWT_SECRET` and `OPENPOST_ENCRYPTION_KEY` with Dokploy's `base64:32` helper, and derives the three public URLs from the chosen domain.
-
-Upstream submission goes to the external [Dokploy/templates](https://github.com/Dokploy/templates) repository (`blueprints/openpost/` plus a pull request tested through its preview link). That submission has not happened yet; this directory is staged so it can be copied over unchanged.
-
-## Option B: manual Compose fallback
+## Deploy
 
 1. In Dokploy, create a **Compose** service.
-2. Paste the contents of [`deploy/dokploy/docker-compose.yml`](https://github.com/getopenpost/openpost/blob/main/deploy/dokploy/docker-compose.yml) into the Compose definition.
+2. Paste [`deploy/dokploy/docker-compose.yml`](https://github.com/getopenpost/openpost/blob/main/deploy/dokploy/docker-compose.yml) into the Compose definition.
 3. Add a domain pointing at the service's port `8080`, then set these environment variables:
 
-| Variable                  | What to enter                                         |
-| ------------------------- | ----------------------------------------------------- |
-| `OPENPOST_APP_URL`        | `https://post.example.com`                            |
-| `OPENPOST_PUBLIC_URL`     | `https://post.example.com`                            |
-| `OPENPOST_MEDIA_URL`      | `https://post.example.com/media`                      |
-| `OPENPOST_JWT_SECRET`     | Fresh output of `openssl rand -base64 32`             |
-| `OPENPOST_ENCRYPTION_KEY` | A second, independent `openssl rand -base64 32` value |
+| Variable                         | What to enter                                             |
+| -------------------------------- | --------------------------------------------------------- |
+| `OPENPOST_APP_URL`               | `https://post.example.com`                                |
+| `OPENPOST_PUBLIC_URL`            | `https://post.example.com`                                |
+| `OPENPOST_MEDIA_URL`             | `https://post.example.com/media`                          |
+| `OPENPOST_JWT_SECRET`            | Fresh output of `openssl rand -base64 32`                 |
+| `OPENPOST_ENCRYPTION_KEY`        | A second, independent `openssl rand -base64 32` value     |
+| `OPENPOST_DISABLE_REGISTRATIONS` | `true` after creating the first administrator, or `false` |
+
+Generate each secret with `openssl rand -base64 32` and keep both stable across restarts and restores.
 
 4. Deploy, then verify readiness:
 
@@ -36,21 +29,15 @@ Upstream submission goes to the external [Dokploy/templates](https://github.com/
 curl https://post.example.com/api/v1/ready
 ```
 
-Expect `"status":"ready"` and `"database":"ok"`. If the domain check fails, confirm the three URL variables match the public origin exactly.
+Expect `"status":"ready"` and `"database":"ok"`. If it fails, inspect the service logs and confirm that all three URL variables use the same public origin.
 
-The fallback follows Dokploy template rules: it uses `expose` instead of `ports:`, has no `container_name`, and defines no custom networks. Storage is a named volume `openpost_data` at `/data` (SQLite at `/data/db/openpost.db`, media at `/data/media`). The container health check covers process liveness on `/api/v1/health`; gate traffic on `/api/v1/ready`.
-
-## Before connecting providers
-
-OAuth callbacks derive from `OPENPOST_APP_URL`; Threads, Facebook, Instagram, and TikTok fetch media from `OPENPOST_MEDIA_URL` over public HTTPS. A working dashboard does not prove publishing works. See [Configuration](/self-hosting/configuration) for the full URL table.
-
-Open `https://post.example.com` and create the first account; it becomes the instance administrator. Set `OPENPOST_DISABLE_REGISTRATIONS=true` once it exists if the instance should stop accepting new self-service registrations.
+Open the app and create the first account. It becomes the instance administrator. Set `OPENPOST_DISABLE_REGISTRATIONS=true` afterward if you do not want public signups. The service stores SQLite and media in the `openpost_data` volume.
 
 ## Updates and backups
 
-To upgrade, change the `image:` tag to the release you want, redeploy, and re-check `/api/v1/ready`. To roll back, restore the matching data backup too; an older binary may not understand a newer database schema.
+Pin `image:` to a release tag. To upgrade, change the tag and redeploy, then check `/api/v1/ready`. Back up the `openpost_data` volume and environment values first, and record the current image tag.
 
-Back up the `openpost_data` volume contents (database plus media) together with the environment values and record the image tag, following the same rules as [Maintenance](/self-hosting/maintenance). The backup contains account data and secrets, so keep it private and off the server.
+Keep backups private and off the server. A rollback may require the backup made for the previous version. Follow the [maintenance checklist](/self-hosting/maintenance).
 
 ## Next steps
 

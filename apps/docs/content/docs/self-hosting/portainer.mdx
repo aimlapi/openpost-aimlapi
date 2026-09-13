@@ -1,24 +1,20 @@
 ---
 title: Install on Portainer
 description: Deploy OpenPost as a Portainer stack with environment variables entered in the UI.
-icon: Boxes
+icon: portainer
 ---
 
-> This is a community-tested recipe: it was written from the published Portainer stacks documentation and the Compose file below, not from a team-run deploy on Portainer infrastructure. If you deploy it, please report back so this note can be updated.
-
-Deploy OpenPost with [Portainer Stacks](https://docs.portainer.io/user/docker/stacks/add) using the ready-to-use [`deploy/portainer/docker-compose.yml`](https://github.com/getopenpost/openpost/blob/main/deploy/portainer/docker-compose.yml). It uses the published image with the standard storage layout. You only supply the environment values.
-
-The published image supports `linux/amd64` only. Choose an x86_64 Docker host; other architectures need amd64 emulation.
+Deploy OpenPost with [Portainer Stacks](https://docs.portainer.io/user/docker/stacks/add) and the supplied [`deploy/portainer/docker-compose.yml`](https://github.com/getopenpost/openpost/blob/main/deploy/portainer/docker-compose.yml). The image supports x86_64 Docker hosts. Other architectures need amd64 emulation.
 
 ## What you need
 
 - A Portainer environment on a Docker Standalone host.
-- A public HTTPS address for OpenPost before connecting social accounts. A working local deploy does not mean publishing works.
+- A public HTTPS address before you connect social accounts.
 
 ## Deploy
 
 1. In Portainer, open **Stacks → Add stack** and name it `openpost`.
-2. Choose one build method:
+2. Add the Compose file with one of these methods:
    - **Web editor:** paste the contents of `deploy/portainer/docker-compose.yml`.
    - **Upload:** upload the same file.
    - **Git repository:** point at this repository and set the Compose path to `deploy/portainer/docker-compose.yml`.
@@ -33,37 +29,23 @@ The published image supports `linux/amd64` only. Choose an x86_64 Docker host; o
 | `OPENPOST_ENCRYPTION_KEY`        | A second, independent `openssl rand -base64 32` value                      |
 | `OPENPOST_DISABLE_REGISTRATIONS` | `true` once the first administrator exists (optional, defaults to `false`) |
 
-4. The Compose file stays unchanged when you edit these values: Portainer substitutes them at deploy time. Keep both secrets stable across restarts and restores; the encryption key protects saved provider credentials. Do not commit them to the repository.
-5. Select **Deploy the stack**, wait for it to finish, then verify readiness:
+Generate each secret with `openssl rand -base64 32`. Keep both stable across restarts and restores, and do not commit them.
+
+4. Select **Deploy the stack**, then verify readiness:
 
 ```sh
 curl https://post.example.com/api/v1/ready
 ```
 
-Expect `"status":"ready"` and `"database":"ok"`. If the domain check fails, inspect the stack logs and confirm the three URL variables match the public origin exactly.
+Expect `"status":"ready"` and `"database":"ok"`. If it fails, inspect the stack logs and confirm that all three URL variables use the same public origin.
 
-## `stack.env`, Swarm, and webhooks
-
-- On Docker Standalone, you can add `stack.env` as an `env_file` entry to consume every variable Portainer holds for the stack (including an uploaded `.env` file) without listing each one. The shipped file lists each variable explicitly and keeps the `stack.env` shortcut commented out. Use one approach or the other, not both.
-- On Docker Swarm, `env_file` is unsupported, so define each variable individually in the Portainer UI.
-- Optionally enable a [stack webhook](https://docs.portainer.io/user/docker/stacks/webhooks) when creating the stack so a Git push or redeploy hook can trigger a fresh deploy. The Compose file needs no changes for this.
-
-## What the file sets up
-
-| Setting      | Value                                                                                              |
-| ------------ | -------------------------------------------------------------------------------------------------- |
-| Image        | `ghcr.io/getopenpost/openpost:latest` (`linux/amd64`)                                              |
-| Web port     | `8080`, published to the host                                                                      |
-| Storage      | Named volume `openpost_data` at `/data` (SQLite at `/data/db/openpost.db`, media at `/data/media`) |
-| Health check | Process liveness on `/api/v1/health`; gate traffic on `/api/v1/ready`                              |
-
-Open `https://post.example.com` and create the first account; it becomes the instance administrator. Then configure the [provider integrations](/self-hosting/integrations) you need.
+Open the app and create the first account. It becomes the instance administrator. The stack stores SQLite and media in the `openpost_data` volume.
 
 ## Updates and backups
 
-To upgrade, change the `image:` tag to the release you want, redeploy the stack in Portainer, and re-check `/api/v1/ready`. To roll back, restore the matching data backup too; an older binary may not understand a newer database schema.
+Pin `image:` to a release tag. To upgrade, change the tag and redeploy, then check `/api/v1/ready`. Back up the `openpost_data` volume and environment values first, and record the current image tag. Portainer stores the volume on the Docker host.
 
-Back up the `openpost_data` volume contents (database plus media) together with the stack's environment values and record the image tag, following the same rules as [Maintenance](/self-hosting/maintenance). The backup contains account data and secrets, so keep it private and off the server. Portainer-managed volumes live on the Docker host; snapshot or copy them there, not inside the container.
+Keep backups private and off the server. A rollback may require the backup made for the previous version. Follow the [maintenance checklist](/self-hosting/maintenance).
 
 ## Next steps
 

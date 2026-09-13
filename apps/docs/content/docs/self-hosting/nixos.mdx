@@ -1,38 +1,39 @@
 ---
 title: Install on NixOS
 description: Run OpenPost on NixOS through the maintained module with sops secrets.
-icon: Snowflake
+icon: nixos
 ---
 
-> The hosted app at `https://app.openpo.st` runs this setup. It is the only platform recipe on this page the team operates itself.
-
-OpenPost runs on NixOS as an OCI container managed by the module below. The module wires the public URLs, persists SQLite and media under `/var/lib/openpost`, and reads secrets from `sops` placeholders mounted at `/run/secrets/openpost_*`. Bring your own reverse proxy in front of the container and set the final public domain before connecting social accounts.
+The maintained NixOS module runs OpenPost as a Podman container, stores SQLite and media under `/var/lib/openpost`, and mounts secrets from sops-nix. Add your own reverse proxy and set the public domain before connecting social accounts.
 
 ## Configure
 
-The module source is generated into [`docs/reference/nix-module.md`](https://github.com/getopenpost/openpost/blob/main/docs/reference/nix-module.md) from [`rodrgds/nix-config`](https://github.com/rodrgds/nix-config/blob/main/modules/services/openpost/default.nix) by `scripts/sync-docs-external.mjs`. Read that file for the current options; the summary below tracks its defaults.
+Import the [module source](https://github.com/rodrgds/nix-config/blob/main/modules/services/openpost/default.nix) and its adjacent [`runtime-contract.json`](https://github.com/rodrgds/nix-config/blob/main/modules/services/openpost/runtime-contract.json) into your NixOS configuration. The [generated module reference](https://github.com/getopenpost/openpost/blob/main/docs/reference/nix-module.md) contains the complete source.
 
-| Option                               | Default                               | Notes                                                                                                                                                                         |
-| ------------------------------------ | ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `vps.openpost.enable`                | off                                   | Set to `true` to manage the container.                                                                                                                                        |
-| `vps.openpost.edition`               | `selfhost`                            | Keep `selfhost` for SQLite and local media. `cloud` switches the container to Postgres and S3-compatible storage.                                                             |
-| `vps.openpost.domain`                | `app.openpo.st`                       | Set your public domain. The module derives `OPENPOST_APP_URL`, `OPENPOST_PUBLIC_URL`, `OPENPOST_MEDIA_URL`, and the X, LinkedIn, Threads, and Mastodon callback URLs from it. |
-| `vps.openpost.timezone`              | `Europe/Lisbon`                       | Passed through as `TZ`.                                                                                                                                                       |
-| `vps.openpost.image`                 | `ghcr.io/getopenpost/openpost:latest` | The linked deployment source may pin a verified digest instead of the moving tag.                                                                                             |
-| `vps.openpost.pullPolicy`            | `always`                              | Podman pull policy; `always` avoids reusing a stale local `latest` image after a Nix switch.                                                                                  |
-| `vps.openpost.extraEnvironment`      | `{}`                                  | Non-secret overrides, or `*_FILE` pointers unless set via files.                                                                                                              |
-| `vps.openpost.extraEnvironmentFiles` | `[]`                                  | In `cloud` mode this carries `OPENPOST_DATABASE_URL`, S3 credentials, billing secrets, or `*_FILE` pointers.                                                                  |
-| `vps.openpost.extraOptions`          | `[]`                                  | Extra Podman options, such as bind-mounts for secret files referenced by `*_FILE` variables.                                                                                  |
+Enable it with the public domain, timezone, and a pinned image:
 
-Secrets stay in `sops`: JWT secret, encryption key, provider client IDs and secrets, stock-media API keys, SMTP password, and the feedback webhook. Each placeholder becomes a `0400` template under `/run/secrets/openpost_*`, owned by the mapped container user, with the matching `*_FILE` variable set on the container.
+```nix
+vps.openpost = {
+  enable = true;
+  edition = "selfhost";
+  domain = "post.example.com";
+  timezone = "Europe/Lisbon";
+  image = "ghcr.io/getopenpost/openpost:4.31.1";
+};
+```
 
-The published image supports `linux/amd64` only. The self-host data layout is `/var/lib/openpost/data` mounted at `/data` (SQLite at `/data/db/openpost.db`, media at `/data/media`).
+Use the release you intend to run instead of copying the example tag unchanged. The module derives the public and media URLs from `domain`. `extraEnvironment`, `extraEnvironmentFiles`, and `extraOptions` cover settings not declared by the module.
+
+Define the sops placeholders referenced by the module, including the JWT secret and encryption key. It writes them as `0400` files under `/run/secrets/openpost_*` and passes the matching `*_FILE` settings to the container. Keep provider, AI, email, and storage credentials in the same secret boundary.
+
+The image supports `linux/amd64`. Other architectures need amd64 emulation.
 
 ## Operate
 
-- Point your reverse proxy at the container port (`8080` inside the container) and keep the original host and scheme. OAuth callbacks must match the public origin exactly. See the [reverse-proxy reference](https://github.com/getopenpost/openpost/blob/main/docs/reference/installation/reverse-proxy.md) for the URL table.
-- Check readiness at `https://your-domain.example/api/v1/ready` and expect `"status":"ready"` with `"database":"ok"`. Container health covers process liveness; gate traffic on readiness.
-- Back up `/var/lib/openpost/data` together with the sops-encrypted secret source and record the image tag, following the same rules as [Maintenance](/self-hosting/maintenance). The backup contains account data and secrets, so keep it private and off the host.
+- Point the [reverse proxy](/self-hosting/reverse-proxy) at the container's published host port and preserve the original host and scheme.
+- Check `https://post.example.com/api/v1/ready` after each switch. Expect `"status":"ready"` and `"database":"ok"`.
+- Back up `/var/lib/openpost/data` with the encrypted sops source and record the image tag. Keep backups private and off the host.
+- To upgrade, change the image tag and run your normal NixOS switch. A rollback may also require the data backup made for the previous version.
 
 ## Next steps
 

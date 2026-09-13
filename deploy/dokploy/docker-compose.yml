@@ -1,9 +1,5 @@
-# Manual Compose fallback for Dokploy (Compose service > paste this file).
-# The catalogue template in template.toml carries the same values with
-# generated secrets and domain wiring.
-#
-# Template rules followed here: no `ports:` (Dokploy routes domains to the
-# exposed port), no `container_name`, no custom networks.
+# Paste this file into a Dokploy Compose service, then route its domain to
+# the exposed port and add each ${...} environment variable.
 services:
   openpost:
     image: ghcr.io/getopenpost/openpost:latest

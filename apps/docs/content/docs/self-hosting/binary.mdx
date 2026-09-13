@@ -4,26 +4,27 @@ description: Run OpenPost as a single Go binary with systemd, without Docker.
 icon: SquareTerminal
 ---
 
-> This page surfaces the maintained [binary reference](https://github.com/getopenpost/openpost/blob/main/docs/reference/installation/binary.md) inside the self-hosting guide. The reference stays the source of truth for commands and unit files.
+OpenPost release binaries include the web app, API, and worker. Use one when you want to run OpenPost without a container runtime. Releases support Linux x86_64, macOS Apple Silicon, and Windows x86_64.
 
-Run OpenPost as a single Go binary with the frontend embedded when you prefer no container runtime: a small VPS, an existing Linux server, or a Windows service host. The binary supports `linux/amd64`, `darwin/arm64`, and Windows x86_64 release assets. Docker users should stay on the [Compose setup](/self-hosting) instead.
+## Before you start
 
-## When this fits
-
-- You already manage the host with systemd (or a Windows service wrapper) and want one unit to supervise.
-- You want split roles (`migrate`, then `web` plus `worker`) on a larger host instead of the default combined `all` role.
-- You are on macOS Apple Silicon, where a native `darwin/arm64` binary exists but the published container image is `linux/amd64` only.
+- Choose stable, private paths for the database, media, and `.env` file.
+- Put OpenPost behind HTTPS before connecting social accounts.
+- Run the binary as a service so it starts again after a reboot.
 
 ## Install
 
-1. Download the release asset for your platform from [GitHub Releases](https://github.com/getopenpost/openpost/releases) and make it executable.
-2. Create a working directory with a private `.env` (see the [reference](https://github.com/getopenpost/openpost/blob/main/docs/reference/installation/binary.md#2-create-env) for the full template): the three public URLs, `OPENPOST_JWT_SECRET`, `OPENPOST_ENCRYPTION_KEY`, and stable `OPENPOST_DATABASE_PATH` / `OPENPOST_MEDIA_PATH` locations such as `/var/lib/openpost`.
-3. Put a reverse proxy in front of port `8080` and set the three URLs to the real HTTPS origin before connecting social accounts. OAuth callbacks derive from `OPENPOST_APP_URL`; Threads, Facebook, Instagram, and TikTok fetch media from `OPENPOST_MEDIA_URL` over public HTTPS. See [Configuration](/self-hosting/configuration) for the full URL table.
-4. Install the [systemd unit](https://github.com/getopenpost/openpost/blob/main/docs/reference/installation/binary.md#6-run-it-as-a-service) (or the Windows service wrapper) so the binary starts at boot, then open the app and create the first account. It becomes the instance administrator.
+1. Download the asset for your platform from [GitHub Releases](https://github.com/getopenpost/openpost/releases).
+2. Create a private `.env` with the [binary environment template](https://github.com/getopenpost/openpost/blob/main/docs/reference/installation/binary.md#2-create-env). Set stable database and media paths, the three public URLs, and two independent secrets.
+3. Make the binary executable on Linux or macOS, then start it from the directory that contains `.env`. With no role argument, OpenPost runs migrations, serves HTTP, and processes background jobs.
+4. Install the [systemd unit](https://github.com/getopenpost/openpost/blob/main/docs/reference/installation/binary.md#6-run-it-as-a-service) on Linux, or configure a Windows service wrapper. Keep its working directory beside `.env`.
+5. Put a [reverse proxy](/self-hosting/reverse-proxy) in front of port `8080`, open the app, and create the first account. It becomes the instance administrator.
+
+Larger deployments can run `migrate` once, then start separate `web` and `worker` processes from the same release and configuration. The [binary reference](https://github.com/getopenpost/openpost/blob/main/docs/reference/installation/binary.md#5-run-it) covers these roles.
 
 ## Updates and backups
 
-Back up the database, media directory, and `.env` together first, following the same rules as [Maintenance](/self-hosting/maintenance). Stop the service, replace the binary with the new release asset, confirm ownership and execute permissions, start the service, and check `/api/v1/ready` for `"status":"ready"` and `"database":"ok"`. To roll back, restore the matching data backup too; an older binary may not understand a newer database schema.
+Back up the database, media directory, and `.env` together. Stop the service, replace the binary, restore its ownership and permissions, then start the service and check `/api/v1/ready`. A rollback may also require the backup made for the previous version because database migrations are not always backward compatible.
 
 ## Next steps
 

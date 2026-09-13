@@ -1,19 +1,5 @@
-# Portainer-ready Stack file for OpenPost (Docker Standalone environment).
-#
-# Three ways to use it:
-#   1. Stacks > Add stack > Web editor: paste this file, add the ${...}
-#      values below under "Environment variables", Deploy.
-#   2. Stacks > Add stack > Upload: upload this file, same env handling.
-#   3. Stacks > Add stack > Git repository: point at this repository with
-#      Compose path "deploy/portainer/docker-compose.yml", same env handling.
-#
-# Enter each variable in the Portainer UI ("Add an environment variable") or
-# with "Load variables from .env file". The file keeps ${...} references so
-# Portainer substitutes them at deploy time; the stored file never changes.
-# On Docker Standalone you can alternatively add `stack.env` as an env_file
-# entry to consume every variable Portainer holds for the stack (uploaded
-# .env included). That trick does not work on Swarm, so it stays commented
-# out here. Do not commit secrets to the repository.
+# Add this file as a Portainer stack on Docker Standalone, then define each
+# ${...} value under Environment variables.
 services:
   openpost:
     image: ghcr.io/getopenpost/openpost:latest
@@ -24,8 +10,6 @@ services:
       - "8080:8080"
     volumes:
       - openpost_data:/data
-    # env_file:
-    #   - stack.env
     environment:
       OPENPOST_PORT: 8080
       OPENPOST_DATABASE_PATH: /data/db/openpost.db

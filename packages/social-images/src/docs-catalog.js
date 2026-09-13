@@ -713,7 +713,7 @@ export const docsPageCatalog = Object.freeze([
   {
     "page": "self-hosting/dokploy.mdx",
     "title": "Install on Dokploy",
-    "description": "Deploy OpenPost on Dokploy from a staged catalogue template or a manual Compose fallback.",
+    "description": "Deploy OpenPost on Dokploy as a Docker Compose service.",
     "route": "/self-hosting/dokploy",
     "agentRepresentation": {
       "membership": "ordinary"

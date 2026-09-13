@@ -1,62 +1,48 @@
 ---
 title: Install on CasaOS
 description: Import OpenPost as a CasaOS customized app from a ready-to-use Compose file.
-icon: House
+icon: casaos
 ---
 
-> This is a community-tested recipe: it was written from the published CasaOS customized-app interface and the Compose file below, not from a team-run install on CasaOS hardware. If you install it, please report back so this note can be updated.
-
-OpenPost runs on CasaOS as a customized app. Import the ready-to-use [Compose file](https://github.com/getopenpost/openpost/blob/main/deploy/casaos/docker-compose.yml) instead of adapting the generic Compose setup by hand.
-
-The published image supports `linux/amd64` only. Most CasaOS devices are x86_64; on anything else, use amd64 emulation.
+Import OpenPost as a CasaOS customized app with the supplied [Compose file](https://github.com/getopenpost/openpost/blob/main/deploy/casaos/docker-compose.yml). The image supports x86_64 devices. Other architectures need amd64 emulation.
 
 ## What you need
 
 - A CasaOS device with the App Store available.
-- The device's local IP address (this guide uses `10.0.0.1` as an example).
-- Two generated secrets. Run this once on any machine with OpenSSL, and keep both values private:
+- Its local IP address. The Compose file uses `10.0.0.1` as an example.
+- A public HTTPS address before you connect social accounts.
+
+Generate two secrets and keep them private:
 
 ```sh
 openssl rand -base64 32
+openssl rand -base64 32
 ```
-
-- A public HTTPS address for OpenPost before connecting social accounts. A working local install does not mean publishing works.
 
 ## Import the app
 
-1. Download [`deploy/casaos/docker-compose.yml`](https://github.com/getopenpost/openpost/blob/main/deploy/casaos/docker-compose.yml) and open it in a text editor.
+1. Download [`deploy/casaos/docker-compose.yml`](https://github.com/getopenpost/openpost/blob/main/deploy/casaos/docker-compose.yml).
 2. Replace `10.0.0.1` with your CasaOS device's IP address in `OPENPOST_APP_URL`, `OPENPOST_PUBLIC_URL`, and `OPENPOST_MEDIA_URL`.
-3. Replace both `REPLACE-WITH-GENERATED-...` placeholders with the secrets you generated.
+3. Replace the two `REPLACE-WITH-GENERATED-...` values with the secrets you generated.
 4. In CasaOS, open the App Store, choose **"+" → Install a customized app → Import**, and paste the edited file.
-5. Confirm the parsed form (app name, image, port `8080`, volume), start the install, and open OpenPost at `http://<your-device-ip>:8080`. Create the first account; it becomes the instance administrator.
+5. Check the image, port `8080`, and `openpost_data` volume, then install the app.
+6. Open `http://<your-device-ip>:8080` and create the first account. It becomes the instance administrator.
 
-CasaOS has no `.env` file upload for customized apps, so this file carries every value inline. That is the main difference from the [ZimaOS recipe](/self-hosting/zimaos), which was tested against a different import flow. Do not assume one screenshot sequence fits both.
-
-## What the file sets up
-
-| Setting      | Value                                                                                                      |
-| ------------ | ---------------------------------------------------------------------------------------------------------- |
-| Image        | `ghcr.io/getopenpost/openpost:latest` (`linux/amd64`)                                                      |
-| Web port     | `8080`, published to the host                                                                              |
-| Storage      | Named volume `openpost_data` mounted at `/data` (SQLite at `/data/db/openpost.db`, media at `/data/media`) |
-| Health check | Process liveness on `/api/v1/health`; gate traffic on `/api/v1/ready`                                      |
-
-The file also carries the `x-casaos` metadata CasaOS uses for the app icon, name, category, and version.
+CasaOS stores the environment values in the imported definition instead of a separate `.env` file. Protect your edited copy because it contains both secrets.
 
 ## Before connecting providers
 
-Set the three URL values to the real public HTTPS origin (for example `https://post.example.com` and `https://post.example.com/media`) and reinstall so the container picks them up. OAuth callbacks derive from `OPENPOST_APP_URL`; Threads, Facebook, Instagram, and TikTok fetch media from `OPENPOST_MEDIA_URL` over public HTTPS. See [Configuration](/self-hosting/configuration) for the full URL table.
-
-## Updates
-
-1. Back up first: stop the app, copy the `openpost_data` volume contents and your edited Compose file with its secrets somewhere private, then start the app again. The rules are the same as [Maintenance](/self-hosting/maintenance); only the storage location differs.
-2. Change the `image:` tag to the release you want, import the edited file again, then check readiness:
+Replace the three local URLs with your [public HTTPS addresses](/self-hosting/reverse-proxy), then import the updated definition. Keep the `openpost_data` volume. Confirm readiness through the public address before connecting providers:
 
 ```sh
-curl http://<your-device-ip>:8080/api/v1/ready
+curl https://post.example.com/api/v1/ready
 ```
 
-3. Expect `"status":"ready"` and `"database":"ok"`. To return to the previous image, restore its matching data backup too; an older binary may not understand a newer database schema.
+## Update and back up
+
+Use a versioned image tag from [GitHub Releases](https://github.com/getopenpost/openpost/releases). Before changing it, stop OpenPost and back up the `openpost_data` volume with the edited Compose file. Import the updated definition, then check `/api/v1/ready`.
+
+Keep backups private and off the device. A rollback may require the backup made for the previous version because database migrations are not always backward compatible. See [Maintenance](/self-hosting/maintenance) for the restore checklist.
 
 ## Next steps
 

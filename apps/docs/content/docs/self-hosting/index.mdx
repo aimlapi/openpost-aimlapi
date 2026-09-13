@@ -1,7 +1,7 @@
 ---
 title: Self-host OpenPost
 description: Run OpenPost on your own server with Docker Compose.
-icon: Server
+icon: docker
 ---
 
 This guide runs one OpenPost container with SQLite and local media storage. It is the shortest path for a personal or small-team instance. OpenPost runs its web and background work in the same container, so you do not need a separate queue service.
@@ -79,19 +79,65 @@ Keep the proxy's HTTPS certificate valid and forward the original host and schem
 
 When several people use the instance, decide who can register and set up [email delivery](/self-hosting/email) before requiring email verification. Set up each social provider in [provider integrations](/self-hosting/integrations); Bluesky and Discord webhooks need no developer app, while OAuth providers need their own credentials and often a public callback.
 
-## Install on a platform
+## Choose a platform
 
-Prefer a ready-to-use recipe over adapting the generic setup by hand:
+<div className="provider-directory not-prose">
+  <a href="/self-hosting/zimaos">
+    <img src="/assets/logos/zimaos.png" className="docs-service-icon" alt="" />
+    <span>
+      <strong>ZimaOS</strong>
+      <small>Import a custom app</small>
+    </span>
+  </a>
+  <a href="/self-hosting/casaos">
+    <img src="/assets/logos/casaos.svg" className="docs-service-icon" alt="" />
+    <span>
+      <strong>CasaOS</strong>
+      <small>Import a customized app</small>
+    </span>
+  </a>
+  <a href="/self-hosting/coolify">
+    <img src="/assets/logos/coolify.svg" className="docs-service-icon" alt="" />
+    <span>
+      <strong>Coolify</strong>
+      <small>Deploy from Git</small>
+    </span>
+  </a>
+  <a href="/self-hosting/dokploy">
+    <img src="/assets/logos/dokploy.svg" className="docs-service-icon" alt="" />
+    <span>
+      <strong>Dokploy</strong>
+      <small>Deploy a Compose service</small>
+    </span>
+  </a>
+  <a href="/self-hosting/portainer">
+    <img src="/assets/logos/portainer.svg" className="docs-service-icon" alt="" />
+    <span>
+      <strong>Portainer</strong>
+      <small>Create a stack</small>
+    </span>
+  </a>
+  <a href="/self-hosting/dockge">
+    <img src="/assets/logos/dockge.svg" className="docs-service-icon" alt="" />
+    <span>
+      <strong>Dockge</strong>
+      <small>Create a managed stack</small>
+    </span>
+  </a>
+  <a href="/self-hosting/nixos">
+    <img src="/assets/logos/nixos.svg" className="docs-service-icon" alt="" />
+    <span>
+      <strong>NixOS</strong>
+      <small>Enable the maintained module</small>
+    </span>
+  </a>
+</div>
 
-- [ZimaOS](/self-hosting/zimaos): import the custom-app Compose file.
-- [CasaOS](/self-hosting/casaos): import the customized-app Compose file (separate file and steps from ZimaOS).
-- [Coolify](/self-hosting/coolify): deploy from Git with the Docker Compose build pack.
-- [Dokploy](/self-hosting/dokploy): use the staged catalogue template or the manual Compose fallback.
-- [Portainer](/self-hosting/portainer): deploy the stack with environment variables in the UI.
-- [Dockge](/self-hosting/dockge): manage the stack from the canonical Compose file.
-- [NixOS](/self-hosting/nixos): run the maintained module with sops secrets.
+## Other install options
 
-Prefer containers? The [binary](/self-hosting/binary) and [docker-run](/self-hosting/docker-run) pages cover non-Compose installs. Every install ends at the same place: [reverse proxy and public access](/self-hosting/reverse-proxy).
+- [Install the binary](/self-hosting/binary) on Linux, macOS, or Windows.
+- [Try the Docker image](/self-hosting/docker-run) without creating a Compose file.
+- [Configure HTTPS and public access](/self-hosting/reverse-proxy) for any installation.
 
 ## Next steps
 

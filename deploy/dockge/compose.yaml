@@ -1,12 +1,5 @@
-# Dockge stack for OpenPost. Dockge manages plain Compose files on disk, so
-# this is the canonical single-container setup with no platform extras.
-#
-# Install: in Dockge choose "Create Stack", name it "openpost", paste this
-# file as compose.yaml, then add a matching `.env` file in the stack editor
-# with one line per ${...} value below (see the guide for a template).
-# File layout on the host (default stacks directory):
-#   /opt/stacks/openpost/compose.yaml
-#   /opt/stacks/openpost/.env
+# Create a Dockge stack named `openpost`, paste this as `compose.yaml`, and
+# add each ${...} value to the stack's `.env` file.
 services:
   openpost:
     image: ghcr.io/getopenpost/openpost:latest
