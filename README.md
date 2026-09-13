@@ -141,8 +141,6 @@ Run OpenPost with Docker Compose. The default setup uses one container with SQLi
 
 OpenPost has integrations for Instagram, Facebook, LinkedIn, X, TikTok, YouTube, Threads, Bluesky, Mastodon, Discord, Pinterest, and Telegram. Discord supports incoming webhooks and a bot integration; Telegram uses a bot.
 
-Pinterest, Telegram, and Discord bot integrations are not yet certified for general Hosted use.
-
 Posting formats, inbox features, and analytics vary by platform. Some integrations require provider app approval or publicly reachable media URLs.
 
 [Connect accounts](https://docs.openpo.st/guides/accounts) · [Integration requirements](https://docs.openpo.st/self-hosting/integrations)
