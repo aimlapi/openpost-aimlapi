@@ -312,7 +312,10 @@ export class BrowserTelemetry {
       this.capturePageView(pageView.pathname);
     }
     for (const exception of this.pendingExceptions.splice(0)) {
-      this.sdk.captureException(exception.error, exception.properties);
+      this.sdk.captureException(exception.error, {
+        ...this.deploymentProperties(),
+        ...exception.properties,
+      });
     }
     if (this.requestedPagePath && pendingPageViews.length === 0) {
       this.capturePageView(this.requestedPagePath);
@@ -399,12 +402,39 @@ export class BrowserTelemetry {
     if (this.activeUserID !== null) this.sdk.reset();
     this.sdk.identify(normalized);
     this.activeUserID = normalized;
+    // sdk.reset() clears super-properties; the deployment context below is
+    // safe to re-register because it never contains user identity.
+    this.restoreDeploymentProperties();
   }
 
   resetIdentity(): void {
     this.pendingUserID = null;
     this.activeUserID = null;
     if (this.configured) this.sdk.reset();
+    this.restoreDeploymentProperties();
+  }
+
+  private deploymentProperties(): Record<string, unknown> {
+    return compactProperties({
+      surface: this.config?.surface,
+      environment: this.config?.environment,
+      edition: this.config?.edition,
+      version: this.config?.version,
+      revision: this.config?.revision,
+      analytics_mode:
+        this.preference === "persistent" || this.preference === "cookieless"
+          ? this.preference
+          : undefined,
+    });
+  }
+
+  private restoreDeploymentProperties(): void {
+    if (!this.configured) return;
+    try {
+      this.sdk.register(this.deploymentProperties());
+    } catch {
+      // Identity flows must survive SDK registration failures.
+    }
   }
 
   captureException(error: unknown, properties: Record<string, unknown> = {}): void {
@@ -414,7 +444,7 @@ export class BrowserTelemetry {
       this.capturedErrors.add(error);
     }
     const sanitized = sanitizeError(error);
-    const compacted = compactProperties(properties);
+    const compacted = { ...this.deploymentProperties(), ...compactProperties(properties) };
     if (!this.configured) {
       if (this.canQueueCapture() && this.pendingExceptions.length < maxPendingEvents) {
         this.pendingExceptions.push({
@@ -561,27 +591,90 @@ export function applyTelemetryRequestHeaders(
   return headers;
 }
 
+function chunkFailureDiagnostics(error: unknown): Record<string, string> {
+  if (!isChunkLoadError(error)) return {};
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  const asset = extractFirstPartyAssetPath(message);
+  return asset ? { chunk_asset: asset } : {};
+}
+
+function formatConsoleErrorArg(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean" || value == null) {
+    return String(value);
+  }
+  if (value instanceof Error) return `${value.name}: ${value.message}`;
+  try {
+    const serialized = JSON.stringify(value);
+    return typeof serialized === "string" ? serialized : "[unserializable]";
+  } catch {
+    return "[unserializable]";
+  }
+}
+
+/**
+ * Bridge console.error into exception telemetry so failures that are logged
+ * but never thrown (failed loads, failed saves, guard failures) still reach
+ * PostHog. The original console behavior is preserved, and a reentrancy guard
+ * keeps telemetry's own logging from looping back in.
+ */
+export function installConsoleErrorBridge(
+  capture: (error: unknown, properties: Record<string, unknown>) => void = captureClientException,
+  target: Pick<Console, "error"> = console,
+): () => void {
+  const original = target.error;
+  if (typeof original !== "function") return () => undefined;
+  let capturing = false;
+  const bridged = (...args: unknown[]) => {
+    original.apply(target, args);
+    if (capturing || args.length === 0) return;
+    const [first, ...rest] = args;
+    const error =
+      first instanceof Error && rest.length === 0
+        ? first
+        : new Error(
+            [formatConsoleErrorArg(first), ...rest.map(formatConsoleErrorArg)].join(" ").trim() ||
+              "Console error",
+          );
+    capturing = true;
+    try {
+      capture(error, { error_boundary: "console_error" });
+    } finally {
+      capturing = false;
+    }
+  };
+  target.error = bridged as Console["error"];
+  return () => {
+    if (target.error === bridged) target.error = original;
+  };
+}
+
 export function installGlobalErrorCapture(): () => void {
   if (typeof window === "undefined") return () => undefined;
   const onError = (event: ErrorEvent) => {
     if (event.defaultPrevented) return;
     // Browsers report deferred ResizeObserver notifications without a thrown application error.
     if (!event.error && resizeObserverDeliveryWarnings.has(event.message)) return;
-    captureClientException(event.error ?? new Error(event.message), {
+    const error = event.error ?? new Error(event.message);
+    captureClientException(error, {
       error_boundary: "window_error",
+      ...chunkFailureDiagnostics(error),
     });
   };
   const onUnhandledRejection = (event: PromiseRejectionEvent) => {
     if (event.defaultPrevented) return;
     captureClientException(event.reason, {
       error_boundary: "unhandled_rejection",
+      ...chunkFailureDiagnostics(event.reason),
     });
   };
   window.addEventListener("error", onError);
   window.addEventListener("unhandledrejection", onUnhandledRejection);
+  const uninstallConsoleBridge = installConsoleErrorBridge();
   return () => {
     window.removeEventListener("error", onError);
     window.removeEventListener("unhandledrejection", onUnhandledRejection);
+    uninstallConsoleBridge();
   };
 }
 

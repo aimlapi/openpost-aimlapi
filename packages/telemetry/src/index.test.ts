@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   BrowserTelemetry,
   configureTelemetry,
+  installConsoleErrorBridge,
   installGlobalErrorCapture,
   type BrowserTelemetryConfig,
   type TelemetryPreference,
@@ -637,5 +638,102 @@ describe("installGlobalErrorCapture", () => {
     } finally {
       vi.unstubAllGlobals();
     }
+  });
+});
+
+describe("deployment context", () => {
+  it("restores deployment super-properties after identity resets", () => {
+    const sdk = new FakeSDK();
+    const subject = configuredTelemetry(sdk);
+    subject.configure(configuredApp);
+    const initialRegisters = sdk.registered.length;
+
+    subject.identify("user-1");
+    subject.identify("user-2");
+    subject.resetIdentity();
+
+    expect(sdk.resetCount).toBe(2);
+    // One restore per identify plus one per explicit reset.
+    expect(sdk.registered.length).toBe(initialRegisters + 3);
+    expect(sdk.registered.at(-1)).toMatchObject({
+      surface: "app",
+      environment: "test",
+      revision: "abc123",
+    });
+    // The previous user identity is never restored, only safe deployment context.
+    expect(JSON.stringify(sdk.registered.at(-1))).not.toContain("user-");
+  });
+
+  it("attaches deployment context to immediate and buffered exceptions", async () => {
+    const immediateSDK = new FakeSDK();
+    const immediate = configuredTelemetry(immediateSDK);
+    immediate.configure(configuredApp);
+    immediate.captureException(new Error("immediate failure"), { error_boundary: "window_error" });
+    expect(immediateSDK.exceptions[0]?.properties).toMatchObject({
+      error_boundary: "window_error",
+      surface: "app",
+      environment: "test",
+      revision: "abc123",
+    });
+
+    const sdk = new FakeSDK();
+    let finish!: (sdk: FakeSDK) => void;
+    const subject = new BrowserTelemetry(
+      () =>
+        new Promise<FakeSDK>((resolve) => {
+          finish = resolve;
+        }),
+      () => true,
+      new FakePreferenceStore("persistent"),
+    );
+    subject.configure(configuredApp);
+    subject.captureException(new Error("loading failure"));
+    finish(sdk);
+    await vi.waitFor(() => expect(sdk.exceptions).toHaveLength(1));
+    // Buffered exceptions captured before configuration still carry the
+    // deployment context once the SDK loads.
+    expect(sdk.exceptions[0]?.properties).toMatchObject({
+      surface: "app",
+      revision: "abc123",
+    });
+  });
+});
+
+describe("installConsoleErrorBridge", () => {
+  it("forwards logged failures while preserving console output", () => {
+    const capture = vi.fn();
+    const original = vi.fn();
+    const target = { error: original };
+    const uninstall = installConsoleErrorBridge(capture, target);
+
+    const failure = new Error("Failed to load workspaces");
+    target.error(failure);
+    target.error("Failed to save draft:", { draft: 1 });
+
+    expect(original).toHaveBeenCalledTimes(2);
+    expect(original).toHaveBeenNthCalledWith(1, failure);
+    expect(capture).toHaveBeenCalledTimes(2);
+    expect(capture).toHaveBeenNthCalledWith(1, failure, { error_boundary: "console_error" });
+    const synthetic = capture.mock.calls[1]?.[0] as Error;
+    expect(synthetic).toBeInstanceOf(Error);
+    expect(synthetic.message).toBe('Failed to save draft: {"draft":1}');
+    expect(capture.mock.calls[1]?.[1]).toEqual({ error_boundary: "console_error" });
+
+    uninstall();
+    expect(target.error).toBe(original);
+  });
+
+  it("never loops when telemetry logging itself fails", () => {
+    const seen: unknown[][] = [];
+    const target = {
+      error: (...args: unknown[]) => {
+        seen.push(args);
+      },
+    };
+    installConsoleErrorBridge((error) => {
+      target.error("telemetry failed", error);
+    }, target);
+    target.error("original failure");
+    expect(seen).toHaveLength(2);
   });
 });
