@@ -571,6 +571,51 @@ describe("BrowserTelemetry", () => {
 });
 
 describe("installGlobalErrorCapture", () => {
+  it("ignores a ResizeObserver delivery warning but captures a real window error", async () => {
+    const runtime = Object.assign(new EventTarget(), {
+      location: { origin: "https://app.openpo.st", pathname: "/image-editor/[id]" },
+    });
+    vi.stubGlobal("window", runtime);
+    vi.stubGlobal("document", { cookie: "openpost_analytics=v1:persistent" });
+    vi.stubGlobal("navigator", {});
+    globalSDK.captureException.mockClear();
+    try {
+      configureTelemetry(configuredApp);
+      await vi.waitFor(() => expect(globalSDK.init).toHaveBeenCalled());
+      const removeCapture = installGlobalErrorCapture();
+      runtime.dispatchEvent(
+        Object.assign(new Event("error"), {
+          error: null,
+          message: "ResizeObserver loop completed with undelivered notifications.",
+        }),
+      );
+      runtime.dispatchEvent(
+        Object.assign(new Event("error"), {
+          error: null,
+          message: "ResizeObserver loop limit exceeded",
+        }),
+      );
+      expect(globalSDK.captureException).not.toHaveBeenCalled();
+
+      runtime.dispatchEvent(
+        Object.assign(new Event("error"), { error: null, message: "Script error." }),
+      );
+      expect(globalSDK.captureException).toHaveBeenCalledOnce();
+      expect(globalSDK.captureException.mock.calls[0]?.[0].message).toBe("Script error.");
+
+      const failure = new Error("Canvas failed");
+      runtime.dispatchEvent(
+        Object.assign(new Event("error"), { error: failure, message: failure.message }),
+      );
+      expect(globalSDK.captureException).toHaveBeenCalledTimes(2);
+      expect(globalSDK.captureException.mock.calls[1]?.[0].message).toBe("Canvas failed");
+      removeCapture();
+    } finally {
+      globalSDK.captureException.mockClear();
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("does not report an error already handled by an earlier listener", () => {
     const runtime = new EventTarget();
     vi.stubGlobal("window", runtime);

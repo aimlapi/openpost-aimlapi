@@ -108,6 +108,10 @@ type BrowserCaptureEvent = {
 
 const maxPendingEvents = 100;
 const maxRememberedRouteTemplates = 100;
+const resizeObserverDeliveryWarnings = new Set([
+  "ResizeObserver loop completed with undelivered notifications.",
+  "ResizeObserver loop limit exceeded",
+]);
 const eventPropertyAllowlists: Record<TelemetryEventName, readonly string[]> = {
   "growth opened": ["platform_count"],
   "growth recommendation shown": [
@@ -558,6 +562,8 @@ export function installGlobalErrorCapture(): () => void {
   if (typeof window === "undefined") return () => undefined;
   const onError = (event: ErrorEvent) => {
     if (event.defaultPrevented) return;
+    // Browsers report deferred ResizeObserver notifications without a thrown application error.
+    if (!event.error && resizeObserverDeliveryWarnings.has(event.message)) return;
     captureClientException(event.error ?? new Error(event.message), {
       error_boundary: "window_error",
     });
