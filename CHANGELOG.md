@@ -8,6 +8,7 @@ All notable changes to this project are documented in this file.
 
 ### Fixed
 
+- Keep saved Discord channels valid when reopening a draft, and show the same publishing readiness as the saved Publication.
 - Keep inline error notices readable in dark Dither themes by using the shared destructive action foreground and surface roles.
 
 ## [4.31.0] - 2026-09-13
