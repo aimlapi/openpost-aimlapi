@@ -114,13 +114,27 @@
 
 Use OpenPost to create and schedule posts without running your own server.
 
-[Start a 14-day trial](https://app.openpo.st/register?plan=founder&billing_period=monthly) · [View plans](https://openpo.st/pricing)
+<a href="https://app.openpo.st/register?plan=founder&billing_period=monthly">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="./assets/buttons/start-trial-dark.svg">
+    <img src="./assets/buttons/start-trial-light.svg" alt="Start a 14-day trial" height="36">
+  </picture>
+</a>
+
+[View plans](https://openpo.st/pricing)
 
 ### Self-host
 
 Run OpenPost with Docker Compose. The default setup uses one container with SQLite and local media storage.
 
-[Get started with self-hosting →](https://docs.openpo.st/self-hosting/) · [Configure integrations](https://docs.openpo.st/self-hosting/integrations) · [Backups and upgrades](https://docs.openpo.st/self-hosting/maintenance)
+<a href="https://docs.openpo.st/self-hosting/">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="./assets/buttons/self-host-dark.svg">
+    <img src="./assets/buttons/self-host-light.svg" alt="Get started with self-hosting" height="36">
+  </picture>
+</a>
+
+[Configure integrations](https://docs.openpo.st/self-hosting/integrations) · [Backups and upgrades](https://docs.openpo.st/self-hosting/maintenance)
 
 ## Supported platforms
 
@@ -151,7 +165,18 @@ Report bugs, improve the docs, or send a pull request. For larger changes, open 
 
 OpenPost uses Go, SvelteKit, and Expo, with a Devenv development environment. Start with the [contributing guide](./.github/CONTRIBUTING.md) and [development setup](https://docs.openpo.st/development/setup).
 
-[Report a bug](https://github.com/getopenpost/openpost/issues) · [Join Discord](https://discord.com/invite/u2QwukmY4W)
+<a href="https://github.com/getopenpost/openpost/issues">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="./assets/buttons/report-bug-dark.svg">
+    <img src="./assets/buttons/report-bug-light.svg" alt="Report a bug" height="36">
+  </picture>
+</a>
+<a href="https://discord.com/invite/u2QwukmY4W">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="./assets/buttons/join-discord-dark.svg">
+    <img src="./assets/buttons/join-discord-light.svg" alt="Join Discord" height="36">
+  </picture>
+</a>
 
 ## Star history
 
