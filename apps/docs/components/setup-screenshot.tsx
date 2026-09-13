@@ -7,7 +7,6 @@ type SetupScreenshotProps = {
   width: number;
   height: number;
   caption: string;
-  sourceUrl?: string;
   edited?: boolean;
 };
 
@@ -18,7 +17,6 @@ export function SetupScreenshot({
   width,
   height,
   caption,
-  sourceUrl,
   edited,
 }: SetupScreenshotProps) {
   return (
@@ -32,14 +30,8 @@ export function SetupScreenshot({
         </div>
       )}
       <figcaption>
-        {caption}{" "}
-        {sourceUrl && (
-          <>
-            <a href={sourceUrl}>Screenshot from Postiz's guide</a>.
-            {edited && " Example values edited with AI."}
-            {" Portal layouts may change."}
-          </>
-        )}
+        {caption}
+        {edited && " Example values edited with AI."}
       </figcaption>
     </figure>
   );

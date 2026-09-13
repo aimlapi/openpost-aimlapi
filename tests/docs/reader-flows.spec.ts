@@ -115,6 +115,8 @@ test("social integration directory opens a separate illustrated guide for every 
   page,
 }) => {
   await page.goto("/self-hosting/integrations");
+  await expect(page.getByRole("link", { name: "Image credits" })).toBeVisible();
+  await expect(page.locator("main")).not.toContainText("images from Postiz");
   const directory = page.locator(".provider-directory");
   await expect(directory.getByRole("link")).toHaveCount(socialNetworks.length);
   for (const network of socialNetworks) {
@@ -129,6 +131,7 @@ test("social integration directory opens a separate illustrated guide for every 
     for (const figure of await page.locator(".setup-screenshot").all()) {
       await figure.scrollIntoViewIfNeeded();
       await expect(figure.locator("figcaption")).not.toBeEmpty();
+      await expect(figure.locator("figcaption")).not.toContainText("Postiz");
       await expect
         .poll(() =>
           figure
