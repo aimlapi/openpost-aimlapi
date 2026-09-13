@@ -60,6 +60,22 @@ describe('theme manifest value validation', () => {
 		}
 	});
 
+	it('keeps inline error notices readable in base and saved Dither dark themes', () => {
+		for (const [themeID, scheme] of [
+			['workshop', 'light'],
+			['dither', 'dark']
+		] as const) {
+			const colors = resolveBuiltInTheme(themeID, scheme).manifest.colors;
+			expect(
+				themeColorContrastRatio(
+					colors.actionDestructiveInk,
+					colors.actionDestructive,
+					colors.canvas
+				)
+			).toBeGreaterThanOrEqual(4.5);
+		}
+	});
+
 	it('rejects unreadable action text in every rendered interaction state', () => {
 		const unreadableHover = resolveBuiltInTheme('workshop', 'light').manifest;
 		unreadableHover.colors.actionFocal = '#000000';

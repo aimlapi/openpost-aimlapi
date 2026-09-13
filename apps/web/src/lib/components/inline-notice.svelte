@@ -37,7 +37,7 @@
 	);
 	const toneClass = $derived(
 		tone === 'error'
-			? 'border-destructive/20 bg-destructive/10 text-destructive'
+			? 'border-action-destructive-foreground/20 bg-action-destructive text-action-destructive-foreground'
 			: tone === 'success'
 				? 'border-success-foreground/20 bg-success text-success-foreground'
 				: tone === 'warning'

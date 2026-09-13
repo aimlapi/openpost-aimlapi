@@ -21,6 +21,18 @@ describe('semantic status icons', () => {
 		).toBe('close');
 	});
 
+	it('uses the destructive action roles for readable error notices', async () => {
+		const screen = await render(InlineNotice, {
+			tone: 'error',
+			message: 'This destination needs a channel.'
+		});
+
+		const notice = screen.container.querySelector('[data-slot="inline-notice"]');
+		expect(notice).toHaveClass('bg-action-destructive');
+		expect(notice).toHaveClass('text-action-destructive-foreground');
+		expect(notice).toHaveClass('border-action-destructive-foreground/20');
+	});
+
 	it('keeps save progress and success glyphs independent of the selected icon pack', async () => {
 		const screen = await render(SaveIndicator, {
 			saving: true,
