@@ -51,7 +51,7 @@
     },
     "delivery": {
       "description": "Build, test, image, deployment, release, certification, and repository environment contracts",
-      "prefixes": [".github/", "changes/", "config/", "deploy/", "scripts/"],
+      "prefixes": [".github/", "changes/", "config/", "deploy/", "patches/", "scripts/"],
       "paths": [
         ".dockerignore",
         ".env.example",
@@ -85,6 +85,7 @@
       "description": "Canonical assets copied into one or more shipped web surfaces",
       "prefixes": [
         "assets/brand/",
+        "assets/buttons/",
         "assets/customer-logos/",
         "assets/logos/",
         "assets/postiz-socials/",

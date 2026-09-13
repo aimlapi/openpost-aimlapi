@@ -19,6 +19,17 @@ const providerIcons: Record<string, string> = {
   discord: "/assets/logos/discord.svg",
 };
 
+const serviceIcons: Record<string, string> = {
+  casaos: "/assets/logos/casaos.svg",
+  coolify: "/assets/logos/coolify.svg",
+  docker: "/assets/logos/docker.svg",
+  dockge: "/assets/logos/dockge.svg",
+  dokploy: "/assets/logos/dokploy.svg",
+  nixos: "/assets/logos/nixos.svg",
+  portainer: "/assets/logos/portainer.svg",
+  zimaos: "/assets/logos/zimaos.png",
+};
+
 const clientIcons = new Set([
   "antigravity",
   "chatgpt",
@@ -70,6 +81,10 @@ export function documentationIcon(name: string | undefined) {
   if (name && providerIcons[name])
     return (
       <img src={providerIcons[name]} alt="" width={16} height={16} className="docs-provider-icon" />
+    );
+  if (name && serviceIcons[name])
+    return (
+      <img src={serviceIcons[name]} alt="" width={16} height={16} className="docs-service-icon" />
     );
   if (name && name in icons) return createElement(icons[name as keyof typeof icons]);
 }

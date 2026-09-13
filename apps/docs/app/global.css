@@ -555,6 +555,11 @@ a {
   flex-shrink: 0;
 }
 
+.docs-service-icon {
+  flex-shrink: 0;
+  object-fit: contain;
+}
+
 .setup-screenshot [data-rmiz-btn-zoom],
 [data-rmiz-modal] [data-rmiz-btn-unzoom] {
   display: grid;
@@ -586,6 +591,10 @@ a {
   height: 18px;
 }
 .dark .docs-provider-icon {
+  filter: invert(1);
+}
+
+.dark img[src$="/dokploy.svg"].docs-service-icon {
   filter: invert(1);
 }
 

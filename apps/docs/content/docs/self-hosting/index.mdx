@@ -1,7 +1,7 @@
 ---
 title: Self-host OpenPost
 description: Run OpenPost on your own server with Docker Compose.
-icon: Server
+icon: docker
 ---
 
 This guide runs one OpenPost container with SQLite and local media storage. It is the shortest path for a personal or small-team instance. OpenPost runs its web and background work in the same container, so you do not need a separate queue service.
@@ -78,6 +78,66 @@ After setup, set `OPENPOST_DISABLE_REGISTRATIONS=true` in `.env` and run `docker
 Keep the proxy's HTTPS certificate valid and forward the original host and scheme. OAuth callback URLs must match the public origin exactly. Use a versioned image tag for upgrades, then [back up and test a restore](/self-hosting/maintenance). Back up `data/db`, `data/media`, the Compose file, and `.env` together. The `.env` file contains secrets, so protect the backup.
 
 When several people use the instance, decide who can register and set up [email delivery](/self-hosting/email) before requiring email verification. Set up each social provider in [provider integrations](/self-hosting/integrations); Bluesky and Discord webhooks need no developer app, while OAuth providers need their own credentials and often a public callback.
+
+## Choose a platform
+
+<div className="provider-directory not-prose">
+  <a href="/self-hosting/zimaos">
+    <img src="/assets/logos/zimaos.png" className="docs-service-icon" alt="" />
+    <span>
+      <strong>ZimaOS</strong>
+      <small>Import a custom app</small>
+    </span>
+  </a>
+  <a href="/self-hosting/casaos">
+    <img src="/assets/logos/casaos.svg" className="docs-service-icon" alt="" />
+    <span>
+      <strong>CasaOS</strong>
+      <small>Import a customized app</small>
+    </span>
+  </a>
+  <a href="/self-hosting/coolify">
+    <img src="/assets/logos/coolify.svg" className="docs-service-icon" alt="" />
+    <span>
+      <strong>Coolify</strong>
+      <small>Deploy from Git</small>
+    </span>
+  </a>
+  <a href="/self-hosting/dokploy">
+    <img src="/assets/logos/dokploy.svg" className="docs-service-icon" alt="" />
+    <span>
+      <strong>Dokploy</strong>
+      <small>Deploy a Compose service</small>
+    </span>
+  </a>
+  <a href="/self-hosting/portainer">
+    <img src="/assets/logos/portainer.svg" className="docs-service-icon" alt="" />
+    <span>
+      <strong>Portainer</strong>
+      <small>Create a stack</small>
+    </span>
+  </a>
+  <a href="/self-hosting/dockge">
+    <img src="/assets/logos/dockge.svg" className="docs-service-icon" alt="" />
+    <span>
+      <strong>Dockge</strong>
+      <small>Create a managed stack</small>
+    </span>
+  </a>
+  <a href="/self-hosting/nixos">
+    <img src="/assets/logos/nixos.svg" className="docs-service-icon" alt="" />
+    <span>
+      <strong>NixOS</strong>
+      <small>Enable the maintained module</small>
+    </span>
+  </a>
+</div>
+
+## Other install options
+
+- [Install the binary](/self-hosting/binary) on Linux, macOS, or Windows.
+- [Try the Docker image](/self-hosting/docker-run) without creating a Compose file.
+- [Configure HTTPS and public access](/self-hosting/reverse-proxy) for any installation.
 
 ## Next steps
 
