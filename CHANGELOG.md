@@ -4,6 +4,12 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+## [4.31.1] - 2026-09-13
+
+### Fixed
+
+- Keep inline error notices readable in dark Dither themes by using the shared destructive action foreground and surface roles.
+
 ## [4.31.0] - 2026-09-13
 
 ### Added
