@@ -615,10 +615,106 @@ export const docsPageCatalog = Object.freeze([
     }
   },
   {
+    "page": "self-hosting/binary.mdx",
+    "title": "Install from a binary",
+    "description": "Run OpenPost as a single Go binary with systemd, without Docker.",
+    "route": "/self-hosting/binary",
+    "agentRepresentation": {
+      "membership": "ordinary"
+    },
+    "agentDiscovery": {
+      "membership": "unlisted"
+    },
+    "agentCorpus": {
+      "membership": "included",
+      "section": "self-hosting"
+    }
+  },
+  {
+    "page": "self-hosting/casaos.mdx",
+    "title": "Install on CasaOS",
+    "description": "Import OpenPost as a CasaOS customized app from a ready-to-use Compose file.",
+    "route": "/self-hosting/casaos",
+    "agentRepresentation": {
+      "membership": "ordinary"
+    },
+    "agentDiscovery": {
+      "membership": "unlisted"
+    },
+    "agentCorpus": {
+      "membership": "included",
+      "section": "self-hosting"
+    }
+  },
+  {
     "page": "self-hosting/configuration.mdx",
     "title": "Configuration",
     "description": "Configure URLs, storage, provider apps, and optional self-hosted services.",
     "route": "/self-hosting/configuration",
+    "agentRepresentation": {
+      "membership": "ordinary"
+    },
+    "agentDiscovery": {
+      "membership": "unlisted"
+    },
+    "agentCorpus": {
+      "membership": "included",
+      "section": "self-hosting"
+    }
+  },
+  {
+    "page": "self-hosting/coolify.mdx",
+    "title": "Install on Coolify",
+    "description": "Deploy OpenPost on Coolify with the Git-repository Docker Compose build pack.",
+    "route": "/self-hosting/coolify",
+    "agentRepresentation": {
+      "membership": "ordinary"
+    },
+    "agentDiscovery": {
+      "membership": "unlisted"
+    },
+    "agentCorpus": {
+      "membership": "included",
+      "section": "self-hosting"
+    }
+  },
+  {
+    "page": "self-hosting/docker-run.mdx",
+    "title": "Try it with Docker run",
+    "description": "A one-line throwaway test of the published image.",
+    "route": "/self-hosting/docker-run",
+    "agentRepresentation": {
+      "membership": "ordinary"
+    },
+    "agentDiscovery": {
+      "membership": "unlisted"
+    },
+    "agentCorpus": {
+      "membership": "included",
+      "section": "self-hosting"
+    }
+  },
+  {
+    "page": "self-hosting/dockge.mdx",
+    "title": "Install on Dockge",
+    "description": "Manage OpenPost as a Dockge stack from the canonical Compose file.",
+    "route": "/self-hosting/dockge",
+    "agentRepresentation": {
+      "membership": "ordinary"
+    },
+    "agentDiscovery": {
+      "membership": "unlisted"
+    },
+    "agentCorpus": {
+      "membership": "included",
+      "section": "self-hosting"
+    }
+  },
+  {
+    "page": "self-hosting/dokploy.mdx",
+    "title": "Install on Dokploy",
+    "description": "Deploy OpenPost on Dokploy from a staged catalogue template or a manual Compose fallback.",
+    "route": "/self-hosting/dokploy",
     "agentRepresentation": {
       "membership": "ordinary"
     },
@@ -892,6 +988,70 @@ export const docsPageCatalog = Object.freeze([
     "title": "Maintenance",
     "description": "Back up, upgrade, monitor, and recover a self-hosted instance.",
     "route": "/self-hosting/maintenance",
+    "agentRepresentation": {
+      "membership": "ordinary"
+    },
+    "agentDiscovery": {
+      "membership": "unlisted"
+    },
+    "agentCorpus": {
+      "membership": "included",
+      "section": "self-hosting"
+    }
+  },
+  {
+    "page": "self-hosting/nixos.mdx",
+    "title": "Install on NixOS",
+    "description": "Run OpenPost on NixOS through the maintained module with sops secrets.",
+    "route": "/self-hosting/nixos",
+    "agentRepresentation": {
+      "membership": "ordinary"
+    },
+    "agentDiscovery": {
+      "membership": "unlisted"
+    },
+    "agentCorpus": {
+      "membership": "included",
+      "section": "self-hosting"
+    }
+  },
+  {
+    "page": "self-hosting/portainer.mdx",
+    "title": "Install on Portainer",
+    "description": "Deploy OpenPost as a Portainer stack with environment variables entered in the UI.",
+    "route": "/self-hosting/portainer",
+    "agentRepresentation": {
+      "membership": "ordinary"
+    },
+    "agentDiscovery": {
+      "membership": "unlisted"
+    },
+    "agentCorpus": {
+      "membership": "included",
+      "section": "self-hosting"
+    }
+  },
+  {
+    "page": "self-hosting/reverse-proxy.mdx",
+    "title": "Reverse proxy and public access",
+    "description": "Put OpenPost behind HTTPS so sign-in, callbacks, and media fetching work.",
+    "route": "/self-hosting/reverse-proxy",
+    "agentRepresentation": {
+      "membership": "ordinary"
+    },
+    "agentDiscovery": {
+      "membership": "unlisted"
+    },
+    "agentCorpus": {
+      "membership": "included",
+      "section": "self-hosting"
+    }
+  },
+  {
+    "page": "self-hosting/zimaos.mdx",
+    "title": "Install on ZimaOS",
+    "description": "Import OpenPost as a ZimaOS custom app from a ready-to-use Compose file.",
+    "route": "/self-hosting/zimaos",
     "agentRepresentation": {
       "membership": "ordinary"
     },
