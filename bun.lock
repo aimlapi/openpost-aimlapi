@@ -276,6 +276,9 @@
     "@openpost/web",
     "workerd",
   ],
+  "patchedDependencies": {
+    "@asamuzakjp/css-color@3.2.0": "patches/@asamuzakjp%2Fcss-color@3.2.0.patch",
+  },
   "overrides": {
     "@sveltejs/kit": "2.70.2",
     "@vitest/browser": "4.1.11",

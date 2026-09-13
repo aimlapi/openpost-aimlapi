@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { createQuery } from '@tanstack/svelte-query';
 	import { mode } from 'mode-watcher';
-	import { captureClientException } from '@openpost/telemetry';
+	import { captureClientException, isUnsupportedBrowserError } from '@openpost/telemetry';
 
 	import { resolvedThemeQueryOptions } from '@openpost/query-catalog';
 	import { auth } from '$lib/stores/auth';
@@ -18,7 +18,13 @@
 			.then(({ ditherTheme }) => {
 				publicManifest = ditherTheme;
 			})
-			.catch((error) => captureClientException(error, { error_boundary: 'public_theme_startup' }));
+			.catch((error) =>
+				captureClientException(error, {
+					error_boundary: isUnsupportedBrowserError(error)
+						? 'theme_unsupported_browser'
+						: 'public_theme_startup'
+				})
+			);
 	});
 
 	const themeApi = createThemeQueryAPI();
@@ -63,7 +69,14 @@
 			})
 			.catch((error) => {
 				// The complete CSS fallback keeps the app usable if the theme download fails.
-				captureClientException(error, { error_boundary: 'theme_startup' });
+				// Engines without regex lookbehind (Safari below 16.4) cannot evaluate
+				// the theme runtime at all. That is an expected unsupported-browser
+				// path, not a stale chunk, and must never trigger reload recovery.
+				captureClientException(error, {
+					error_boundary: isUnsupportedBrowserError(error)
+						? 'theme_unsupported_browser'
+						: 'theme_startup'
+				});
 			});
 		return () => {
 			current = false;

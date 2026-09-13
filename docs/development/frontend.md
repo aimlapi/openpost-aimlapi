@@ -13,6 +13,21 @@ This page is for contributors changing the web app or its shared marketing contr
 - Keep marketing controls on those same primitives; the marketing SvelteKit project resolves `$lib` to the shared frontend library
 - Do not add visible native `input`, `select`, or `textarea` elements outside the shared primitives
 
+## Browser baseline
+
+The normal application baseline is Safari 16.4 and equivalents. Tailwind 4
+already requires Safari 16.4, and the theme runtime depends on regex
+lookbehind, which Safari gained in 16.4. Removing an avoidable failure on an
+older engine (for example the `@asamuzakjp/css-color` detector patch) does not
+certify the whole application there.
+
+Keep unsupported-browser failures out of stale-chunk reload recovery:
+reloading identical bytes into the same engine cannot add the missing
+capability. Theme startup reports them under the `theme_unsupported_browser`
+boundary and keeps the CSS fallback. Probes for a single engine feature must
+use `new RegExp('(?<=a)b')` inside `try/catch`, never a lookbehind literal
+that an older parser rejects before the catch executes.
+
 ## Useful commands
 
 ```bash

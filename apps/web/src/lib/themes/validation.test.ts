@@ -1,3 +1,7 @@
+import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { BUILT_IN_THEMES, resolveBuiltInTheme } from './builtins.js';
 import {
@@ -7,6 +11,38 @@ import {
 } from './validation.js';
 
 describe('theme manifest value validation', () => {
+	it('ships lookbehind-free color detectors for pre-16.4 Safari engines', () => {
+		// The installed @asamuzakjp/css-color is version-pinned and Bun-patched
+		// (see patchedDependencies): its calc/var/relative-color detectors must
+		// not use regex lookbehind, which Safari gained only in 16.4. If this
+		// fails after a dependency upgrade, re-apply the three-detector patch.
+		// SAFETY: require.resolve follows the package exports map to the real
+		// installed location regardless of the node_modules layout.
+		const require = createRequire(import.meta.url);
+		const resolved = require.resolve('@asamuzakjp/css-color/package.json');
+		const packageDir = dirname(resolved.startsWith('file:') ? fileURLToPath(resolved) : resolved);
+		const shipped = [
+			'dist/esm/js/constant.js',
+			'dist/cjs/index.cjs',
+			'dist/browser/css-color.min.js'
+		].map((relative) => readFileSync(join(packageDir, relative), 'utf8'));
+		for (const source of shipped) {
+			expect(source).not.toContain('(?<=');
+			expect(source).toContain('(?:^|');
+		}
+	});
+
+	it('keeps calc, var, and relative-color detection after the detector patch', async () => {
+		// calc() and relative colors resolve end to end through theme validation;
+		// an unresolvable var() stays unsafe by design, so its detector is
+		// covered at the parser level instead.
+		expect(isSafeThemeColor('rgb(calc(200 - 55) 0 0)')).toBe(true);
+		expect(isSafeThemeColor('rgb(from red r g b)')).toBe(true);
+		const { isColor } = await import('@asamuzakjp/css-color');
+		expect(isColor('rgb(var(--channel) 0 0)')).toBe(true);
+		expect(isSafeThemeColor('rgb(foo)')).toBe(false);
+	});
+
 	it('uses CSS Color syntax instead of accepting color-shaped strings', () => {
 		expect(isSafeThemeColor('oklch(0.62 0.18 255 / 0.8)')).toBe(true);
 		expect(
