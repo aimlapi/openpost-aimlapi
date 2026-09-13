@@ -51,12 +51,20 @@ jobs:
           import { resolve } from 'node:path';
           import base from './playwright.config';
 
+          if (!base.use?.trace || typeof base.use.trace !== 'object') {
+            throw new Error('expected the base trace configuration');
+          }
+
           export default {
             ...base,
             testDir: resolve(process.cwd(), 'tests/app'),
             reporter: [['list'], ['github']],
             workers: 1,
             retries: 0,
+            use: {
+              ...base.use,
+              trace: { ...base.use.trace, screenshots: false }
+            },
             projects: base.projects?.map((project) => ({
               ...project,
               use: {
@@ -66,7 +74,7 @@ jobs:
             }))
           };
           EOF
-      - name: Repeat integration, Cloud Video, and Dither assertions
+      - name: Repeat unchanged 1440px Social Set assertions without trace screenshots
         env:
           OPENPOST_E2E_PREBUILT: "1"
           OPENPOST_DIAGNOSTIC_VARIANT: ${{ matrix.variant }}
@@ -77,7 +85,7 @@ jobs:
           set -u
           diagnostics="$RUNNER_TEMP/browser-context-diagnostic"
           mkdir -p "$diagnostics"
-          printf 'variant=%s\nsource_revision=%s\nrun_start_utc=%s\n' \
+          printf 'variant=%s\ntrace_screenshots=false\nsource_revision=%s\nrun_start_utc=%s\n' \
             "$OPENPOST_DIAGNOSTIC_VARIANT" "$GITHUB_SHA" "$(date -u +%FT%TZ)" \
             > "$diagnostics/run.txt"
           vmstat -t 5 > "$diagnostics/vmstat.log" 2>&1 &
@@ -96,33 +104,22 @@ jobs:
           set +e
           bunx playwright test integration-settings.spec.ts \
             --config tests/app/.browser-context-diagnostic.config.ts \
+            --grep 'Discord Social Set defaults persist at 1440px' \
             --repeat-each=3 --workers=1 --retries=0 \
-            --output "$diagnostics/integration-results" \
-            > "$diagnostics/integration-stdout.log" 2> "$diagnostics/integration-stderr.log"
-          integration_status=$?
-          bunx playwright test cloud-video-projects.spec.ts dither-default.spec.ts \
-            dither-polish.spec.ts dither-themes.spec.ts \
-            --config tests/app/.browser-context-diagnostic.config.ts \
-            --repeat-each=2 --workers=1 --retries=0 \
-            --output "$diagnostics/cross-surface-results" \
-            > "$diagnostics/cross-surface-stdout.log" 2> "$diagnostics/cross-surface-stderr.log"
-          cross_surface_status=$?
+            --output "$diagnostics/focus-results" \
+            > "$diagnostics/stdout.log" 2> "$diagnostics/stderr.log"
+          test_status=$?
           set -e
-          printf 'run_end_utc=%s\nintegration_exit_code=%s\ncross_surface_exit_code=%s\n' \
-            "$(date -u +%FT%TZ)" "$integration_status" "$cross_surface_status" \
+          printf 'run_end_utc=%s\ntest_exit_code=%s\n' \
+            "$(date -u +%FT%TZ)" "$test_status" \
             >> "$diagnostics/run.txt"
           kill "$vmstat_pid" "$process_pid" 2>/dev/null || true
           wait "$vmstat_pid" "$process_pid" 2>/dev/null || true
-          cat "$diagnostics/integration-stdout.log" "$diagnostics/cross-surface-stdout.log"
-          if [ "$integration_status" -ne 0 ]; then
-            tail -n 100 "$diagnostics/integration-stderr.log"
+          cat "$diagnostics/stdout.log"
+          if [ "$test_status" -ne 0 ]; then
+            tail -n 100 "$diagnostics/stderr.log"
           fi
-          if [ "$cross_surface_status" -ne 0 ]; then
-            tail -n 100 "$diagnostics/cross-surface-stderr.log"
-          fi
-          if [ "$integration_status" -ne 0 ] || [ "$cross_surface_status" -ne 0 ]; then
-            exit 1
-          fi
+          exit "$test_status"
       - name: Upload both passing and failing diagnostics
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
