@@ -19,7 +19,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        variant: [baseline, fake-output, chromium]
+        variant: [chromium]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -51,11 +51,6 @@ jobs:
           import { resolve } from 'node:path';
           import base from './playwright.config';
 
-          const variant = process.env.OPENPOST_DIAGNOSTIC_VARIANT;
-          if (variant !== 'baseline' && variant !== 'fake-output' && variant !== 'chromium') {
-            throw new Error('invalid Chromium diagnostic variant');
-          }
-
           export default {
             ...base,
             testDir: resolve(process.cwd(), 'tests/app'),
@@ -66,23 +61,16 @@ jobs:
               ...project,
               use: {
                 ...project.use,
-                ...(variant === 'chromium' ? { channel: 'chromium' } : {}),
-                launchOptions: {
-                  ...project.use?.launchOptions,
-                  args: [
-                    ...(project.use?.launchOptions?.args ?? []),
-                    ...(variant === 'fake-output' ? ['--disable-audio-output'] : [])
-                  ]
-                }
+                channel: 'chromium'
               }
             }))
           };
           EOF
-      - name: Repeat the unchanged integration settings assertions
+      - name: Repeat integration, Cloud Video, and Dither assertions
         env:
           OPENPOST_E2E_PREBUILT: "1"
           OPENPOST_DIAGNOSTIC_VARIANT: ${{ matrix.variant }}
-          DEBUG: pw:browser,pw:protocol
+          DEBUG: pw:browser
           DEBUG_COLORS: "0"
         shell: bash
         run: |
@@ -109,18 +97,32 @@ jobs:
           bunx playwright test integration-settings.spec.ts \
             --config tests/app/.browser-context-diagnostic.config.ts \
             --repeat-each=3 --workers=1 --retries=0 \
-            > "$diagnostics/stdout.log" 2> "$diagnostics/stderr.log"
-          test_status=$?
+            --output "$diagnostics/integration-results" \
+            > "$diagnostics/integration-stdout.log" 2> "$diagnostics/integration-stderr.log"
+          integration_status=$?
+          bunx playwright test cloud-video-projects.spec.ts dither-default.spec.ts \
+            dither-polish.spec.ts dither-themes.spec.ts \
+            --config tests/app/.browser-context-diagnostic.config.ts \
+            --repeat-each=2 --workers=1 --retries=0 \
+            --output "$diagnostics/cross-surface-results" \
+            > "$diagnostics/cross-surface-stdout.log" 2> "$diagnostics/cross-surface-stderr.log"
+          cross_surface_status=$?
           set -e
-          printf 'run_end_utc=%s\ntest_exit_code=%s\n' "$(date -u +%FT%TZ)" "$test_status" \
+          printf 'run_end_utc=%s\nintegration_exit_code=%s\ncross_surface_exit_code=%s\n' \
+            "$(date -u +%FT%TZ)" "$integration_status" "$cross_surface_status" \
             >> "$diagnostics/run.txt"
           kill "$vmstat_pid" "$process_pid" 2>/dev/null || true
           wait "$vmstat_pid" "$process_pid" 2>/dev/null || true
-          cat "$diagnostics/stdout.log"
-          if [ "$test_status" -ne 0 ]; then
-            tail -n 100 "$diagnostics/stderr.log"
+          cat "$diagnostics/integration-stdout.log" "$diagnostics/cross-surface-stdout.log"
+          if [ "$integration_status" -ne 0 ]; then
+            tail -n 100 "$diagnostics/integration-stderr.log"
           fi
-          exit "$test_status"
+          if [ "$cross_surface_status" -ne 0 ]; then
+            tail -n 100 "$diagnostics/cross-surface-stderr.log"
+          fi
+          if [ "$integration_status" -ne 0 ] || [ "$cross_surface_status" -ne 0 ]; then
+            exit 1
+          fi
       - name: Upload both passing and failing diagnostics
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
