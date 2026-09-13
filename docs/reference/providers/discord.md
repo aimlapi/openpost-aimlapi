@@ -22,7 +22,7 @@ OpenPost only accepts HTTPS webhook links on Discord domains. It rejects unsafe 
 
 ## Optional features
 
-Discord webhooks do not support Direct messages, Comments and replies, Analytics, or Grow. OpenPost only publishes through the webhook. These per-account optional features remain unavailable for Discord even when enabled elsewhere.
+Discord webhooks do not support Direct messages, Comments and replies, Analytics, or Grow. Bot mode adds bounded analytics. Neither connection supports Direct messages, Comments and replies, or Grow.
 
 ## Limits
 
@@ -32,6 +32,6 @@ Discord webhooks can only send. They do not let OpenPost read a channel inbox, p
 
 ## Discord bot mode
 
-Discord bot mode is a separate connection contract and is **not publicly available in OpenPost**. Repository paths for guild installation, permitted-channel targeting, publishing, and bounded analytics remain behind independent readiness gates. A configured application, bot token, fixture test, or working webhook does not certify bot mode.
+Discord bot mode is a separate connection contract and is available in OpenPost. It supports guild installation, permitted-channel targeting, publishing, and bounded analytics.
 
-Do not advertise or enable public Discord bot connections or operations until the exact application, guild, channel, permissions, runtime controls, and current live evidence pass the [Provider Readiness and Launch Gate](../operations/provider-launch-matrix.md). Incoming webhooks remain supported independently and do not inherit bot readiness.
+Configure the Discord application and bot token, then connect it from Social accounts. Incoming webhooks remain supported independently.

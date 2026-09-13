@@ -101,7 +101,7 @@
 					class="platform-guides mt-6 text-muted-foreground"
 					aria-label="Platform publishing guides"
 				>
-					{#each platforms.filter((platform) => !['pinterest', 'telegram'].includes(platform.slug)) as platform (platform.slug)}
+					{#each platforms.filter((platform) => platform.slug !== 'pinterest') as platform (platform.slug)}
 						<a
 							href={resolve(`/platforms/${platform.slug}`)}
 							class="focus-ring inline-flex size-11 items-center justify-center rounded-md text-muted-foreground/75 transition-colors hover:text-primary"

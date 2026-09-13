@@ -327,7 +327,38 @@ const channelStories = {
 		],
 		question: 'Does OpenPost read my Discord conversations?',
 		answer:
-			'No. The Discord connection sends messages through a channel webhook. It does not read the channel inbox. You need permission to create that connection in your Discord server.'
+			'No. Both the channel webhook and the bot connection send messages to Discord. Neither reads the channel inbox. A webhook posts to one fixed channel, while the bot posts to the channel you choose when composing. You need permission to manage webhooks or install the bot on that server.'
+	},
+	telegram: {
+		title: 'Send your update straight to Telegram.',
+		intro:
+			'Share a launch, an event reminder, or a useful resource with the people who follow your channel or group. Prepare it alongside your other posts.',
+		angle: 'Your members should hear it from you.',
+		example:
+			'The new collection is here. See the details, find your favourite, and tell us what you think.',
+		visual: 'calendar',
+		sections: [
+			{
+				title: 'Give your channel its own version.',
+				text: 'Connect the channel or group where members expect your updates. Write the message, add photos or files, and preview it before choosing when it goes out.'
+			},
+			{
+				title: 'Prepare the follow-up at the same time.',
+				text: 'Write the announcement and reminder together. Schedule each so members hear about the event and the deadline without you returning at the right moment.'
+			},
+			{
+				title: 'Keep members and followers together.',
+				text: 'Share the same news in more detail for members and shorter on public feeds. Tailor the copy for Telegram while keeping the idea in one place.'
+			}
+		],
+		ideas: [
+			'A launch announcement with a link to try the update',
+			'An event reminder with the date and timezone',
+			'A useful resource for new members'
+		],
+		question: 'What does the Telegram connection need?',
+		answer:
+			'OpenPost publishes through an instance-owned bot. The bot must belong to the channel or group with permission to post there. You connect a specific chat; the bot token itself stays with the instance.'
 	}
 } satisfies Record<string, ChannelStory>;
 

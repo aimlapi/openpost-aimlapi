@@ -116,7 +116,7 @@ export const PLATFORM_LIMITS = {
 		name: 'Telegram',
 		charLimit: 4096,
 		media: 'Up to 10 media items in one group',
-		note: 'Captions use a separate 1,024-character limit; public bot use remains gated on live certification.'
+		note: 'Captions use a separate 1,024-character limit.'
 	},
 	discord: {
 		key: 'discord',

@@ -58,7 +58,7 @@ No posting option has passed our final live check on OpenPost Hosted yet.
 A social app can appear in OpenPost before it is ready for real accounts.
 <!-- provider-certification:end -->
 
-Pinterest, Telegram bot mode, and Discord bot mode currently have no public Hosted claim. Do not advertise their connect, publish, discovery, or analytics operations until current exact-subject live evidence enters the canonical claim projection. Discord incoming webhooks are a separate built-in connection mode and remain supported independently of Discord bot readiness.
+Pinterest currently has no public Hosted claim. Do not advertise its connect, publish, discovery, or analytics operations until current exact-subject live evidence enters the canonical claim projection. Telegram bot mode and Discord bot mode are available; Discord incoming webhooks remain supported independently.
 
 The release manifest binds that file's exact SHA-256 digest, schema version,
 and claim count. A build, adapter, configured credential, mocked test, or manual

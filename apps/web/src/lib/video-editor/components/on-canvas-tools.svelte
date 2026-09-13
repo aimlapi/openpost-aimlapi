@@ -781,11 +781,18 @@
 
 	function finishText(commit: boolean): void {
 		if (!textSession) return;
-		const value = draftText ?? item.text ?? '';
+		// A blur fired by removing the focused editor (the item was deleted or
+		// deselected mid-edit) can reach this handler after the edited item is
+		// gone. End the session without committing: there is nothing to commit to.
+		// SAFETY: the parent only mounts this component for a defined item, but
+		// Svelte's delegated blur can dispatch to a destroyed instance whose
+		// props now read undefined (see PostHog TypeError reading 'text').
+		const edited = item as TimelineItem | undefined;
+		const value = draftText ?? edited?.text ?? '';
 		textSession = false;
 		ontextediting(false);
 		draftText = null;
-		if (commit && value !== (item.text ?? '')) {
+		if (commit && edited && value !== (edited.text ?? '')) {
 			oncommittext(value);
 			onedit();
 		}
