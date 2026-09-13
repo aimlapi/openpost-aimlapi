@@ -1,0 +1,58 @@
+---
+title: Install on Dokploy
+description: Deploy OpenPost on Dokploy from a staged catalogue template or a manual Compose fallback.
+icon: Layers
+---
+
+> This is a community-tested recipe: it follows the published Dokploy template format and the files below, not a team-run deploy on Dokploy infrastructure. If you deploy it, please report back so this note can be updated.
+
+There are two ways to install OpenPost on Dokploy. The template is the fastest; the manual fallback works today without waiting for a catalogue submission.
+
+The published image supports `linux/amd64` only. Choose an x86_64 Dokploy server; other architectures need amd64 emulation.
+
+## Option A: template (staged, not yet submitted)
+
+The staged submission lives in [`deploy/dokploy/`](https://github.com/getopenpost/openpost/tree/main/deploy/dokploy): `docker-compose.yml`, `template.toml`, `meta.json`, and the logo. It wires the domain to the `openpost` service on port `8080`, generates `OPENPOST_JWT_SECRET` and `OPENPOST_ENCRYPTION_KEY` with Dokploy's `base64:32` helper, and derives the three public URLs from the chosen domain.
+
+Upstream submission goes to the external [Dokploy/templates](https://github.com/Dokploy/templates) repository (`blueprints/openpost/` plus a pull request tested through its preview link). That submission has not happened yet; this directory is staged so it can be copied over unchanged.
+
+## Option B: manual Compose fallback
+
+1. In Dokploy, create a **Compose** service.
+2. Paste the contents of [`deploy/dokploy/docker-compose.yml`](https://github.com/getopenpost/openpost/blob/main/deploy/dokploy/docker-compose.yml) into the Compose definition.
+3. Add a domain pointing at the service's port `8080`, then set these environment variables:
+
+| Variable                  | What to enter                                         |
+| ------------------------- | ----------------------------------------------------- |
+| `OPENPOST_APP_URL`        | `https://post.example.com`                            |
+| `OPENPOST_PUBLIC_URL`     | `https://post.example.com`                            |
+| `OPENPOST_MEDIA_URL`      | `https://post.example.com/media`                      |
+| `OPENPOST_JWT_SECRET`     | Fresh output of `openssl rand -base64 32`             |
+| `OPENPOST_ENCRYPTION_KEY` | A second, independent `openssl rand -base64 32` value |
+
+4. Deploy, then verify readiness:
+
+```sh
+curl https://post.example.com/api/v1/ready
+```
+
+Expect `"status":"ready"` and `"database":"ok"`. If the domain check fails, confirm the three URL variables match the public origin exactly.
+
+The fallback follows Dokploy template rules: it uses `expose` instead of `ports:`, has no `container_name`, and defines no custom networks. Storage is a named volume `openpost_data` at `/data` (SQLite at `/data/db/openpost.db`, media at `/data/media`). The container health check covers process liveness on `/api/v1/health`; gate traffic on `/api/v1/ready`.
+
+## Before connecting providers
+
+OAuth callbacks derive from `OPENPOST_APP_URL`; Threads, Facebook, Instagram, and TikTok fetch media from `OPENPOST_MEDIA_URL` over public HTTPS. A working dashboard does not prove publishing works. See [Configuration](/self-hosting/configuration) for the full URL table.
+
+Open `https://post.example.com` and create the first account; it becomes the instance administrator. Set `OPENPOST_DISABLE_REGISTRATIONS=true` once it exists if the instance should stop accepting new self-service registrations.
+
+## Updates and backups
+
+To upgrade, change the `image:` tag to the release you want, redeploy, and re-check `/api/v1/ready`. To roll back, restore the matching data backup too; an older binary may not understand a newer database schema.
+
+Back up the `openpost_data` volume contents (database plus media) together with the environment values and record the image tag, following the same rules as [Maintenance](/self-hosting/maintenance). The backup contains account data and secrets, so keep it private and off the server.
+
+## Next steps
+
+- [Configure integrations](/self-hosting/integrations) for your social platforms.
+- [Back up your instance](/self-hosting/maintenance) before relying on it for scheduled posts.

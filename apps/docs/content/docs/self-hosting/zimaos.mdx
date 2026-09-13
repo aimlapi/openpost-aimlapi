@@ -1,0 +1,63 @@
+---
+title: Install on ZimaOS
+description: Import OpenPost as a ZimaOS custom app from a ready-to-use Compose file.
+icon: Package
+---
+
+> This is a community-tested recipe: it was written from the published ZimaOS custom-install interface and the Compose file below, not from a team-run install on ZimaOS hardware. If you install it, please report back so this note can be updated.
+
+OpenPost runs on ZimaOS as a custom app. Import the ready-to-use [Compose file](https://github.com/getopenpost/openpost/blob/main/deploy/zimaos/docker-compose.yml) instead of adapting the generic Compose setup by hand.
+
+The published image supports `linux/amd64` only. Most ZimaOS devices are x86_64; on anything else, use amd64 emulation.
+
+## What you need
+
+- A ZimaOS device with the App Store available.
+- The device's local IP address (this guide uses `10.0.0.1` as an example).
+- Two generated secrets. Run this once on any machine with OpenSSL:
+- A public HTTPS address for OpenPost before connecting social accounts. A working local install does not mean publishing works.
+
+```sh
+openssl rand -base64 32
+```
+
+## Import the app
+
+1. Download [`deploy/zimaos/docker-compose.yml`](https://github.com/getopenpost/openpost/blob/main/deploy/zimaos/docker-compose.yml) and open it in a text editor.
+2. Replace `10.0.0.1` with your ZimaOS device's IP address in `OPENPOST_APP_URL`, `OPENPOST_PUBLIC_URL`, and `OPENPOST_MEDIA_URL`.
+3. Replace both `REPLACE-WITH-GENERATED-...` placeholders with the secrets you generated.
+4. In ZimaOS, open the App Store and choose **Custom Install → Import from the Compose file** (or paste its contents).
+5. Start the install and open OpenPost at `http://<your-device-ip>:8080`. Create the first account; it becomes the instance administrator.
+
+CasaOS uses a similar import flow, but test it separately. Do not assume this file and these steps work unchanged on CasaOS.
+
+## What the file sets up
+
+| Setting      | Value                                                                                                      |
+| ------------ | ---------------------------------------------------------------------------------------------------------- |
+| Image        | `ghcr.io/getopenpost/openpost:latest` (`linux/amd64`)                                                      |
+| Web port     | `8080`, published to the host                                                                              |
+| Storage      | Named volume `openpost_data` mounted at `/data` (SQLite at `/data/db/openpost.db`, media at `/data/media`) |
+| Health check | Process liveness on `/api/v1/health`; gate traffic on `/api/v1/ready`                                      |
+
+The file also carries the `x-casaos` metadata ZimaOS uses for the app icon, name, category, and version.
+
+## Before connecting providers
+
+Set the three URL values to the real public HTTPS origin (for example `https://post.example.com` and `https://post.example.com/media`) and reinstall so the container picks them up. OAuth callbacks derive from `OPENPOST_APP_URL`; Threads, Facebook, Instagram, and TikTok fetch media from `OPENPOST_MEDIA_URL` over public HTTPS. See [Configuration](/self-hosting/configuration) for the full URL table.
+
+## Updates
+
+1. Back up first: stop the app, copy the `openpost_data` volume contents and your edited Compose file with its secrets somewhere private, then start the app again. The rules are the same as [Maintenance](/self-hosting/maintenance); only the storage location differs.
+2. Change the `image:` tag to the release you want, reinstall from the edited file, then check readiness:
+
+```sh
+curl http://<your-device-ip>:8080/api/v1/ready
+```
+
+3. Expect `"status":"ready"` and `"database":"ok"`. To return to the previous image, restore its matching data backup too; an older binary may not understand a newer database schema.
+
+## Next steps
+
+- [Configure integrations](/self-hosting/integrations) for your social platforms.
+- [Back up your instance](/self-hosting/maintenance) before relying on it for scheduled posts.

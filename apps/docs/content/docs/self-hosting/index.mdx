@@ -79,6 +79,15 @@ Keep the proxy's HTTPS certificate valid and forward the original host and schem
 
 When several people use the instance, decide who can register and set up [email delivery](/self-hosting/email) before requiring email verification. Set up each social provider in [provider integrations](/self-hosting/integrations); Bluesky and Discord webhooks need no developer app, while OAuth providers need their own credentials and often a public callback.
 
+## Install on a platform
+
+Prefer a ready-to-use recipe over adapting the generic setup by hand:
+
+- [ZimaOS](/self-hosting/zimaos): import the custom-app Compose file.
+- [Coolify](/self-hosting/coolify): deploy from Git with the Docker Compose build pack.
+- [Dokploy](/self-hosting/dokploy): use the staged catalogue template or the manual Compose fallback.
+- [NixOS](/self-hosting/nixos): run the maintained module with sops secrets.
+
 ## Next steps
 
 - [Configure integrations](/self-hosting/integrations) for your social platforms.
