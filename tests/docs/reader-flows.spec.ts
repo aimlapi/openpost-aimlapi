@@ -132,6 +132,7 @@ test("social integration directory opens a separate illustrated guide for every 
       await figure.scrollIntoViewIfNeeded();
       await expect(figure.locator("figcaption")).not.toBeEmpty();
       await expect(figure.locator("figcaption")).not.toContainText("Postiz");
+      await expect(figure.locator("figcaption")).not.toContainText("edited with AI");
       await expect
         .poll(() =>
           figure

@@ -7,7 +7,6 @@ type SetupScreenshotProps = {
   width: number;
   height: number;
   caption: string;
-  edited?: boolean;
 };
 
 export function SetupScreenshot({
@@ -17,7 +16,6 @@ export function SetupScreenshot({
   width,
   height,
   caption,
-  edited,
 }: SetupScreenshotProps) {
   return (
     <figure className="setup-screenshot">
@@ -29,10 +27,7 @@ export function SetupScreenshot({
           <ImageZoom src={darkSrc} alt={alt} width={width} height={height} loading="lazy" />
         </div>
       )}
-      <figcaption>
-        {caption}
-        {edited && " Example values edited with AI."}
-      </figcaption>
+      <figcaption>{caption}</figcaption>
     </figure>
   );
 }

@@ -16,6 +16,6 @@ Portal screenshots come from [Postiz's documentation repository](https://github.
 | threads-callback.png | threads/threads_api_settings.png | Built-in Image Gen replaced the app name, ID, and callback with example values |
 | youtube-callback.png | youtube/youtube-001.png | Built-in Image Gen replaced the project name, client ID, and callback with example values |
 
-AI-edited examples state the edit in their caption. Review all labels and URLs after regenerating an image.
+Review all labels and URLs after regenerating an image.
 
 The OpenPost connection screenshots are separate, original captures from `tests/app/product-screenshots.spec.ts`, using deterministic example values at 2x resolution. Their PNG sources and optimized light/dark WebP versions live in `assets/screenshots/`. Regenerate them through `bun run capture:product-screenshots`. They open the actual connection dialogs without sending credentials or creating provider connections.
