@@ -115,7 +115,7 @@ test("social integration directory opens a separate illustrated guide for every 
   page,
 }) => {
   await page.goto("/self-hosting/integrations");
-  await expect(page.getByRole("link", { name: "Image credits" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Image credits" })).toHaveCount(0);
   await expect(page.locator("main")).not.toContainText("images from Postiz");
   const directory = page.locator(".provider-directory");
   await expect(directory.getByRole("link")).toHaveCount(socialNetworks.length);

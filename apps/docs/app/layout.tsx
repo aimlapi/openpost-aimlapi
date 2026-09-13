@@ -9,6 +9,10 @@ export const metadata: Metadata = {
   description:
     "Connect your accounts, publish your first post, and keep your content moving with OpenPost.",
   icons: { icon: "/assets/brand/icon.svg" },
+  other: {
+    "integration-screenshot-sources": "/assets/screenshots/integrations/SOURCES.txt",
+    "integration-screenshot-license": "/assets/screenshots/integrations/POSTIZ-LICENSE.txt",
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
