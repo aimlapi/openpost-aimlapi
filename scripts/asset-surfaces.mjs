@@ -4,7 +4,7 @@ import { readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-import { assetSurfaceManifest, publishedProviderAssetSlugs } from "./asset-surfaces.ts";
+import { assetSurfaceManifest } from "./asset-surfaces.ts";
 
 export const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -104,21 +104,11 @@ async function dynamicMarketingReferences(root = repositoryRoot) {
     path.join(root, "apps/marketing/src/routes/_components/postiz-social-logos.ts"),
     "utf8",
   );
-  const functionSource = await readFile(path.join(root, "apps/marketing/functions/og.tsx"), "utf8");
   const references = new Set(
     valuesMatching(postizSource, /:\s*["']([^"']+\.svg)["']/gu).map(
       (file) => `postiz-socials/${file}`,
     ),
   );
-  for (const font of valuesMatching(functionSource, /font\(url\.origin,\s*["']([^"']+)["']\)/gu)) {
-    references.add(`brand/fonts/${font}`);
-  }
-  if (!functionSource.includes("/assets/logos/${platform}.svg")) {
-    throw new Error("marketing OG provider logo path is no longer recognized");
-  }
-  for (const slug of publishedProviderAssetSlugs) {
-    references.add(`logos/${slug}.svg`);
-  }
   return references;
 }
 

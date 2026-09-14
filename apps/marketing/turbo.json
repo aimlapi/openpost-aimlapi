@@ -35,7 +35,7 @@
 				"$TURBO_ROOT$/scripts/posthog-source-maps.ts",
 				"$TURBO_ROOT$/.agents/skills/openpost-cli/**"
 			],
-			"outputs": ["dist/**", ".wrangler/functions/**"],
+			"outputs": ["dist/**"],
 			"env": [
 				"CF_PAGES",
 				"CF_PAGES_BRANCH",

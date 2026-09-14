@@ -1,5 +1,6 @@
 /features /#features 301
 /logo.svg /assets/brand/logo.svg 301
+/og /assets/brand/og-image.png 302
 /features/ /#features 301
 /features.md /index.md 301
 /developers https://docs.openpo.st/guides/automation 301

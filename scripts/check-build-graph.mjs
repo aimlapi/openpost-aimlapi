@@ -64,7 +64,7 @@ requireCondition(
 const packageTurboPaths = [
   ["apps/web/turbo.json", ["build/**", "!build/image-editor-models/**"]],
   ["apps/docs/turbo.json", ["out/**"]],
-  ["apps/marketing/turbo.json", ["dist/**", ".wrangler/functions/**"]],
+  ["apps/marketing/turbo.json", ["dist/**"]],
 ];
 for (const [relativePath, expectedOutputs] of packageTurboPaths) {
   const config = await readJSON(relativePath);

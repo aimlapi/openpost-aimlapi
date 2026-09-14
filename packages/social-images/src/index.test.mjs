@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { assertUniqueDocumentationRoutes } from "../../../scripts/social-images/catalog.mjs";
 import { docsPageCatalog } from "./docs-catalog.js";
@@ -7,26 +8,31 @@ import {
   docsRouteFromPage,
   marketingPrerenderEntries,
   marketingSocialEntries,
-  socialRendererVersion,
 } from "./index.js";
 
-function assertRendererUrl(entry, owner) {
+function assertStaticImageUrl(entry, owner, expected) {
   const image = new URL(entry.imageUrl);
-  assert.equal(image.origin, "https://openpo.st", `${owner} leaves the image origin`);
-  assert.equal(image.pathname, "/og", `${owner} leaves the renderer path`);
-  assert.ok(image.searchParams.get("id"), `${owner} needs a renderer id`);
-  assert.equal(image.searchParams.get("v"), socialRendererVersion, `${owner} pins stale output`);
-  assert.equal(image.searchParams.has("title"), false, `${owner} leaks a title into the URL`);
+  assert.equal(image.href, expected, `${owner} does not use its published social image`);
 }
 
-test("every social entry is unique and honors the renderer contract", () => {
+async function pngDimensions(relativePath) {
+  const bytes = await readFile(new URL(relativePath, import.meta.url));
+  assert.equal(bytes.subarray(1, 4).toString(), "PNG", `${relativePath} is not a PNG`);
+  return { width: bytes.readUInt32BE(16), height: bytes.readUInt32BE(20) };
+}
+
+test("every social entry is unique and uses the published static image", () => {
   const seen = new Set();
   for (const entry of marketingSocialEntries) {
     for (const key of [`path:${entry.path}`, `key:${entry.key}`, `id:${entry.id}`]) {
       assert.ok(!seen.has(key), `duplicate social entry ${key}`);
       seen.add(key);
     }
-    assertRendererUrl(entry, entry.key);
+    assertStaticImageUrl(entry, entry.key, "https://openpo.st/assets/brand/og-image.png");
+    assert.equal(
+      entry.imageAlt,
+      "OpenPost. Turn what you're building into content. Publish it everywhere.",
+    );
     assert.match(entry.canonical, /^https:\/\/openpo\.st(?:\/|$)/);
     assert.ok(entry.socialTitle.length <= 72, `${entry.key} social title is too long`);
     assert.ok(entry.description.length <= 160, `${entry.key} description is too long`);
@@ -36,7 +42,8 @@ test("every social entry is unique and honors the renderer contract", () => {
   for (const entry of docsSocialEntries) {
     assert.ok(!seen.has(`id:${entry.id}`), `duplicate social entry id:${entry.id}`);
     seen.add(`id:${entry.id}`);
-    assertRendererUrl(entry, entry.id);
+    assertStaticImageUrl(entry, entry.id, "https://docs.openpo.st/assets/brand/og-docs.png");
+    assert.equal(entry.imageAlt, "OpenPost Docs. Use OpenPost. Run OpenPost.");
     const page = pages.get(entry.page);
     assert.ok(page, `${entry.id} points at an unknown docs page`);
     assert.equal(entry.route, page.route, `${entry.id} disagrees with the catalog route`);
@@ -96,5 +103,11 @@ test("documentation corpus policy is complete canonical metadata", () => {
       "unlisted",
       `${page.page} must not be indexed while excluded from the corpus`,
     );
+  }
+});
+
+test("published social images use the declared 1200 x 630 dimensions", async () => {
+  for (const image of ["../../../assets/brand/og-image.png", "../../../assets/brand/og-docs.png"]) {
+    assert.deepEqual(await pngDimensions(image), { width: 1200, height: 630 });
   }
 });

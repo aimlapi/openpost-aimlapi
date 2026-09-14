@@ -48,8 +48,8 @@ for (const entry of marketingSocialEntries) {
 	if (count(html, 'property="og:image"') !== 1) {
 		problems.push(`${entry.path}: expected exactly one og:image tag`);
 	}
-	if (!image.startsWith('https://openpo.st/og?')) {
-		problems.push(`${entry.path}: does not use the on-demand OG endpoint`);
+	if (image !== 'https://openpo.st/assets/brand/og-image.png') {
+		problems.push(`${entry.path}: does not use the published marketing social image`);
 	}
 }
 

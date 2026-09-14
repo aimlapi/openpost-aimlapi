@@ -71,14 +71,12 @@ export interface DocumentationPageEntry extends SocialEntry {
 
 export const marketingSiteUrl: "https://openpo.st";
 export const docsSiteUrl: "https://docs.openpo.st";
-export const socialRendererVersion: string;
-export const socialImagePlatformSlugs: readonly string[];
+export const marketingSocialImageUrl: "https://openpo.st/assets/brand/og-image.png";
+export const docsSocialImageUrl: "https://docs.openpo.st/assets/brand/og-docs.png";
 export const marketingRouteManifest: readonly MarketingRouteEntry[];
 export const marketingSocialEntries: readonly MarketingRouteEntry[];
 export const docsSocialEntries: readonly DocumentationPageEntry[];
 
-export function socialImageUrl(entry: Pick<SocialEntry, "id">): string;
-export function resolveSocialImageEntry(id: string): SocialEntry;
 export function normalizeMarketingPath(pathname: string): string;
 export function canonicalMarketingUrl(pathname: string): string;
 export function marketingAgentMarkdownUrl(entry: MarketingRouteEntry): string | undefined;

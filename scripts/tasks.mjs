@@ -122,22 +122,6 @@ const checks = {
   "social-images": stage("social images", [
     bun("scripts/social-images/catalog.mjs", "--check"),
     bunTest("packages/social-images/src/index.test.mjs"),
-    commandStep("bunx", "tsc", "--noEmit", "-p", "tsconfig.functions.json", {
-      cwd: "apps/marketing",
-    }),
-    commandStep(
-      "bunx",
-      "wrangler",
-      "pages",
-      "functions",
-      "build",
-      "functions",
-      "--outdir",
-      ".wrangler/functions",
-      "--project-directory",
-      ".",
-      { cwd: "apps/marketing" },
-    ),
   ]),
   reachability: stage("production reachability", [
     commandStep("scripts/check-go-deadcode.sh"),

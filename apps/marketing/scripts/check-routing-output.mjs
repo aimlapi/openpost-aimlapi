@@ -8,10 +8,16 @@ import { marketingErrorRecovery } from '../src/routes/_error-recovery.ts';
 const siteRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const outputRoot = path.join(siteRoot, 'dist');
 
+const redirects = await readFile(path.join(outputRoot, '_redirects'), 'utf8');
 assert.equal(
-	await readFile(path.join(outputRoot, '_redirects'), 'utf8'),
+	redirects,
 	await readFile(path.join(siteRoot, 'static', '_redirects'), 'utf8'),
 	'marketing must preserve the reviewed documentation consolidations'
+);
+assert.match(
+	redirects,
+	/^\/og \/assets\/brand\/og-image\.png 302$/mu,
+	'legacy social image URLs must recover through the static marketing card'
 );
 
 const headers = await readFile(path.join(outputRoot, '_headers'), 'utf8');

@@ -7,14 +7,14 @@ export { docsRouteFromPage } from "./docs-route.js";
 
 export const marketingSiteUrl = "https://openpo.st";
 export const docsSiteUrl = "https://docs.openpo.st";
-export const socialRendererVersion = "2";
+export const marketingSocialImageUrl = `${marketingSiteUrl}/assets/brand/og-image.png`;
+export const docsSocialImageUrl = `${docsSiteUrl}/assets/brand/og-docs.png`;
+const marketingSocialImageAlt =
+  "OpenPost. Turn what you're building into content. Publish it everywhere.";
+const docsSocialImageAlt = "OpenPost Docs. Use OpenPost. Run OpenPost.";
 
-export function socialImageUrl(entry) {
-  const query = new URLSearchParams({
-    v: socialRendererVersion,
-    id: entry.id,
-  });
-  return `${marketingSiteUrl}/og?${query}`;
+function socialImageUrl(entry) {
+  return entry.kind === "docs" ? docsSocialImageUrl : marketingSocialImageUrl;
 }
 
 const platformNames = [
@@ -31,8 +31,6 @@ const platformNames = [
   ["telegram", "Telegram"],
   ["discord", "Discord"],
 ];
-
-export const socialImagePlatformSlugs = Object.freeze(platformNames.map(([slug]) => slug));
 
 const toolPages = [
   {
@@ -324,7 +322,7 @@ export const marketingRouteManifest = Object.freeze(
       ...entry,
       id: `marketing:${entry.key}`,
       canonical: canonicalMarketingUrl(entry.path),
-      imageAlt: `${entry.socialTitle} OpenPost social preview.`,
+      imageAlt: marketingSocialImageAlt,
     };
     return { ...resolved, imageUrl: socialImageUrl(resolved) };
   }),
@@ -446,7 +444,7 @@ export function resolveDocsSocial({ page, title, description }) {
     label: docsSectionForPage(page),
     kind: "docs",
     canonical: route === "/" ? docsSiteUrl : `${docsSiteUrl}${route}`,
-    imageAlt: `${cleanTitle}. OpenPost documentation preview.`,
+    imageAlt: docsSocialImageAlt,
   };
   return { ...resolved, imageUrl: socialImageUrl(resolved) };
 }
@@ -461,11 +459,3 @@ export const docsSocialEntries = Object.freeze(
     agentCorpus: entry.agentCorpus,
   })),
 );
-
-const socialById = new Map(
-  [...marketingSocialEntries, ...docsSocialEntries].map((entry) => [entry.id, entry]),
-);
-
-export function resolveSocialImageEntry(id) {
-  return socialById.get(id) || socialById.get("marketing:home");
-}

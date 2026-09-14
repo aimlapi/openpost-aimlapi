@@ -31,9 +31,15 @@ for (const file of files) {
     'property="og:image:width" content="1200"',
     'property="og:image:height" content="630"',
     'name="twitter:card" content="summary_large_image"',
-    "https://openpo.st/og?",
+    "https://docs.openpo.st/assets/brand/og-docs.png",
   ]) {
     if (!html.includes(expected)) problems.push(`${route}: missing ${expected}`);
+  }
+  if (html.split('property="og:image"').length - 1 !== 1) {
+    problems.push(`${route}: expected exactly one og:image tag`);
+  }
+  if (html.includes("https://openpo.st/og?")) {
+    problems.push(`${route}: still references the retired social image renderer`);
   }
 }
 

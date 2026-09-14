@@ -1,24 +1,5 @@
 export type AssetSurface = "frontend" | "docs" | "marketing";
 
-export const publishedProviderAssetSlugs = [
-  "x",
-  "mastodon",
-  "bluesky",
-  "linkedin",
-  "threads",
-  "facebook",
-  "instagram",
-  "tiktok",
-  "youtube",
-  "pinterest",
-  "telegram",
-  "discord",
-  "pixelfed",
-  "peertube",
-  "lemmy",
-  "piefed",
-] as const;
-
 export const assetSurfaceManifest = {
   frontend: [
     "brand/icon.svg",
@@ -31,6 +12,7 @@ export const assetSurfaceManifest = {
     "brand/icon.svg",
     "brand/logo.svg",
     "brand/logo-dark.svg",
+    "brand/og-docs.png",
     "brand/features/compose.svg",
     "brand/features/image-editor.svg",
     "brand/features/video-editor.svg",
@@ -92,9 +74,6 @@ export const assetSurfaceManifest = {
   marketing: [
     "marketing/paper-plane.webp",
     "marketing/studio-cup.webp",
-    "brand/fonts/Geist-Regular.ttf",
-    "brand/fonts/Geist-SemiBold.ttf",
-    "brand/fonts/Manrope-SemiBold.ttf",
     "brand/logo.svg",
     "brand/logo-dark.svg",
     "brand/features/compose.svg",
@@ -136,7 +115,6 @@ export const assetSurfaceManifest = {
     "screenshots/calendar-dark.webp",
     "screenshots/analytics-light.webp",
     "screenshots/analytics-dark.webp",
-    ...publishedProviderAssetSlugs.map((slug) => `logos/${slug}.svg`),
     "postiz-socials/Bluesky.svg",
     "postiz-socials/Discord.svg",
     "postiz-socials/Facebook.svg",
