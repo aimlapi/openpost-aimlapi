@@ -4,6 +4,15 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+## [4.32.1] - 2026-09-14
+
+### Fixed
+
+- Video Editor preview frames no longer dispose a media input while an asynchronous decoder read is still using it.
+- Discord bot readiness follows the configured account and evidence policy instead of adding a production-only certification blocker.
+- A single required destination field sits in the right column on wide composer layouts, while mobile keeps the field full width.
+- The changed-file commit and push gate now runs on macOS's system Bash as well as newer Bash releases.
+
 ## [4.32.0] - 2026-09-14
 
 ### Added
