@@ -173,10 +173,6 @@ test("new page templates preserve accessible names and contrast @desktop", async
 });
 
 test("retired pages redirect readers to their replacement @desktop", async ({ request }) => {
-  test.skip(
-    process.env.OPENPOST_E2E_PREBUILT !== "1",
-    "Redirects are handled by Cloudflare Pages.",
-  );
   for (const [oldPath, replacement] of [
     ["/features", "/#features"],
     ["/features.md", "/index.md"],

@@ -148,6 +148,7 @@ test("pricing makes every plan selectable for monthly and annual billing", async
 
 test("free marketing tools produce useful output @desktop", async ({ page }) => {
   await page.goto("/tools/multi-platform-character-counter");
+  await dismissTelemetryConsent(page);
   await page.waitForLoadState("networkidle");
   await page.getByRole("textbox", { name: "Post text" }).fill("hello");
   await expect(page.getByRole("progressbar", { name: "X character use" })).toHaveAttribute(

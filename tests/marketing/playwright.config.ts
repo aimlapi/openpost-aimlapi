@@ -34,6 +34,13 @@ export default defineConfig({
   webServer: {
     cwd: repositoryRoot,
     command: webServerCommand,
+    env: {
+      VITE_POSTHOG_PROJECT_TOKEN: "phc_browser_fixture",
+      VITE_POSTHOG_API_HOST: baseURL,
+      VITE_POSTHOG_UI_HOST: baseURL,
+      VITE_OPENPOST_ENVIRONMENT: "ci",
+      POSTHOG_SOURCEMAPS_ENABLED: "0",
+    },
     url: baseURL,
     reuseExistingServer,
     timeout: 120_000,
