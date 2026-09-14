@@ -213,6 +213,7 @@
 		<Dialog.Header>
 			<Dialog.Title>{m.feedback_title()}</Dialog.Title>
 			<Dialog.Description>{m.feedback_description()}</Dialog.Description>
+			<p class="text-sm leading-6 text-muted-foreground">{m.feedback_response_promise()}</p>
 		</Dialog.Header>
 		{#if config && feedbackConfigQuery.isError}
 			<InlineNotice
@@ -300,12 +301,15 @@
 						{#each [['bug', m.feedback_category_bug()], ['idea', m.feedback_category_idea()], ['question', m.feedback_category_question()]] as option (option[0])}
 							<label
 								class={[
-									'flex min-h-11 cursor-pointer items-center justify-center rounded-md border px-3 text-sm',
+									'relative flex min-h-11 cursor-pointer items-center justify-center rounded-md border px-3 text-sm has-[[data-slot=radio-group-item]:focus-visible]:ring-2 has-[[data-slot=radio-group-item]:focus-visible]:ring-ring has-[[data-slot=radio-group-item]:focus-visible]:outline-none',
 									category === option[0] && 'border-primary bg-primary/8 text-primary'
 								]}
 							>
+								<!-- The radio item stays focusable for keyboard users but must not
+									occupy flex layout: twMerge keeps the primitive's size/position
+									classes alongside sr-only, which pushed the label text off-center. -->
 								<RadioGroup.Item
-									class="sr-only"
+									class="peer absolute m-0 size-0 border-0 p-0 opacity-0"
 									value={option[0]}
 									aria-label={option[1]}
 								/>{option[1]}
