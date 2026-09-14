@@ -38,6 +38,7 @@ const checks = {
   "build-graph": stage("build graph", [
     bunTest(
       "scripts/build-graph.test.mjs",
+      "scripts/build-telemetry-env.test.mjs",
       "scripts/frontend-vite-build.test.mjs",
       "scripts/paraglide-offline.test.mjs",
       "scripts/package-frontend.test.mjs",
