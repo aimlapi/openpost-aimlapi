@@ -14,7 +14,7 @@ func CanonicalSocialAccountContentID(provider, serverURL, accountID, externalID 
 		return "", false
 	}
 	switch strings.ToLower(strings.TrimSpace(provider)) {
-	case providerMastodon:
+	case providerMastodon, providerPixelfed:
 		statusID := strings.TrimSpace(externalID)
 		if statusID == "" || strings.ContainsAny(statusID, "/?#") {
 			return "", false

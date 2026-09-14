@@ -53,7 +53,7 @@ func (m *MastodonAdapter) FetchMessages(ctx context.Context, accessToken string,
 	if input.Cursor != "" {
 		query.Set("max_id", input.Cursor)
 	}
-	body, err := DoRequest(ctx, http.MethodGet, m.instanceURL+"/api/v1/conversations?"+query.Encode(), nil, map[string]string{
+	body, err := DoRequest(ctx, http.MethodGet, m.compat.instanceURL+"/api/v1/conversations?"+query.Encode(), nil, map[string]string{
 		headerAuthorization: bearerPrefix + accessToken,
 	})
 	if err != nil {
@@ -77,7 +77,7 @@ func (m *MastodonAdapter) FetchMessages(ctx context.Context, accessToken string,
 	for _, conversation := range list {
 		statuses := []mastodonMessageStatus{conversation.LastStatus}
 		if conversation.LastStatus.ID != "" {
-			contextBody, contextErr := DoRequest(ctx, http.MethodGet, m.instanceURL+"/api/v1/statuses/"+url.PathEscape(conversation.LastStatus.ID)+"/context", nil, map[string]string{
+			contextBody, contextErr := DoRequest(ctx, http.MethodGet, m.compat.instanceURL+"/api/v1/statuses/"+url.PathEscape(conversation.LastStatus.ID)+"/context", nil, map[string]string{
 				headerAuthorization: bearerPrefix + accessToken,
 			})
 			if contextErr == nil {

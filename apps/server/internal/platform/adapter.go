@@ -223,6 +223,7 @@ func RegisterAllMediaValidators() {
 		MediaValidators[providerInstagram] = validateInstagramMedia
 		MediaValidators[providerLinkedIn] = validateLinkedInMedia
 		MediaValidators[providerMastodon] = validateMastodonMedia
+		MediaValidators[providerPixelfed] = validatePixelfedMedia
 		MediaValidators[providerPinterest] = validatePinterestMedia
 		MediaValidators[providerTikTok] = validateTikTokMedia
 		MediaValidators[providerThreads] = validateThreadsMedia

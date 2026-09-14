@@ -16,6 +16,9 @@ func PublishingSettingsContract(provider string) PublishingSettingContract {
 		providerMastodon: {
 			AdapterKeys: []string{"url", "visibility", "spoiler_text", "sensitive", "language", "poll_options", "poll_expires_in_seconds", "poll_multiple", "poll_hide_totals", "focal_point", "alt_text"},
 		},
+		providerPixelfed: {
+			AdapterKeys: []string{"url", "visibility", "spoiler_text", "sensitive", "language", "poll_options", "poll_expires_in_seconds", "poll_multiple", "poll_hide_totals", "alt_text"},
+		},
 		providerBluesky: {
 			AdapterKeys: []string{"link_url", "link_title", "link_description", "quote_url", "languages", "self_labels", "reply_gate", "thread_gate", "alt_text"},
 		},

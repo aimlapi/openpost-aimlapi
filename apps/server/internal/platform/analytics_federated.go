@@ -14,50 +14,11 @@ func (m *MastodonAdapter) AnalyticsSupport() AnalyticsSupport {
 }
 
 func (m *MastodonAdapter) FetchAccountAnalytics(ctx context.Context, accessToken string, input AccountAnalyticsRequest) (AnalyticsValues, error) {
-	var response struct {
-		FollowersCount *int64 `json:"followers_count"`
-		FollowingCount *int64 `json:"following_count"`
-		StatusesCount  *int64 `json:"statuses_count"`
-	}
-	body, err := DoRequest(ctx, http.MethodGet, m.instanceURL+"/api/v1/accounts/"+url.PathEscape(input.AccountID), nil, map[string]string{
-		headerAuthorization: bearerPrefix + accessToken,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("mastodon account analytics: %w", err)
-	}
-	if err := json.Unmarshal(body, &response); err != nil {
-		return nil, fmt.Errorf("decoding mastodon account analytics: %w", err)
-	}
-	values := AnalyticsValues{}
-	addOptionalMetric(values, MetricFollowers, response.FollowersCount)
-	addOptionalMetric(values, MetricFollowing, response.FollowingCount)
-	addOptionalMetric(values, MetricPosts, response.StatusesCount)
-	return values, nil
+	return compatFetchAccountAnalytics(ctx, m.compat.instanceURL, accessToken, "mastodon", input.AccountID)
 }
 
 func (m *MastodonAdapter) FetchContentAnalytics(ctx context.Context, accessToken string, input ContentAnalyticsRequest) (AnalyticsValues, error) {
-	total := AnalyticsValues{}
-	for _, externalID := range uniqueNonEmpty(input.ExternalIDs) {
-		var response struct {
-			FavouritesCount *int64 `json:"favourites_count"`
-			ReblogsCount    *int64 `json:"reblogs_count"`
-			RepliesCount    *int64 `json:"replies_count"`
-		}
-		body, err := DoRequest(ctx, http.MethodGet, m.instanceURL+"/api/v1/statuses/"+url.PathEscape(externalID), nil, map[string]string{
-			headerAuthorization: bearerPrefix + accessToken,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("mastodon content analytics: %w", err)
-		}
-		if err := json.Unmarshal(body, &response); err != nil {
-			return nil, fmt.Errorf("decoding mastodon content analytics: %w", err)
-		}
-		addOptionalMetric(total, MetricLikes, response.FavouritesCount)
-		addOptionalMetric(total, MetricReposts, response.ReblogsCount)
-		addOptionalMetric(total, MetricComments, response.RepliesCount)
-	}
-	subtractOwnReplies(total, input.OwnReplyCount)
-	return total, nil
+	return compatFetchContentAnalytics(ctx, m.compat.instanceURL, accessToken, "mastodon", input)
 }
 
 func (b *BlueskyAdapter) AnalyticsSupport() AnalyticsSupport {

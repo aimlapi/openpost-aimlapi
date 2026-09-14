@@ -2,39 +2,37 @@ package platform
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
-	"mime"
-	"net/http"
 	"net/url"
-	"strconv"
 	"strings"
 	"time"
 )
 
+// MastodonAdapter publishes through the Mastodon client API of one instance.
+// Transport details shared with other Mastodon-API-compatible software live
+// in fediverse.go; this file keeps Mastodon's provider identity,
+// validation copy, and capability features.
 type MastodonAdapter struct {
-	clientID     string
-	clientSecret string
-	redirectURI  string
-	instanceURL  string
+	compat mastodonCompatCredentials
 }
 
 func NewMastodonAdapter(clientID, clientSecret, redirectURI, instanceURL string) *MastodonAdapter {
 	return &MastodonAdapter{
-		clientID:     clientID,
-		clientSecret: clientSecret,
-		redirectURI:  redirectURI,
-		instanceURL:  instanceURL,
+		compat: mastodonCompatCredentials{
+			instanceURL:  instanceURL,
+			clientID:     clientID,
+			clientSecret: clientSecret,
+			redirectURI:  redirectURI,
+		},
 	}
 }
 
 func (m *MastodonAdapter) AuthorizationGrantDescriptor() AuthorizationGrantDescriptor {
 	return AuthorizationGrantDescriptor{
-		ProjectID:     m.clientID,
+		ProjectID:     m.compat.clientID,
 		ExecutionMode: "oauth2",
-		Evidence:      map[string]string{"protocol": "oauth2", "exchange": "authorization_code", "instance_url": m.instanceURL},
+		Evidence:      map[string]string{"protocol": "oauth2", "exchange": "authorization_code", "instance_url": m.compat.instanceURL},
 	}
 }
 
@@ -61,40 +59,15 @@ func isMastodonLikelyVideoMime(mimeType string) bool {
 }
 
 func (m *MastodonAdapter) InstanceURL() string {
-	return m.instanceURL
+	return m.compat.instanceURL
 }
 
 func (m *MastodonAdapter) GenerateAuthURL(state string) (string, map[string]string) {
-	params := url.Values{}
-	params.Set(oauthParamClientID, m.clientID)
-	params.Set(oauthParamRedirectURI, m.redirectURI)
-	params.Set("response_type", oauthResponseType)
-	params.Set("scope", "read write")
-	params.Set("state", state)
-
-	return m.instanceURL + "/oauth/authorize?" + params.Encode(), nil
+	return m.compat.authURL(state)
 }
 
 func (m *MastodonAdapter) ExchangeCode(ctx context.Context, code string, _ map[string]string) (*TokenResult, error) {
-	values := map[string]string{
-		grantType:              oauthGrantAuthCode,
-		oauthParamCode:         code,
-		oauthParamRedirectURI:  m.redirectURI,
-		oauthParamClientID:     m.clientID,
-		oauthParamClientSecret: m.clientSecret,
-	}
-
-	respBody, err := DoFormURLEncoded(ctx, "POST", m.instanceURL+"/oauth/token", values, nil)
-	if err != nil {
-		return nil, fmt.Errorf("mastodon token exchange: %w", err)
-	}
-
-	var tokenResp TokenResult
-	if err := json.Unmarshal(respBody, &tokenResp); err != nil {
-		return nil, fmt.Errorf("decoding mastodon token: %w", err)
-	}
-
-	return &tokenResp, nil
+	return m.compat.exchangeCode(ctx, code)
 }
 
 func (m *MastodonAdapter) RefreshCapability() RefreshCapability {
@@ -109,19 +82,10 @@ func (m *MastodonAdapter) RefreshToken(_ context.Context, _ RefreshTokenInput) (
 }
 
 func (m *MastodonAdapter) GetProfile(ctx context.Context, accessToken string) (*UserProfile, error) {
-	type mastodonProfile struct {
-		ID           string `json:"id"`
-		Acct         string `json:"acct"`
-		DisplayName  string `json:"display_name"`
-		Avatar       string `json:"avatar"`
-		AvatarStatic string `json:"avatar_static"`
-	}
-
-	profile, err := DoBearerJSON[mastodonProfile](ctx, "GET", m.instanceURL+"/api/v1/accounts/verify_credentials", accessToken, nil, "mastodon profile")
+	profile, err := compatVerifyCredentials(ctx, m.compat.instanceURL, accessToken)
 	if err != nil {
 		return nil, err
 	}
-
 	return &UserProfile{
 		ID:          profile.ID,
 		Username:    profile.Acct,
@@ -131,135 +95,27 @@ func (m *MastodonAdapter) GetProfile(ctx context.Context, accessToken string) (*
 }
 
 func (m *MastodonAdapter) ResolveAccountPublishingCapabilities(ctx context.Context, accessToken string, _ AccountCapabilityInput) (AccountCapabilityResult, error) {
-	var instance struct {
-		Version       string `json:"version"`
-		Configuration struct {
-			Statuses struct {
-				MaxCharacters       int `json:"max_characters"`
-				MaxMediaAttachments int `json:"max_media_attachments"`
-			} `json:"statuses"`
-			Polls struct {
-				MaxOptions             int `json:"max_options"`
-				MaxCharactersPerOption int `json:"max_characters_per_option"`
-				MinExpiration          int `json:"min_expiration"`
-				MaxExpiration          int `json:"max_expiration"`
-			} `json:"polls"`
-			MediaAttachments struct {
-				ImageSizeLimit     int64    `json:"image_size_limit"`
-				VideoSizeLimit     int64    `json:"video_size_limit"`
-				SupportedMIMETypes []string `json:"supported_mime_types"`
-			} `json:"media_attachments"`
-		} `json:"configuration"`
-	}
-	response, err := DoRequest(ctx, http.MethodGet, m.instanceURL+"/api/v2/instance", nil, map[string]string{
-		headerAuthorization: bearerPrefix + accessToken,
-	})
+	result, err := compatInstanceCapabilities(ctx, m.compat.instanceURL, accessToken, "Mastodon")
 	if err != nil {
-		return AccountCapabilityResult{}, fmt.Errorf("loading Mastodon instance configuration: %w", err)
+		return AccountCapabilityResult{}, err
 	}
-	if err := json.Unmarshal(response, &instance); err != nil {
-		return AccountCapabilityResult{}, fmt.Errorf("decoding Mastodon instance configuration: %w", err)
+	version := strings.TrimPrefix(result.Revision, "compat-v1:")
+	version = strings.TrimPrefix(version, "compat:")
+	if version == "" || version == result.Revision {
+		version = "unknown"
 	}
-	constraints := map[string]interface{}{}
-	if instance.Configuration.Statuses.MaxCharacters > 0 {
-		constraints["text_limit"] = instance.Configuration.Statuses.MaxCharacters
+	result.Revision = "mastodon:" + version
+	if result.AvailableFeatures == nil {
+		result.AvailableFeatures = map[string]bool{}
 	}
-	if instance.Configuration.Statuses.MaxMediaAttachments > 0 {
-		constraints["media_max_count"] = instance.Configuration.Statuses.MaxMediaAttachments
-	}
-	if instance.Configuration.MediaAttachments.VideoSizeLimit > 0 {
-		constraints["max_video_size_bytes"] = instance.Configuration.MediaAttachments.VideoSizeLimit
-	}
-	if len(instance.Configuration.MediaAttachments.SupportedMIMETypes) > 0 {
-		constraints["allowed_mimes"] = instance.Configuration.MediaAttachments.SupportedMIMETypes
-	}
-	if instance.Configuration.Polls.MaxOptions > 0 {
-		constraints["poll_max_options"] = instance.Configuration.Polls.MaxOptions
-	}
-	if instance.Configuration.Polls.MaxCharactersPerOption > 0 {
-		constraints["poll_option_max_length"] = instance.Configuration.Polls.MaxCharactersPerOption
-	}
-	if instance.Configuration.Polls.MinExpiration > 0 {
-		constraints["poll_min_expiration_seconds"] = instance.Configuration.Polls.MinExpiration
-	}
-	if instance.Configuration.Polls.MaxExpiration > 0 {
-		constraints["poll_max_expiration_seconds"] = instance.Configuration.Polls.MaxExpiration
-	}
-	return AccountCapabilityResult{
-		Revision:    "mastodon:" + firstNonEmptyString(instance.Version, "unknown"),
-		Constraints: constraints,
-		AvailableFeatures: map[string]bool{
-			"quote_url":          false,
-			"interaction_policy": false,
-			"focal_point":        true,
-		},
-	}, nil
+	result.AvailableFeatures["quote_url"] = false
+	result.AvailableFeatures["interaction_policy"] = false
+	result.AvailableFeatures["focal_point"] = true
+	return result, nil
 }
 
 func (m *MastodonAdapter) UploadMedia(ctx context.Context, accessToken, _ string, mimeType string, reader io.Reader) (string, error) {
-	ext := ".bin"
-	if exts, err := mime.ExtensionsByType(mimeType); err == nil && len(exts) > 0 {
-		ext = exts[0]
-	}
-
-	respBody, err := DoMultipart(
-		ctx,
-		m.instanceURL+"/api/v2/media",
-		"file",
-		reader,
-		"upload"+ext,
-		nil,
-		map[string]string{
-			headerAuthorization: bearerPrefix + accessToken,
-		},
-	)
-	if err != nil {
-		return "", fmt.Errorf("mastodon media upload: %w", err)
-	}
-
-	var mediaResp struct {
-		ID  string `json:"id"`
-		URL string `json:"url"`
-	}
-	if unmarshalErr := json.Unmarshal(respBody, &mediaResp); unmarshalErr != nil {
-		return "", fmt.Errorf("decoding mastodon media: %w", unmarshalErr)
-	}
-
-	if mediaResp.URL == "" {
-		mediaResp.ID, err = m.waitForMediaProcessing(ctx, accessToken, mediaResp.ID)
-		if err != nil {
-			return "", err
-		}
-	}
-
-	return mediaResp.ID, nil
-}
-
-func (m *MastodonAdapter) waitForMediaProcessing(ctx context.Context, accessToken, mediaID string) (string, error) {
-	for i := 0; i < 30; i++ {
-		time.Sleep(2 * time.Second)
-
-		respBody, err := DoJSON(ctx, "GET", m.instanceURL+"/api/v1/media/"+mediaID, nil, map[string]string{
-			headerAuthorization: bearerPrefix + accessToken,
-		})
-		if err != nil {
-			return "", fmt.Errorf("mastodon media status: %w", err)
-		}
-
-		var statusResp struct {
-			ID  string `json:"id"`
-			URL string `json:"url"`
-		}
-		if err := json.Unmarshal(respBody, &statusResp); err != nil {
-			return "", fmt.Errorf("decoding mastodon media status: %w", err)
-		}
-
-		if statusResp.URL != "" {
-			return statusResp.ID, nil
-		}
-	}
-
-	return "", fmt.Errorf("mastodon media processing timed out")
+	return compatUploadMedia(ctx, m.compat.instanceURL, accessToken, mimeType, reader)
 }
 
 func (m *MastodonAdapter) Publish(ctx context.Context, accessToken, _ string, req *PublishRequest) (PublishResult, error) {
@@ -267,7 +123,7 @@ func (m *MastodonAdapter) Publish(ctx context.Context, accessToken, _ string, re
 	if err := req.BeginWrite(prepared); err != nil {
 		return PublishResult{}, err
 	}
-	result, err := m.publish(ctx, accessToken, req)
+	result, err := compatPostStatus(ctx, m.compat.instanceURL, accessToken, req, "mastodon")
 	if err != nil {
 		return prepared, err
 	}
@@ -277,198 +133,24 @@ func (m *MastodonAdapter) Publish(ctx context.Context, accessToken, _ string, re
 	return result, nil
 }
 
-func (m *MastodonAdapter) publish(ctx context.Context, accessToken string, req *PublishRequest) (PublishResult, error) {
-	// Update alt text for each uploaded media before attaching to the status
-	for i, mediaID := range req.PlatformMediaIDs {
-		altText := ""
-		if i < len(req.MediaAltTexts) {
-			altText = req.MediaAltTexts[i]
-		}
-		values := map[string]string{}
-		if altText != "" {
-			values["description"] = altText
-		}
-		if i < len(req.MediaSettings) {
-			if focalPoint := settingString(req.MediaSettings[i], "focal_point"); focalPoint != "" {
-				values["focus"] = focalPoint
-			}
-		}
-		if len(values) > 0 {
-			_, err := DoFormURLEncoded(ctx, "PUT", m.instanceURL+"/api/v1/media/"+mediaID, map[string]string{
-				"description": values["description"],
-				"focus":       values["focus"],
-			}, map[string]string{
-				headerAuthorization: bearerPrefix + accessToken,
-			})
-			if err != nil {
-				return PublishResult{}, fmt.Errorf("updating mastodon media alt text: %w", err)
-			}
-		}
-	}
-
-	formValues, err := buildMastodonStatusForm(req)
-	if err != nil {
-		return PublishResult{}, err
-	}
-	headers := map[string]string{headerAuthorization: bearerPrefix + accessToken}
-	if req.IdempotencyKey != "" {
-		headers["Idempotency-Key"] = req.IdempotencyKey
-	}
-	respBody, err := DoFormURLEncodedValues(ctx, "POST", m.instanceURL+"/api/v1/statuses", formValues, headers)
-	if err != nil {
-		return PublishResult{}, fmt.Errorf("posting to mastodon: %w", err)
-	}
-
-	var statusResp struct {
-		ID  string `json:"id"`
-		URL string `json:"url"`
-	}
-	if unmarshalErr := json.Unmarshal(respBody, &statusResp); unmarshalErr != nil {
-		return PublishResult{}, fmt.Errorf("decoding mastodon post: %w", unmarshalErr)
-	}
-
-	result := AcceptedPublishResult(statusResp.ID)
-	result.ExternalURL = statusResp.URL
-	result.ProviderState = "create_status"
-	return result, nil
-}
-
 func (m *MastodonAdapter) Repost(ctx context.Context, accessToken, _ string, req RepostRequest) (RepostResult, error) {
-	statusID := strings.TrimSpace(req.ExternalID)
-	if req.SourceInstanceURL != "" && strings.TrimRight(req.SourceInstanceURL, "/") != strings.TrimRight(m.instanceURL, "/") {
-		if strings.TrimSpace(req.ExternalURL) == "" {
-			return RepostResult{}, fmt.Errorf("mastodon cross-instance repost requires the source status url")
-		}
-		endpoint := m.instanceURL + "/api/v2/search?q=" + url.QueryEscape(req.ExternalURL) + "&type=statuses&resolve=true&limit=1"
-		body, err := DoRequest(ctx, http.MethodGet, endpoint, nil, map[string]string{
-			headerAuthorization: bearerPrefix + accessToken,
-		})
-		if err != nil {
-			return RepostResult{}, fmt.Errorf("resolving mastodon status: %w", err)
-		}
-		var result struct {
-			Statuses []struct {
-				ID string `json:"id"`
-			} `json:"statuses"`
-		}
-		if err := json.Unmarshal(body, &result); err != nil || len(result.Statuses) == 0 {
-			return RepostResult{}, fmt.Errorf("mastodon source status was not found on the target instance")
-		}
-		statusID = result.Statuses[0].ID
-	}
-	if statusID == "" {
-		return RepostResult{}, fmt.Errorf("mastodon repost requires a source status id")
-	}
-	body, err := DoRequest(ctx, http.MethodPost, m.instanceURL+"/api/v1/statuses/"+url.PathEscape(statusID)+"/reblog", nil, map[string]string{
-		headerAuthorization: bearerPrefix + accessToken,
-	})
-	if err != nil {
-		return RepostResult{}, fmt.Errorf("reposting on mastodon: %w", err)
-	}
-	var result struct {
-		Reblog *struct {
-			ID string `json:"id"`
-		} `json:"reblog"`
-	}
-	if err := json.Unmarshal(body, &result); err != nil {
-		return RepostResult{}, fmt.Errorf("decoding mastodon repost: %w", err)
-	}
-	if result.Reblog != nil && strings.TrimSpace(result.Reblog.ID) != "" {
-		statusID = result.Reblog.ID
-	}
-	return RepostResult{ExternalID: statusID, ExternalURL: req.ExternalURL}, nil
+	return compatRepost(ctx, m.compat.instanceURL, accessToken, req, "mastodon")
 }
 
 func (m *MastodonAdapter) Unrepost(ctx context.Context, accessToken, _ string, req UnrepostRequest) error {
-	statusID := strings.TrimSpace(req.RepostExternalID)
-	if statusID == "" {
-		return fmt.Errorf("mastodon unrepost requires the target-local source status id")
-	}
-	_, err := DoRequest(ctx, http.MethodPost, m.instanceURL+"/api/v1/statuses/"+url.PathEscape(statusID)+"/unreblog", nil, map[string]string{
-		headerAuthorization: bearerPrefix + accessToken,
-	})
-	if err == nil {
-		return nil
-	}
-	var httpErr *HTTPError
-	if errors.As(err, &httpErr) && (httpErr.StatusCode == http.StatusNotFound || httpErr.StatusCode == http.StatusGone) {
-		return nil
-	}
-	return fmt.Errorf("unreposting on mastodon: %w", err)
+	return compatUnrepost(ctx, m.compat.instanceURL, accessToken, req, "mastodon")
 }
 
+// buildMastodonStatusForm, validMastodonVisibility, and mastodonPollOptions
+// remain as the provider-named surface over the shared compat builders.
 func buildMastodonStatusForm(req *PublishRequest) (url.Values, error) {
-	formValues := url.Values{}
-	formValues.Set("status", ContentWithSettingURL(req.Content, req.Settings))
-
-	visibility := firstNonEmptyString(settingString(req.Settings, "visibility"), "public")
-	if !validMastodonVisibility(visibility) {
-		return nil, fmt.Errorf("mastodon visibility %q is not supported", visibility)
-	}
-	formValues.Set("visibility", visibility)
-
-	if spoilerText := settingString(req.Settings, "spoiler_text"); spoilerText != "" {
-		formValues.Set("spoiler_text", spoilerText)
-	}
-	if settingBool(req.Settings, "sensitive") {
-		formValues.Set("sensitive", "true")
-	}
-	if language := settingString(req.Settings, "language"); language != "" {
-		formValues.Set("language", language)
-	}
-	pollOptions := mastodonPollOptions(req.Settings)
-	if len(pollOptions) > 0 {
-		if len(req.PlatformMediaIDs) > 0 {
-			return nil, fmt.Errorf("mastodon polls cannot be combined with media attachments")
-		}
-		for _, option := range pollOptions {
-			formValues.Add("poll[options][]", option)
-		}
-		expiresIn := settingInt(req.Settings, "poll_expires_in_seconds")
-		if expiresIn <= 0 {
-			expiresIn = 86400
-		}
-		formValues.Set("poll[expires_in]", strconv.Itoa(expiresIn))
-		if settingBool(req.Settings, "poll_multiple") {
-			formValues.Set("poll[multiple]", "true")
-		}
-		if settingBool(req.Settings, "poll_hide_totals") {
-			formValues.Set("poll[hide_totals]", "true")
-		}
-	}
-
-	for _, mediaID := range req.PlatformMediaIDs {
-		formValues.Add("media_ids[]", mediaID)
-	}
-
-	if req.ReplyToID != "" {
-		formValues.Set("in_reply_to_id", req.ReplyToID)
-	}
-	return formValues, nil
+	return buildCompatStatusForm(req)
 }
 
 func validMastodonVisibility(value string) bool {
-	switch value {
-	case "public", "unlisted", "private", "direct":
-		return true
-	default:
-		return false
-	}
+	return validCompatVisibility(value)
 }
 
 func mastodonPollOptions(settings map[string]interface{}) []string {
-	raw := settingString(settings, "poll_options")
-	if raw == "" {
-		return nil
-	}
-	parts := strings.FieldsFunc(raw, func(r rune) bool {
-		return r == '\n' || r == ','
-	})
-	options := []string{}
-	for _, part := range parts {
-		if option := strings.TrimSpace(part); option != "" {
-			options = append(options, option)
-		}
-	}
-	return options
+	return compatPollOptions(settings)
 }

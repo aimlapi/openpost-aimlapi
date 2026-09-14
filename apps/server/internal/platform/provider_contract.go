@@ -36,6 +36,7 @@ func ApplicationContract(provider, connectionMode string) (ProviderAppContract, 
 		providerTelegram + ":" + ConnectionModeBot:        {Provider: providerTelegram, ConnectionMode: ConnectionModeBot, RequiredFields: []string{"bot_token", "bot_username", "webhook_secret"}},
 		providerX + ":" + ConnectionModeOAuth:             {Provider: providerX, ConnectionMode: ConnectionModeOAuth, RequiredFields: []string{"client_id"}, AdapterBacked: true},
 		providerMastodon + ":" + ConnectionModeOAuthOOB:   {Provider: providerMastodon, ConnectionMode: ConnectionModeOAuthOOB, RequiredFields: []string{"client_id", "client_secret", "instance_url"}, AdapterBacked: true},
+		providerPixelfed + ":" + ConnectionModeOAuthOOB:   {Provider: providerPixelfed, ConnectionMode: ConnectionModeOAuthOOB, RequiredFields: []string{"client_id", "client_secret", "instance_url"}, AdapterBacked: true},
 		providerFacebook + ":" + ConnectionModeOAuth:      {Provider: providerFacebook, ConnectionMode: ConnectionModeOAuth, RequiredFields: []string{"client_id"}, AdapterBacked: true},
 		providerInstagram + ":" + ConnectionModeOAuth:     {Provider: providerInstagram, ConnectionMode: ConnectionModeOAuth, RequiredFields: []string{"client_id"}, AdapterBacked: true},
 		providerLinkedIn + ":" + ConnectionModeOAuth:      {Provider: providerLinkedIn, ConnectionMode: ConnectionModeOAuth, RequiredFields: []string{"client_id"}, AdapterBacked: true},
@@ -95,7 +96,7 @@ func normalizeConnectionMode(provider, connectionMode string, app AppConfig) str
 		return ConnectionModeWebhook
 	case providerTelegram:
 		return ConnectionModeBot
-	case providerMastodon:
+	case providerMastodon, providerPixelfed:
 		return ConnectionModeOAuthOOB
 	default:
 		return ConnectionModeOAuth

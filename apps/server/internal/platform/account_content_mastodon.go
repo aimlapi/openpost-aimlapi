@@ -41,20 +41,29 @@ func (m *MastodonAdapter) AccountContentDiscoverySupport(input AnalyticsAccountC
 	if strings.TrimSpace(input.AccountID) == "" {
 		return AccountContentDiscoverySupport{UnavailableReason: "Mastodon account content discovery requires a stable account identity."}
 	}
-	if _, ok := canonicalProviderServerURL(m.instanceURL); !ok {
+	if _, ok := canonicalProviderServerURL(m.compat.instanceURL); !ok {
 		return AccountContentDiscoverySupport{UnavailableReason: "Mastodon account content discovery is unavailable for this instance configuration."}
 	}
 	return AccountContentDiscoverySupport{Supported: true, MaxPageSize: mastodonAccountContentPageSize}
 }
 
 func (m *MastodonAdapter) DiscoverAccountContent(ctx context.Context, accessToken string, input AccountContentDiscoveryRequest) (AccountContentPage, error) {
+	return compatDiscoverAccountContent(ctx, m.compat.instanceURL, accessToken, input, providerMastodon,
+		"Only public statuses visible through the authenticated Mastodon instance are included.")
+}
+
+// compatDiscoverAccountContent pages public statuses through the Mastodon
+// account-statuses API shared by compatible servers. The provider key scopes
+// canonical content identities so the same post seen through different
+// software never collides.
+func compatDiscoverAccountContent(ctx context.Context, rawInstanceURL, accessToken string, input AccountContentDiscoveryRequest, provider, coverageNote string) (AccountContentPage, error) {
 	if strings.TrimSpace(accessToken) == "" {
 		return AccountContentPage{}, NewAccountContentDiscoveryError(AccountContentDiscoveryPermissionRequired, "authentication_required", 0)
 	}
 	if strings.TrimSpace(input.AccountID) == "" {
 		return AccountContentPage{}, NewAccountContentDiscoveryError(AccountContentDiscoveryUnsupported, "missing_account_id", 0)
 	}
-	instanceURL, ok := canonicalProviderServerURL(m.instanceURL)
+	instanceURL, ok := canonicalProviderServerURL(rawInstanceURL)
 	if !ok {
 		return AccountContentPage{}, NewAccountContentDiscoveryError(AccountContentDiscoveryUnsupported, "invalid_instance", 0)
 	}
@@ -77,16 +86,22 @@ func (m *MastodonAdapter) DiscoverAccountContent(ctx context.Context, accessToke
 	}
 	var statuses []mastodonAccountContentStatus
 	if err := json.Unmarshal(body, &statuses); err != nil {
-		return AccountContentPage{}, fmt.Errorf("decoding mastodon account statuses: %w", err)
+		return AccountContentPage{}, fmt.Errorf("decoding %s account statuses: %w", provider, err)
 	}
-	return mastodonAccountContentPage(statuses, instanceURL, input.PublishedAfter, pageSize)
+	return compatAccountContentPage(statuses, provider, instanceURL, coverageNote, input.PublishedAfter, pageSize)
 }
 
 //nolint:gocyclo // One bounded page owns visibility, time, identity, URL, media-profile, and cursor validation.
 func mastodonAccountContentPage(statuses []mastodonAccountContentStatus, instanceURL string, publishedAfter time.Time, pageSize int) (AccountContentPage, error) {
+	return compatAccountContentPage(statuses, providerMastodon, instanceURL,
+		"Only public statuses visible through the authenticated Mastodon instance are included.", publishedAfter, pageSize)
+}
+
+//nolint:gocyclo // One bounded page owns visibility, time, identity, URL, media-profile, and cursor validation.
+func compatAccountContentPage(statuses []mastodonAccountContentStatus, provider, instanceURL, coverageNote string, publishedAfter time.Time, pageSize int) (AccountContentPage, error) {
 	page := AccountContentPage{Coverage: AccountContentCoverage{
 		Status:      AccountContentDiscoveryPartial,
-		Description: "Only public statuses visible through the authenticated Mastodon instance are included.",
+		Description: coverageNote,
 	}}
 	seen := make(map[string]struct{}, len(statuses))
 	reachedLowerBound := false
@@ -108,7 +123,7 @@ func mastodonAccountContentPage(statuses []mastodonAccountContentStatus, instanc
 		if status.Visibility != "public" {
 			continue
 		}
-		identity, ok := CanonicalSocialAccountContentID(providerMastodon, instanceURL, "", statusID)
+		identity, ok := CanonicalSocialAccountContentID(provider, instanceURL, "", statusID)
 		if !ok {
 			continue
 		}
@@ -126,9 +141,9 @@ func mastodonAccountContentPage(statuses []mastodonAccountContentStatus, instanc
 			OriginConfidence:  AccountContentOriginConfidenceExact,
 		}
 		if status.InReplyToID != "" {
-			item.ProviderParentID, _ = CanonicalSocialAccountContentID(providerMastodon, instanceURL, "", status.InReplyToID)
+			item.ProviderParentID, _ = CanonicalSocialAccountContentID(provider, instanceURL, "", status.InReplyToID)
 		}
-		normalized, err := NormalizeAccountContentItem(providerMastodon, item)
+		normalized, err := NormalizeAccountContentItem(provider, item)
 		if err != nil {
 			continue
 		}

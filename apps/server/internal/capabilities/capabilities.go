@@ -23,6 +23,10 @@ const (
 	ProviderInstagram = "instagram"
 	ProviderLinkedIn  = "linkedin"
 	ProviderMastodon  = "mastodon"
+	ProviderPixelfed  = "pixelfed"
+	ProviderPeerTube  = "peertube"
+	ProviderLemmy     = "lemmy"
+	ProviderPieFed    = "piefed"
 	ProviderPinterest = "pinterest"
 	ProviderTelegram  = "telegram"
 	ProviderThreads   = "threads"
@@ -397,6 +401,12 @@ func All() []Capability {
 		defaultQueued(Capability{Provider: ProviderMastodon, Profile: models.ContentProfileShortVideo, Label: "Mastodon video", TextLimit: 500, Media: mastodonVideo, Settings: mastodonSettings()}),
 		defaultQueued(Capability{Provider: ProviderMastodon, Profile: models.ContentProfileLongVideo, Label: "Mastodon video", TextLimit: 500, Media: mastodonVideo, Settings: mastodonSettings()}),
 
+		defaultQueued(Capability{Provider: ProviderPixelfed, Profile: models.ContentProfileShortText, Label: "Pixelfed post", TextLimit: 500, Media: text, Settings: pixelfedSettings()}),
+		defaultQueued(Capability{Provider: ProviderPixelfed, Profile: models.ContentProfileThread, Label: "Pixelfed thread", TextLimit: 500, Media: MediaConstraint{MinCount: 0, MaxCount: 4, AllowedMIMEs: []string{"image/jpeg", "image/png", "image/webp", "image/gif"}}, Settings: pixelfedSettings()}),
+		defaultQueued(Capability{Provider: ProviderPixelfed, Profile: models.ContentProfileLinkShare, Label: "Pixelfed link", TextLimit: 500, Media: text, Settings: append(linkSettings(), pixelfedSettings()...)}),
+		defaultQueued(Capability{Provider: ProviderPixelfed, Profile: models.ContentProfileImagePost, Label: "Pixelfed photo", TextLimit: 500, Media: MediaConstraint{MinCount: 1, MaxCount: 4, AllowedMIMEs: []string{"image/jpeg", "image/png", "image/webp"}}, Settings: pixelfedSettings()}),
+		defaultQueued(Capability{Provider: ProviderPixelfed, Profile: models.ContentProfileCarousel, Label: "Pixelfed album", TextLimit: 500, Media: MediaConstraint{MinCount: 2, MaxCount: 4, AllowedMIMEs: []string{"image/jpeg", "image/png", "image/webp"}}, Settings: pixelfedSettings()}),
+
 		defaultQueued(Capability{Provider: ProviderThreads, Profile: models.ContentProfileShortText, Label: "Threads post", TextLimit: 500, Media: text, Settings: threadsSettings()}),
 		defaultQueued(Capability{Provider: ProviderThreads, Profile: models.ContentProfileThread, Label: "Threads thread", TextLimit: 500, Media: threadsThreadMedia, RequiresPublicMedia: true, Settings: threadsSettings()}),
 		defaultQueued(Capability{Provider: ProviderThreads, Profile: models.ContentProfileLinkShare, Label: "Threads link", TextLimit: 500, Media: text, Settings: append(linkSettings(), threadsSettings()...)}),
@@ -598,7 +608,7 @@ func normalizeSettingDefinitions(capability Capability) []SettingDefinition {
 
 func altTextMediaShapes(capability Capability) []string {
 	switch capability.Provider {
-	case ProviderX, ProviderMastodon, ProviderBluesky:
+	case ProviderX, ProviderMastodon, ProviderBluesky, ProviderPixelfed:
 		return filterMediaShapes(capability.MediaShapes, MediaShapeSingleImage, MediaShapeMultipleImage, MediaShapeMixedMedia, MediaShapeVideo)
 	case ProviderLinkedIn, ProviderInstagram, ProviderThreads:
 		return filterMediaShapes(capability.MediaShapes, MediaShapeSingleImage, MediaShapeMultipleImage, MediaShapeMixedMedia)
@@ -851,6 +861,14 @@ func providerDisplayName(provider string) string {
 		return "Instagram"
 	case ProviderMastodon:
 		return "Mastodon"
+	case ProviderPixelfed:
+		return "Pixelfed"
+	case ProviderPeerTube:
+		return "PeerTube"
+	case ProviderLemmy:
+		return "Lemmy"
+	case ProviderPieFed:
+		return "PieFed"
 	case ProviderPinterest:
 		return "Pinterest"
 	case ProviderTelegram:
@@ -947,7 +965,7 @@ func destinationPresetScore(candidate Capability, preset string, segmentCount in
 
 func destinationThreadPreferred(candidate Capability, segmentCount int) bool {
 	return segmentCount > 1 && slices.Contains(
-		[]string{ProviderX, ProviderThreads, ProviderBluesky, ProviderMastodon},
+		[]string{ProviderX, ProviderThreads, ProviderBluesky, ProviderMastodon, ProviderPixelfed},
 		candidate.Provider,
 	)
 }
@@ -2314,6 +2332,19 @@ func mastodonSettings() []SettingField {
 		{Key: "quote_url", Label: "Quote post", Type: "url", Control: "quote_url", Capability: "quote_policy", UnavailableReason: "The connected instance has not advertised a compatible quote-post API."},
 		{Key: "interaction_policy", Label: "Who can interact", Type: "select", Capability: "interaction_policy", UnavailableReason: "The connected instance has not advertised interaction policies."},
 		{Key: "focal_point", Label: "Focal point", Type: "text", Control: "focal_point", Scope: SettingScopeMediaItem},
+	}
+}
+
+func pixelfedSettings() []SettingField {
+	return []SettingField{
+		{Key: "visibility", Label: "Visibility", Type: "select", Options: []string{"public", "unlisted", "private", "direct"}},
+		{Key: "spoiler_text", Label: "Content warning", Type: "text"},
+		{Key: "sensitive", Label: "Sensitive media", Type: "boolean"},
+		{Key: "language", Label: "Language", Type: "tags", Control: "language", Help: "BCP 47 language tag."},
+		{Key: "poll_options", Label: "Poll", Type: "textarea", Control: "poll", Scope: SettingScopeSegment, MediaShapes: []string{MediaShapeText}, Constraints: SettingConstraint{MinItems: 2, MaxItems: 4}, Conflicts: []SettingCondition{{Key: "media", Operator: "present"}}, Help: "Poll limits come from the connected Pixelfed server."},
+		{Key: "poll_expires_in_seconds", Label: "Poll duration", Type: "number", Scope: SettingScopeSegment, Dependencies: []SettingCondition{{Key: "poll_options", Operator: "present"}}},
+		{Key: "poll_multiple", Label: "Allow multiple choices", Type: "boolean", Scope: SettingScopeSegment, Dependencies: []SettingCondition{{Key: "poll_options", Operator: "present"}}},
+		{Key: "poll_hide_totals", Label: "Hide totals until the poll ends", Type: "boolean", Scope: SettingScopeSegment, Dependencies: []SettingCondition{{Key: "poll_options", Operator: "present"}}},
 	}
 }
 

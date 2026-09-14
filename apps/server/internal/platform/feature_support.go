@@ -10,7 +10,7 @@ import (
 // and must stay in sync with the per-adapter AnalyticsSupport implementations.
 func SupportsAnalytics(platformName string, capabilityState string) bool {
 	switch platformName {
-	case "x", "bluesky", "mastodon", "facebook", "instagram", "threads", "youtube", "tiktok":
+	case "x", "bluesky", "mastodon", "pixelfed", "facebook", "instagram", "threads", "youtube", "tiktok":
 		return true
 	case "linkedin":
 		if isLinkedInCommunityManagementState(capabilityState) {
@@ -30,7 +30,7 @@ func SupportsAnalytics(platformName string, capabilityState string) bool {
 // that is enabled. Canonical for migration backfill.
 func SupportsEngagement(platformName string) bool {
 	switch platformName {
-	case "facebook", "instagram", "linkedin", "threads", "mastodon", "bluesky", "x", "youtube":
+	case "facebook", "instagram", "linkedin", "threads", "mastodon", "pixelfed", "bluesky", "x", "youtube":
 		return true
 	default:
 		return false

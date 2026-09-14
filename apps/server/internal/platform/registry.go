@@ -51,6 +51,12 @@ var appBuilders = map[string]appBuilder{
 		}
 		return NewMastodonAdapter(app.ClientID, app.ClientSecret, app.RedirectURI, app.InstanceURL), nil
 	},
+	providerPixelfed: func(app AppConfig, _ RegistryOptions) (Adapter, error) {
+		if strings.TrimSpace(app.ClientID) == "" || strings.TrimSpace(app.ClientSecret) == "" || strings.TrimSpace(app.InstanceURL) == "" {
+			return nil, fmt.Errorf("pixelfed provider app requires client_id, client_secret, and instance_url")
+		}
+		return NewPixelfedAdapter(app.ClientID, app.ClientSecret, app.RedirectURI, app.InstanceURL), nil
+	},
 	providerBluesky: func(_ AppConfig, _ RegistryOptions) (Adapter, error) {
 		return NewBlueskyAdapter(""), nil
 	},
@@ -168,7 +174,7 @@ func MergeAppConfigs(base []AppConfig, overrides ...AppConfig) []AppConfig {
 
 func AppConfigMergeKey(app AppConfig) string {
 	app = NormalizeAppConfig(app)
-	if app.Provider == providerMastodon {
+	if app.Provider == providerMastodon || app.Provider == providerPixelfed {
 		return app.Provider + ":" + app.InstanceURL
 	}
 	if app.Provider == providerDiscord && app.ConnectionMode == ConnectionModeBot {
@@ -182,8 +188,8 @@ func AppConfigMergeKey(app AppConfig) string {
 // continue to resolve to the canonical incoming-webhook adapter.
 func AccountProviderKey(provider, instanceURL, capabilityStateJSON string) string {
 	provider = strings.ToLower(strings.TrimSpace(provider))
-	if provider == providerMastodon {
-		return providerMastodon + ":" + strings.TrimRight(strings.TrimSpace(instanceURL), "/")
+	if provider == providerMastodon || provider == providerPixelfed {
+		return provider + ":" + strings.TrimRight(strings.TrimSpace(instanceURL), "/")
 	}
 	if provider == providerBluesky {
 		if instance := CanonicalBlueskyPDSURL(instanceURL); instance != "" && instance != BlueskyDefaultPDSURL {
@@ -225,16 +231,16 @@ func adapterKeys(app AppConfig) []string {
 		}
 		return []string{providerDiscord, providerDiscord + ":" + ConnectionModeWebhook}
 	}
-	if app.Provider != providerMastodon {
+	if app.Provider != providerMastodon && app.Provider != providerPixelfed {
 		return []string{app.Provider}
 	}
 
 	keys := []string{}
 	if app.InstanceURL != "" {
-		keys = append(keys, providerMastodon+":"+app.InstanceURL)
+		keys = append(keys, app.Provider+":"+app.InstanceURL)
 	}
 	if app.Name != "" {
-		keys = append(keys, providerMastodon+":"+app.Name)
+		keys = append(keys, app.Provider+":"+app.Name)
 	}
 	return keys
 }

@@ -18,39 +18,7 @@ func (m *MastodonAdapter) EngagementSupport() EngagementSupport {
 }
 
 func (m *MastodonAdapter) ListComments(ctx context.Context, accessToken, accountID, externalID string) ([]Comment, error) {
-	body, err := DoRequest(ctx, http.MethodGet, m.instanceURL+"/api/v1/statuses/"+url.PathEscape(externalID)+"/context", nil, map[string]string{
-		headerAuthorization: bearerPrefix + accessToken,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("fetching Mastodon replies: %w", err)
-	}
-	var response struct {
-		Descendants []mastodonMessageStatus `json:"descendants"`
-	}
-	if err := json.Unmarshal(body, &response); err != nil {
-		return nil, fmt.Errorf("decoding Mastodon replies: %w", err)
-	}
-	comments := make([]Comment, 0, len(response.Descendants))
-	for _, status := range response.Descendants {
-		attachments := make([]CommentAttachment, 0, len(status.MediaAttachments))
-		for _, attachment := range status.MediaAttachments {
-			attachments = append(attachments, CommentAttachment{
-				Type:      attachment.Type,
-				URL:       attachment.URL,
-				Thumbnail: attachment.PreviewURL,
-				AltText:   attachment.Description,
-			})
-		}
-		comments = append(comments, Comment{
-			ID: status.ID, ParentID: status.InReplyToID, AuthorID: status.Account.ID, AuthorName: status.Account.DisplayName,
-			AuthorHandle: prefixHandle(status.Account.Acct), AuthorAvatarURL: status.Account.Avatar,
-			Text: mastodonPlainText(status.Content), CreatedAt: status.CreatedAt, UpdatedAt: status.EditedAt,
-			Attachments: attachments, IsOurs: status.Account.ID == accountID, CanReply: true,
-			CanDelete: status.Account.ID == accountID, CanLike: !status.Favourited,
-			CanUnlike: status.Favourited, Liked: status.Favourited, LikeStateKnown: true,
-		})
-	}
-	return comments, nil
+	return compatListComments(ctx, m.compat.instanceURL, accessToken, accountID, externalID, "Mastodon")
 }
 
 func (m *MastodonAdapter) ReplyToComment(ctx context.Context, accessToken, accountID, commentID, message string) (string, error) {
@@ -63,24 +31,15 @@ func (m *MastodonAdapter) HideComment(context.Context, string, string, string) e
 }
 
 func (m *MastodonAdapter) DeleteComment(ctx context.Context, accessToken, _ string, commentID string) error {
-	_, err := DoRequest(ctx, http.MethodDelete, m.instanceURL+"/api/v1/statuses/"+url.PathEscape(commentID), nil, map[string]string{
-		headerAuthorization: bearerPrefix + accessToken,
-	})
-	return err
+	return compatDeleteComment(ctx, m.compat.instanceURL, accessToken, commentID, "mastodon")
 }
 
 func (m *MastodonAdapter) LikeComment(ctx context.Context, accessToken, _ string, commentID string) error {
-	_, err := DoRequest(ctx, http.MethodPost, m.instanceURL+"/api/v1/statuses/"+url.PathEscape(commentID)+"/favourite", nil, map[string]string{
-		headerAuthorization: bearerPrefix + accessToken,
-	})
-	return err
+	return compatFavouriteComment(ctx, m.compat.instanceURL, accessToken, commentID, "mastodon")
 }
 
 func (m *MastodonAdapter) UnlikeComment(ctx context.Context, accessToken, _ string, commentID string) error {
-	_, err := DoRequest(ctx, http.MethodPost, m.instanceURL+"/api/v1/statuses/"+url.PathEscape(commentID)+"/unfavourite", nil, map[string]string{
-		headerAuthorization: bearerPrefix + accessToken,
-	})
-	return err
+	return compatUnfavouriteComment(ctx, m.compat.instanceURL, accessToken, commentID, "mastodon")
 }
 
 type blueskyThreadNode struct {

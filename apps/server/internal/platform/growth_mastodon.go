@@ -253,7 +253,7 @@ func (m *MastodonAdapter) FollowGrowthCandidate(ctx context.Context, accessToken
 	// viewerID is accepted for the uniform seam but not needed for the request
 	_ = viewerID
 
-	endpoint := m.instanceURL + "/api/v1/accounts/" + url.PathEscape(candidateID) + "/follow"
+	endpoint := m.compat.instanceURL + "/api/v1/accounts/" + url.PathEscape(candidateID) + "/follow"
 	respBody, err := DoRequest(ctx, http.MethodPost, endpoint, nil, map[string]string{
 		headerAuthorization: bearerPrefix + accessToken,
 	})
@@ -277,7 +277,7 @@ func (m *MastodonAdapter) FollowGrowthCandidate(ctx context.Context, accessToken
 }
 
 func (m *MastodonAdapter) fetchMastodonSuggestions(ctx context.Context, accessToken string) ([]mastodonSuggestion, error) {
-	endpoint := m.instanceURL + "/api/v2/suggestions?limit=" + fmt.Sprint(mastodonSuggestionsLimit)
+	endpoint := m.compat.instanceURL + "/api/v2/suggestions?limit=" + fmt.Sprint(mastodonSuggestionsLimit)
 	respBody, err := DoRequest(ctx, http.MethodGet, endpoint, nil, map[string]string{
 		headerAuthorization: bearerPrefix + accessToken,
 	})
@@ -306,7 +306,7 @@ func (m *MastodonAdapter) fetchMastodonFamiliarFollowers(ctx context.Context, ac
 		for _, id := range batch {
 			params.Add("id[]", id)
 		}
-		endpoint := m.instanceURL + "/api/v1/accounts/familiar_followers?" + params.Encode()
+		endpoint := m.compat.instanceURL + "/api/v1/accounts/familiar_followers?" + params.Encode()
 		respBody, err := DoRequest(ctx, http.MethodGet, endpoint, nil, map[string]string{
 			headerAuthorization: bearerPrefix + accessToken,
 		})
@@ -348,7 +348,7 @@ func (m *MastodonAdapter) fetchMastodonRelationships(ctx context.Context, access
 		for _, id := range batch {
 			params.Add("id[]", id)
 		}
-		endpoint := m.instanceURL + "/api/v1/accounts/relationships?" + params.Encode()
+		endpoint := m.compat.instanceURL + "/api/v1/accounts/relationships?" + params.Encode()
 		respBody, err := DoRequest(ctx, http.MethodGet, endpoint, nil, map[string]string{
 			headerAuthorization: bearerPrefix + accessToken,
 		})
