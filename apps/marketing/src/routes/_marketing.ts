@@ -757,76 +757,72 @@ const platformImplementations = [
 		slug: 'telegram',
 		name: 'Telegram',
 		short: 'telegram',
-		tag: 'Channels, groups, media',
+		tag: 'Bot mode unavailable pending certification',
 		requiresProviderApproval: false,
-		implementationDetail: 'Instance-owned bot connection',
+		implementationDetail: 'Bot paths exist; public connections are intentionally unavailable',
 		description:
-			'Connect a Telegram channel or group through the instance bot, then schedule text and media posts.',
-		heroTitle: 'Publish to your Telegram channel or group.',
+			'Telegram bot mode is not publicly available in OpenPost. It remains blocked until the exact bot configuration and operations have current live certification.',
+		heroTitle: 'Telegram bot mode remains behind the provider readiness gate.',
 		preview: {
-			label: 'Telegram channel',
-			headline: 'A scheduled channel post',
-			body: 'Text, photos, video, and files go out through the instance-owned bot.',
-			detail: '4,096 characters · up to 10 media items',
-			chips: ['Bot', 'Up to 10 media', 'Scheduled']
+			label: 'No public connection',
+			headline: 'Live bot certification required',
+			body: 'A configured bot token does not make Telegram available to public Hosted accounts.',
+			detail: 'Connect, publish, observation, and analytics gate separately',
+			chips: ['Unavailable', 'Instance bot', 'Live certification']
 		},
-		accountRequirement: 'Access to a Telegram channel or group where the instance bot can post.',
-		auth: 'Instance-owned bot',
+		accountRequirement:
+			'An instance-owned Telegram bot with a secret webhook and current live evidence for each enabled operation.',
+		auth: 'Instance-owned bot; publicly unavailable',
 		setup: [
-			'Create the instance bot with BotFather and save its token in the provider app registry.',
-			'Add the bot to the channel or group and give it permission to post messages.',
-			'Connect the chat from Social accounts with its numeric chat ID, then publish a small test post.'
+			'Operators may configure the instance bot only for controlled development or certification work.',
+			'Keep public connection, publishing, observation, and analytics operations disabled without current evidence.',
+			'Use the provider readiness ledger before changing any public availability statement.'
 		],
 		formats: [
 			{
-				name: 'Text message',
-				text: '4,096 characters',
-				media: 'Text only'
-			},
-			{
-				name: 'Media message',
-				text: '1,024-character caption',
-				media: 'Up to 10 images, videos, or files in one group'
+				name: 'Public availability',
+				text: 'Unavailable',
+				media: 'Unavailable'
 			}
 		],
 		limits: [
-			'4,096 characters for a text message',
-			'1,024 characters for a media caption; longer captions continue as an ordered follow-up',
-			PLATFORM_LIMITS.telegram.media
+			'Every bot operation has an independent readiness gate',
+			'Public Hosted availability requires current exact-subject live evidence',
+			'No Telegram bot operation is advertised as available today'
 		],
 		limitations: [
 			'Bot credentials are instance-owned and never belong in workspace data.',
-			'The bot must stay in the chat with permission to post; removing it stops delivery.',
-			'Observation covers channel posts from installation onward and does not backfill earlier messages.'
+			'An implementation path or configured token is not a readiness claim.',
+			'OpenPost exposes no public Telegram bot claim without a current certification projection.'
 		],
 		verification:
-			'Publish a short test post to the exact chat before you rely on it for scheduled content.',
+			'Do not connect the bot to public accounts until every intended operation passes its readiness gate with current live evidence.',
 		docsUrl: 'https://docs.openpo.st/guides/accounts'
 	},
 	{
 		slug: 'discord',
 		name: 'Discord',
 		short: 'discord',
-		tag: 'Webhooks and server bot',
+		tag: 'Messages and files',
 		requiresProviderApproval: false,
-		implementationDetail: 'Channel webhook or server bot connection',
+		implementationDetail: 'Built-in webhook connection',
 		description:
-			'Connect a channel webhook for one fixed channel, or install the Discord bot to choose channels across a server. Both schedule text and file attachments.',
-		heroTitle: 'Send updates to your Discord channels.',
+			'Connect a Discord channel webhook, then schedule text and up to 10 file attachments.',
+		heroTitle: 'Schedule a message and its files for a Discord channel.',
 		preview: {
 			label: 'Discord channel',
 			headline: 'A scheduled channel update',
-			body: 'Text, files, alt text, and reply links are sent to the channel you choose.',
+			body: 'Text, files, alt text, and reply links are sent through the channel webhook.',
 			detail: '2,000 characters',
-			chips: ['Webhook or bot', 'Up to 10 files', 'Reply links']
+			chips: ['Webhook', 'Up to 10 files', 'Reply links']
 		},
 		accountRequirement:
-			'An incoming webhook URL for a channel, or permission to install the bot on a Discord server.',
-		auth: 'Incoming webhook URL or bot OAuth',
+			'An incoming webhook URL for a Discord channel where you can manage integrations.',
+		auth: 'Incoming webhook URL',
 		setup: [
-			'For one channel, create an incoming webhook in the Discord channel settings and connect it from Social accounts.',
-			'For a server, configure the Discord application and connect the bot, then pick the server and channel.',
-			'Publish a small test message and file, then keep webhook URLs and bot tokens private.'
+			'Create an incoming webhook in the Discord channel settings.',
+			'Copy the webhook URL and connect it from Social accounts in OpenPost.',
+			'Publish a small test message and file, then keep the webhook URL private.'
 		],
 		formats: [
 			{
@@ -847,8 +843,7 @@ const platformImplementations = [
 			'Scheduled messages do not notify users or roles by default'
 		],
 		limitations: [
-			'A webhook publishes to its fixed channel; the bot posts to the channel selected for each post.',
-			'Neither connection reads the channel inbox. A webhook can delete its own messages.',
+			'A webhook can publish and delete its own messages, but it cannot read the channel inbox.',
 			'The webhook URL acts like a password. Anyone who has it can post to the channel.',
 			'The Discord server or account may enforce a different upload limit.'
 		],
@@ -891,8 +886,7 @@ const landingPlatformSlugs = [
 	'threads',
 	'facebook',
 	'mastodon',
-	'discord',
-	'telegram'
+	'discord'
 ] as const;
 
 export const landingPlatforms = landingPlatformSlugs.map((slug) => {
@@ -1005,7 +999,7 @@ export const faqs = [
 		category: 'publishing',
 		question: 'Which social channels can I use?',
 		answer:
-			'OpenPost includes integrations for major social networks, but posting options depend on your account. OpenPost Cloud posting has not completed its final live checks yet. Check the channel page or contact us before relying on it for an important launch. Pinterest is unavailable.',
+			'OpenPost includes integrations for major social networks, but posting options depend on your account. OpenPost Cloud posting has not completed its final live checks yet. Check the channel page or contact us before relying on it for an important launch. Pinterest and Telegram are unavailable.',
 		learnMore: { label: 'Check your channels', href: '/platforms' }
 	},
 	{

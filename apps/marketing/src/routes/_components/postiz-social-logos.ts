@@ -6,7 +6,6 @@ export const postizSocialLogos = {
 	linkedin: 'Linkedin.svg',
 	mastodon: 'Mastodon.svg',
 	threads: 'Threads.svg',
-	telegram: 'Telegram.svg',
 	tiktok: 'TikTok.svg',
 	x: 'X.svg',
 	youtube: 'Youtube.svg'

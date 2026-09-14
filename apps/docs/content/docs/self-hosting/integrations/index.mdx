@@ -99,7 +99,7 @@ If you use [OpenPost Hosted](https://app.openpo.st), go straight to [connecting 
 
 Bluesky, Mastodon, and Discord webhooks do not need an operator-created developer app in the usual setup. Other networks need credentials for your instance. A developer app identifies your OpenPost server to the network; connecting an account lets that server publish for a particular person, Page, or channel.
 
-Pinterest also needs an [administrator readiness record](#readiness-records-for-pinterest). Read that requirement before starting its setup.
+Pinterest, Telegram, and Discord bot mode also need [administrator readiness records](#readiness-records-for-bot-apps-and-pinterest). Read that requirement before starting their setup.
 
 ## Before you start
 
@@ -142,7 +142,7 @@ OPENPOST_PROVIDER_APPS='[{"provider":"linkedin","client_id":"YOUR_CLIENT_ID","cl
 
 Replace the example values with your app's credentials. When adding another network, append its object to the same array. Keep **one** `OPENPOST_PROVIDER_APPS` entry; a second definition can replace the first and make existing integrations disappear.
 
-Use this method for Pinterest credentials, which the settings form does not yet expose. Bluesky passwords and Discord webhook URLs belong in the workspace connection dialog, not this registry.
+Use this method for Pinterest, Telegram, and Discord bot credentials, which the settings form does not yet expose. Bluesky passwords and Discord webhook URLs belong in the workspace connection dialog, not this registry.
 
 Keep `.env` private and out of Git. If your deployment provides a secret store, set the variable there. You can also set `OPENPOST_PROVIDER_APPS_FILE` to a mounted file containing the JSON array. Recreate the Compose service to load changed environment values:
 
@@ -176,12 +176,12 @@ A successful sign-in confirms access to the account. It does not confirm that ev
 
 If setup fails, use [connection troubleshooting](/self-hosting/integrations/troubleshooting). If the account connects but a post fails, start with [publishing troubleshooting](/guides/troubleshooting).
 
-## Readiness records for Pinterest
+## Readiness records for bot apps and Pinterest
 
-Pinterest currently requires administrator readiness records even on a self-hosted instance. A saved credential can be valid while connection or publishing remains unavailable.
+Pinterest, Telegram, and Discord bot mode currently require administrator readiness records even on a self-hosted instance. A saved credential can be valid while connection or publishing remains unavailable. Discord channel webhooks do not need this workflow.
 
 An instance administrator records the app's approval status first, connects a test account, then records the results of local and live publishing tests. The first publishing test uses `certification_test` intent so it can run before prior test evidence exists. It still requires the correct app, approval or trial permission, account authorization, and enabled runtime controls. Normal immediate and scheduled publishing each need current evidence.
 
 Use the [operator readiness guide](https://github.com/getopenpost/openpost/blob/main/docs/reference/providers/provider-launch-matrix.md#recording-certification-evidence) for the required records. While signed in as an instance administrator, open `/api/v1/docs` on your own OpenPost server to submit them through the API reference. Choose **The OpenPost instance serving this contract** as the server and leave `openpost_session` blank; the browser sends your session cookie. API tokens cannot perform these administrator operations.
 
-The Pinterest page explains the order for its setup. These steps currently use the administrator API; there is no equivalent workspace settings form.
+The provider pages explain the order for each network, including Telegram's webhook registration. These steps currently use the administrator API; there is no equivalent workspace settings form.
