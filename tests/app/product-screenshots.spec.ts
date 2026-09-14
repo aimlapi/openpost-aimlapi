@@ -899,6 +899,8 @@ async function createVideoEditorProject(page: Page, name: string): Promise<void>
 }
 
 test.describe("product screenshot capture", () => {
+  // Route fixtures must own every request; service worker behavior is covered by pwa.spec.ts.
+  test.use({ serviceWorkers: "block" });
   test.setTimeout(120_000);
 
   let auth: Awaited<ReturnType<typeof registerUser>>;
