@@ -100,4 +100,19 @@ describe('OpenPost Image Editor command history', () => {
 		expect(history.entryCount).toBe(3);
 		expect(history.undo(value)).toBe('dddd');
 	});
+
+	it('keeps immutable gesture states by reference through undo and redo', () => {
+		const clone = vi.fn((value: { pages: object[] }) => structuredClone(value));
+		const history = new ImageEditorHistory<{ pages: object[] }>(clone);
+		const page = { id: 'unaffected' };
+		const before = { pages: [page, { color: 0 }] };
+		const after = { pages: [page, { color: 1 }] };
+
+		history.checkpointShared('Color', before, after, 32);
+
+		expect(clone).not.toHaveBeenCalled();
+		expect(history.undo(after)).toBe(before);
+		expect(history.redo(before)).toBe(after);
+		expect(history.estimatedSizeBytes).toBe(32);
+	});
 });

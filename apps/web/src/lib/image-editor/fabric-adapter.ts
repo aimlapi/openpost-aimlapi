@@ -514,7 +514,7 @@ export class OpenPostFabricAdapter {
 			}
 			if (!object) continue;
 			this.objectByLayerID.set(layer.id, object);
-			this.layerSnapshots.set(layer.id, structuredClone(layer));
+			this.layerSnapshots.set(layer.id, layer);
 			this.canvas.add(object);
 			this.refreshDecorations(layer, object);
 		}
@@ -533,18 +533,44 @@ export class OpenPostFabricAdapter {
 		const pageChanged = page.id !== this.page.id;
 		const backgroundChanged =
 			JSON.stringify(imageEditorPageBackground(page)) !== this.backgroundSnapshot;
-		if (dimensionsChanged || pageChanged || backgroundChanged) {
+		if (dimensionsChanged || pageChanged) {
 			await this.render(document, page);
 			return;
 		}
 
 		const sequence = ++this.renderSequence;
 		const previousLayers = [...this.layerSnapshots.values()];
+		const nextLayerByID = new Map(page.layers.map((layer) => [layer.id, layer] as const));
+		const hierarchyChanged =
+			page.layers.some(
+				(layer) => layer.type === 'group' && this.layerSnapshots.get(layer.id) !== layer
+			) ||
+			previousLayers.some(
+				(layer) => layer.type === 'group' && nextLayerByID.get(layer.id) !== layer
+			);
 		this.document = document;
 		this.page = page;
 		this.syncing = true;
-		const nextLayerIDs = new Set(page.layers.map((layer) => layer.id));
+		const nextLayerIDs = new Set(nextLayerByID.keys());
 		try {
+			if (backgroundChanged) {
+				if (this.backgroundObject) {
+					this.canvas.remove(this.backgroundObject);
+					this.releaseObjectURL(this.backgroundObject);
+					this.backgroundObject = null;
+				}
+				this.canvas.backgroundColor = 'transparent';
+				const backgroundObject = await this.createPageBackgroundObject(page);
+				if (sequence !== this.renderSequence) {
+					if (backgroundObject) this.releaseObjectURL(backgroundObject);
+					return;
+				}
+				if (backgroundObject) {
+					this.backgroundObject = backgroundObject;
+					this.canvas.add(backgroundObject);
+				}
+				this.backgroundSnapshot = JSON.stringify(imageEditorPageBackground(page));
+			}
 			for (const [id, object] of this.objectByLayerID) {
 				if (nextLayerIDs.has(id)) continue;
 				this.removeLayerObjects(id, object);
@@ -554,10 +580,11 @@ export class OpenPostFabricAdapter {
 			}
 			for (const layer of imageEditorLayerRenderOrder(page.layers)) {
 				const previous = this.layerSnapshots.get(layer.id);
+				let object = this.objectByLayerID.get(layer.id);
+				if (previous === layer && object && !hierarchyChanged) continue;
 				if (previous && alphaHitFingerprint(previous) !== alphaHitFingerprint(layer)) {
 					this.alphaHitMasks.delete(layer.id);
 				}
-				let object = this.objectByLayerID.get(layer.id);
 				if (!previous || !object || this.requiresObjectRebuild(previous, layer)) {
 					if (object) this.removeLayerObjects(layer.id, object);
 					const replacement = await this.createObject(layer);
@@ -582,7 +609,7 @@ export class OpenPostFabricAdapter {
 					this.updateObject(object, previous, layer);
 					this.refreshDecorations(layer, object);
 				}
-				this.layerSnapshots.set(layer.id, structuredClone(layer));
+				this.layerSnapshots.set(layer.id, layer);
 			}
 			this.objectByLayerID = new Map(
 				imageEditorLayerRenderOrder(page.layers)
@@ -619,9 +646,7 @@ export class OpenPostFabricAdapter {
 	accept(document: ImageEditorDocument, page: ImageEditorPage): void {
 		this.document = document;
 		this.page = page;
-		this.layerSnapshots = new Map(
-			page.layers.map((layer) => [layer.id, structuredClone(layer)] as const)
-		);
+		this.layerSnapshots = new Map(page.layers.map((layer) => [layer.id, layer] as const));
 		this.backgroundSnapshot = JSON.stringify(imageEditorPageBackground(page));
 	}
 

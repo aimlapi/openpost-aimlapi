@@ -15,6 +15,7 @@ interface HistoryEntry<T, C> {
 	estimatedBytes: number;
 	beforeContext?: C;
 	afterContext?: C;
+	shared?: boolean;
 }
 
 export class ImageEditorHistory<T, C = undefined> {
@@ -94,13 +95,55 @@ export class ImageEditorHistory<T, C = undefined> {
 		this.trim();
 	}
 
+	checkpointShared(
+		label: string,
+		before: T,
+		after: T,
+		estimatedBytes: number,
+		coalesceKey?: string,
+		beforeContext?: C,
+		afterContext?: C
+	): void {
+		if (before === after) return;
+		const now = Date.now();
+		const previous = this.undoStack.at(-1);
+		if (
+			coalesceKey &&
+			previous?.shared &&
+			previous.coalesceKey === coalesceKey &&
+			now - previous.createdAt < 1000
+		) {
+			previous.after = after;
+			previous.createdAt = now;
+			previous.estimatedBytes += estimatedBytes;
+			if (afterContext !== undefined) previous.afterContext = this.cloneContext(afterContext);
+			this.redoStack = [];
+			this.trim();
+			return;
+		}
+		const entry: HistoryEntry<T, C> = {
+			label,
+			before,
+			after,
+			coalesceKey,
+			createdAt: now,
+			estimatedBytes,
+			shared: true
+		};
+		if (beforeContext !== undefined) entry.beforeContext = this.cloneContext(beforeContext);
+		if (afterContext !== undefined) entry.afterContext = this.cloneContext(afterContext);
+		this.undoStack.push(entry);
+		this.redoStack = [];
+		this.trim();
+	}
+
 	undo(current: T): T {
 		const entry = this.undoStack.pop();
 		if (!entry) return current;
 		this.redoStack.push(entry);
 		this.restored =
 			entry.beforeContext === undefined ? undefined : this.cloneContext(entry.beforeContext);
-		return this.clone(entry.before);
+		return entry.shared ? entry.before : this.clone(entry.before);
 	}
 
 	redo(current: T): T {
@@ -109,7 +152,7 @@ export class ImageEditorHistory<T, C = undefined> {
 		this.undoStack.push(entry);
 		this.restored =
 			entry.afterContext === undefined ? undefined : this.cloneContext(entry.afterContext);
-		return this.clone(entry.after);
+		return entry.shared ? entry.after : this.clone(entry.after);
 	}
 
 	updateCurrentContext(context: C): void {

@@ -89,6 +89,7 @@
 	const magicScan = new ImageEditorMagicScan();
 	const GRID_BACKGROUND_IMAGE =
 		'linear-gradient(to right, rgb(249 115 22 / 0.22) 1px, transparent 1px), linear-gradient(to bottom, rgb(249 115 22 / 0.22) 1px, transparent 1px)';
+	const SELECTION_OUTLINE_TILE_SIZE = 512;
 	let canvasElement = $state<HTMLCanvasElement>();
 	let viewport = $state<HTMLDivElement>();
 	let stageElement = $state<HTMLDivElement>();
@@ -409,33 +410,44 @@
 	$effect(() => {
 		const selection = magicPreviewMask ?? editor.pixelSelection;
 		const canvas = selectionOverlay;
-		if (!canvas || !editor.document) return;
+		if (!canvas) return;
 		const context = canvas.getContext('2d');
 		if (!context) return;
 		context.clearRect(0, 0, canvas.width, canvas.height);
 		if (!selection) return;
-		const image = context.createImageData(selection.width, selection.height);
-		for (let index = 0; index < selection.data.length; index++) {
-			if (!selection.data[index]) continue;
-			const x = index % selection.width;
-			const y = Math.floor(index / selection.width);
-			const edge =
-				x === 0 ||
-				y === 0 ||
-				x + 1 === selection.width ||
-				y + 1 === selection.height ||
-				!selection.data[index - 1] ||
-				!selection.data[index + 1] ||
-				!selection.data[index - selection.width] ||
-				!selection.data[index + selection.width];
-			const offset = index * 4;
-			const light = (x + y) % 8 < 4;
-			image.data[offset] = light ? 255 : 0;
-			image.data[offset + 1] = light ? 255 : 0;
-			image.data[offset + 2] = light ? 255 : 0;
-			image.data[offset + 3] = edge ? 235 : 0;
+		const tileSize = SELECTION_OUTLINE_TILE_SIZE;
+		for (let tileY = 0; tileY < selection.height; tileY += tileSize) {
+			for (let tileX = 0; tileX < selection.width; tileX += tileSize) {
+				const width = Math.min(tileSize, selection.width - tileX);
+				const height = Math.min(tileSize, selection.height - tileY);
+				const image = context.createImageData(width, height);
+				for (let localY = 0; localY < height; localY++) {
+					const y = tileY + localY;
+					for (let localX = 0; localX < width; localX++) {
+						const x = tileX + localX;
+						const index = y * selection.width + x;
+						if (!selection.data[index]) continue;
+						const edge =
+							x === 0 ||
+							y === 0 ||
+							x + 1 === selection.width ||
+							y + 1 === selection.height ||
+							!selection.data[index - 1] ||
+							!selection.data[index + 1] ||
+							!selection.data[index - selection.width] ||
+							!selection.data[index + selection.width];
+						if (!edge) continue;
+						const offset = (localY * width + localX) * 4;
+						const color = (x + y) % 8 < 4 ? 255 : 0;
+						image.data[offset] = color;
+						image.data[offset + 1] = color;
+						image.data[offset + 2] = color;
+						image.data[offset + 3] = 235;
+					}
+				}
+				context.putImageData(image, tileX, tileY);
+			}
 		}
-		context.putImageData(image, 0, 0);
 	});
 
 	function isAreaSelectionTool(tool = editor.activeTool): tool is AreaSelectionTool | 'magic_wand' {

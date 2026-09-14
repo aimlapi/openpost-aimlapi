@@ -285,6 +285,9 @@
 							document={editor.document}
 							{page}
 							compact
+							cached
+							deferUpdates={editor.colorPreviewActive}
+							dimensionKey={`${editor.document.width_px}:${editor.document.height_px}`}
 							label={displayPageName(page.name, index)}
 						/>
 					</span>

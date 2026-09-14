@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
 	computeImageGeometry,
 	type ImageEditorImageGeometry,
@@ -213,6 +213,51 @@ describe('OpenPost Image Editor image geometry', () => {
 	);
 });
 
+describe('OpenPost Image Editor canvas reconciliation', () => {
+	it('updates a solid background without rebuilding unchanged layer objects', async () => {
+		const layer = imageLayer(800, 800);
+		const page = pageFixture([layer]);
+		const document = documentFixture(page);
+		const adapter = new OpenPostFabricAdapter({
+			canvas: TEST_CANVAS,
+			document,
+			page,
+			readOnly: true,
+			staticCanvas: true,
+			onSelection: () => undefined,
+			onTransform: () => undefined,
+			onTextChange: () => undefined
+		});
+		const canvas = {
+			backgroundColor: '',
+			moveObjectTo() {},
+			renderAll() {}
+		};
+		const object = {};
+		const internals = adapterInternals<{
+			fabric: object;
+			canvas: typeof canvas;
+			objectByLayerID: Map<string, typeof object>;
+			layerSnapshots: Map<string, ImageEditorLayer>;
+		}>(adapter);
+		internals.fabric = {};
+		internals.canvas = canvas;
+		internals.objectByLayerID = new Map([[layer.id, object]]);
+		internals.layerSnapshots = new Map([[layer.id, layer]]);
+		const render = vi.spyOn(adapter, 'render');
+		const nextPage: ImageEditorPage = {
+			...page,
+			background: { type: 'solid', color: '#123456', opacity: 1 }
+		};
+
+		await adapter.sync({ ...document, pages: [nextPage] }, nextPage);
+
+		expect(render).not.toHaveBeenCalled();
+		expect(internals.objectByLayerID.get(layer.id)).toBe(object);
+		expect(canvas.backgroundColor).toBe('rgba(18, 52, 86, 1)');
+	});
+});
+
 describe('OpenPost Image Editor rotation gestures', () => {
 	it('configures snapping before Fabric calculates the angle without rewriting the live angle', () => {
 		interface RotationTargetFixture {
@@ -245,7 +290,11 @@ describe('OpenPost Image Editor rotation gestures', () => {
 			onTextChange: () => undefined
 		});
 		const handlers = new Map<string, (event: FabricEventFixture) => void>();
-		const target = { angle: 22, snapAngle: undefined, snapThreshold: undefined };
+		const target = {
+			angle: 22,
+			snapAngle: undefined,
+			snapThreshold: undefined
+		};
 		const canvas: EventCanvasFixture = {
 			on(eventName, handler) {
 				handlers.set(eventName, handler);
@@ -267,7 +316,11 @@ describe('OpenPost Image Editor rotation gestures', () => {
 			e: new PointerInputFixture(true),
 			transform: { action: 'rotate', target }
 		});
-		expect(target).toMatchObject({ angle: 22, snapAngle: 15, snapThreshold: 7.5 });
+		expect(target).toMatchObject({
+			angle: 22,
+			snapAngle: 15,
+			snapThreshold: 7.5
+		});
 
 		dispatch('object:rotating', { e: new PointerInputFixture(true), target });
 		expect(target.angle).toBe(22);
@@ -287,14 +340,20 @@ describe('OpenPost Image Editor rotation gestures', () => {
 			e: new PointerInputFixture(true),
 			transform: { action: 'rotate', target }
 		});
-		expect(target).toMatchObject({ snapAngle: undefined, snapThreshold: undefined });
+		expect(target).toMatchObject({
+			snapAngle: undefined,
+			snapThreshold: undefined
+		});
 
 		adapter.setSnapping(true);
 		dispatch('mouse:move:before', {
 			e: new PointerInputFixture(true, true),
 			transform: { action: 'rotate', target }
 		});
-		expect(target).toMatchObject({ snapAngle: undefined, snapThreshold: undefined });
+		expect(target).toMatchObject({
+			snapAngle: undefined,
+			snapThreshold: undefined
+		});
 	});
 });
 
@@ -416,7 +475,12 @@ describe('OpenPost Image Editor resize snapping', () => {
 			10
 		);
 
-		expect(snapped.bounds).toEqual({ left: 30, top: 40, width: 1050, height: 500 });
+		expect(snapped.bounds).toEqual({
+			left: 30,
+			top: 40,
+			width: 1050,
+			height: 500
+		});
 		expect(snapped.guideX).toBe(1080);
 	});
 
@@ -442,10 +506,22 @@ describe('OpenPost Image Editor layer render order', () => {
 			id: 'rectangle',
 			type: 'shape'
 		};
-		const circle: ImageEditorLayer = { ...imageLayer(160, 160), id: 'circle', type: 'shape' };
-		const text: ImageEditorLayer = { ...imageLayer(360, 120), id: 'text', type: 'text' };
+		const circle: ImageEditorLayer = {
+			...imageLayer(160, 160),
+			id: 'circle',
+			type: 'shape'
+		};
+		const text: ImageEditorLayer = {
+			...imageLayer(360, 120),
+			id: 'text',
+			type: 'text'
+		};
 		const image: ImageEditorLayer = { ...imageLayer(240, 320), id: 'image' };
-		const group: ImageEditorLayer = { ...imageLayer(500, 400), id: 'group', type: 'group' };
+		const group: ImageEditorLayer = {
+			...imageLayer(500, 400),
+			id: 'group',
+			type: 'group'
+		};
 		rectangle.parent_id = group.id;
 		text.parent_id = group.id;
 		return [rectangle, circle, text, image, group];
