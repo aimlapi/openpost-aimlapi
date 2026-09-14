@@ -166,3 +166,17 @@ func boundedSum(left, right, maximum int64) int64 {
 	}
 	return left + right
 }
+
+const (
+	failureDirectorOutput = "director_output_invalid"
+	failureAdapterOutput  = "adapter_output_invalid"
+	failureReviewerOutput = "reviewer_output_invalid"
+)
+
+type generationFailure struct {
+	code  string
+	cause error
+}
+
+func (failure *generationFailure) Error() string { return failure.cause.Error() }
+func (failure *generationFailure) Unwrap() error { return failure.cause }

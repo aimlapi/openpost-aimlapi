@@ -136,10 +136,10 @@ func (service *Service) direct(ctx context.Context, input BuildInput, supported 
 	service.recordGeneration(ctx, "director", "", generated)
 	var plan DirectorPlan
 	if err := decodeStrictJSON(generated.Text, &plan); err != nil {
-		return DirectorPlan{}, fmt.Errorf("validate publication direction: %w", err)
+		return DirectorPlan{}, &generationFailure{code: failureDirectorOutput, cause: fmt.Errorf("validate publication direction: %w", err)}
 	}
 	if err := validateDirector(plan, supported, sourceReferenceCatalogFor(input), input.Direction, input.DestinationPolicy); err != nil {
-		return DirectorPlan{}, fmt.Errorf("validate publication direction: %w", err)
+		return DirectorPlan{}, &generationFailure{code: failureDirectorOutput, cause: fmt.Errorf("validate publication direction: %w", err)}
 	}
 	return plan, nil
 }
@@ -195,7 +195,7 @@ func (service *Service) draftDestinations(
 			service.recordGeneration(ctx, "adapter", destination.AccountID, generated)
 			var plan DestinationPlan
 			if err := decodeStrictJSON(generated.Text, &plan); err != nil {
-				results <- generatedPlan{index: index, err: fmt.Errorf("validate %s rendition: %w", destination.Platform, err)}
+				results <- generatedPlan{index: index, err: &generationFailure{code: failureAdapterOutput, cause: fmt.Errorf("validate %s rendition: %w", destination.Platform, err)}}
 				return
 			}
 			plan.Platform = destination.Platform
@@ -203,7 +203,7 @@ func (service *Service) draftDestinations(
 				plan.Warnings = append([]string{"Basic adaptation: OpenPost does not yet have a native creative model for this platform."}, plan.Warnings...)
 			}
 			if err := validateDestinationPlan(plan, destination, policy, sourceReferenceCatalogFor(input)); err != nil {
-				results <- generatedPlan{index: index, err: fmt.Errorf("validate %s rendition: %w", destination.Platform, err)}
+				results <- generatedPlan{index: index, err: &generationFailure{code: failureAdapterOutput, cause: fmt.Errorf("validate %s rendition: %w", destination.Platform, err)}}
 				return
 			}
 			results <- generatedPlan{index: index, plan: plan}
@@ -256,10 +256,10 @@ func (service *Service) review(
 	service.recordGeneration(ctx, "reviewer", "", generated)
 	var result reviewResult
 	if err := decodeStrictJSON(generated.Text, &result); err != nil {
-		return nil, nil, false, fmt.Errorf("validate publication review: %w", err)
+		return nil, nil, false, &generationFailure{code: failureReviewerOutput, cause: fmt.Errorf("validate publication review: %w", err)}
 	}
 	if result.Approved && len(result.Replacements) > 0 {
-		return nil, nil, false, errors.New("validate publication review: approved review cannot include replacements")
+		return nil, nil, false, &generationFailure{code: failureReviewerOutput, cause: errors.New("validate publication review: approved review cannot include replacements")}
 	}
 	return result.Flags, result.Replacements, result.Approved, nil
 }

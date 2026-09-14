@@ -723,6 +723,17 @@ describe("installConsoleErrorBridge", () => {
     expect(target.error).toBe(original);
   });
 
+  it("preserves the source exception when a logger adds context", () => {
+    const capture = vi.fn();
+    const target = { error: vi.fn() };
+    installConsoleErrorBridge(capture, target);
+    const failure = new DOMException("The cached file changed", "InvalidStateError");
+    target.error("[video-editor:WorkspaceFS]", "createProject failed", failure);
+    expect(capture).toHaveBeenCalledWith(failure, {
+      error_boundary: "console_error",
+    });
+  });
+
   it("never loops when telemetry logging itself fails", () => {
     const seen: unknown[][] = [];
     const target = {

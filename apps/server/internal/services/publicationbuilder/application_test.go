@@ -190,28 +190,40 @@ func TestApplicationEnqueueIsIdempotentAndBuildsDurably(t *testing.T) {
 }
 
 func TestApplicationFailureNeverReturnsOrStoresPrivateModelText(t *testing.T) {
-	db := newBuilderApplicationTestDB(t)
-	now := time.Date(2026, 8, 23, 14, 0, 0, 0, time.UTC)
-	application, err := NewApplication(db, packageBuilderFunc(func(context.Context, BuildInput) (BuildResult, error) {
-		return BuildResult{}, errors.New("private customer transcript and raw model output")
-	}), ApplicationConfig{
-		Now:             func() time.Time { return now },
-		AuthorizeStored: func(context.Context, workspaceaccess.StoredAuthority) error { return nil },
-	})
-	require.NoError(t, err)
-	build, _, err := application.Enqueue(t.Context(), testBuildRequest(now, "safe-error"))
-	require.NoError(t, err)
-	payload, err := EncodeBuildJobPayload(build.ID)
-	require.NoError(t, err)
-	err = application.HandleJob(t.Context(), jobregistry.TypePublicationBuild, payload)
-	require.EqualError(t, err, "OpenPost could not build this post. You can retry it.")
-	require.NotContains(t, err.Error(), "private customer")
-	require.Nil(t, errors.Unwrap(err), "private generation failures must not remain reachable from the queue error")
+	privateFailure := errors.New("private customer transcript and raw model output")
+	for expectedCode, failure := range map[string]error{
+		"generation_failed":       privateFailure,
+		"director_output_invalid": &generationFailure{code: failureDirectorOutput, cause: privateFailure},
+	} {
+		t.Run(expectedCode, func(t *testing.T) {
+			db := newBuilderApplicationTestDB(t)
+			now := time.Date(2026, 8, 23, 14, 0, 0, 0, time.UTC)
+			application, err := NewApplication(db, packageBuilderFunc(func(context.Context, BuildInput) (BuildResult, error) {
+				return BuildResult{}, failure
+			}), ApplicationConfig{
+				Now:             func() time.Time { return now },
+				AuthorizeStored: func(context.Context, workspaceaccess.StoredAuthority) error { return nil },
+			})
+			require.NoError(t, err)
+			build, _, err := application.Enqueue(t.Context(), testBuildRequest(now, "safe-error"))
+			require.NoError(t, err)
+			payload, err := EncodeBuildJobPayload(build.ID)
+			require.NoError(t, err)
+			err = application.HandleJob(t.Context(), jobregistry.TypePublicationBuild, payload)
+			require.EqualError(t, err, "OpenPost could not build this post. You can retry it.")
+			require.NotContains(t, err.Error(), "private customer")
+			var coded interface{ FailureCode() string }
+			require.ErrorAs(t, err, &coded)
+			require.Equal(t, expectedCode, coded.FailureCode())
+			require.Nil(t, errors.Unwrap(err), "private generation failures must not remain reachable from the queue error")
 
-	failed, err := application.Get(t.Context(), "user-1", build.ID)
-	require.NoError(t, err)
-	require.Equal(t, BuildStateFailed, failed.State)
-	require.Equal(t, "OpenPost could not build this post. You can retry it.", failed.ErrorMessage)
+			failed, err := application.Get(t.Context(), "user-1", build.ID)
+			require.NoError(t, err)
+			require.Equal(t, BuildStateFailed, failed.State)
+			require.Equal(t, expectedCode, failed.ErrorCode)
+			require.Equal(t, "OpenPost could not build this post. You can retry it.", failed.ErrorMessage)
+		})
+	}
 }
 
 func TestApplicationReclaimsExpiredBuildLeaseAndFencesOldWorker(t *testing.T) {

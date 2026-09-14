@@ -123,7 +123,7 @@ for (const [label, turboConfig] of [
       `${label} build hash is missing ${input}`,
     );
   }
-  for (const environmentName of ["CF_PAGES", "CF_PAGES_BRANCH"]) {
+  for (const environmentName of ["CF_PAGES", "CF_PAGES_BRANCH", "CF_PAGES_COMMIT_SHA"]) {
     requireCondition(
       turboConfig.tasks.build.env?.includes(environmentName),
       `${label} build must pass ${environmentName} to the production telemetry guard`,

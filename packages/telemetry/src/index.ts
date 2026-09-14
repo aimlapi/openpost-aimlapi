@@ -629,13 +629,17 @@ export function installConsoleErrorBridge(
     original.apply(target, args);
     if (capturing || args.length === 0) return;
     const [first, ...rest] = args;
+    const originalError = args.find(
+      (value) =>
+        value instanceof Error ||
+        (typeof DOMException !== "undefined" && value instanceof DOMException),
+    );
     const error =
-      first instanceof Error && rest.length === 0
-        ? first
-        : new Error(
-            [formatConsoleErrorArg(first), ...rest.map(formatConsoleErrorArg)].join(" ").trim() ||
-              "Console error",
-          );
+      originalError ??
+      new Error(
+        [formatConsoleErrorArg(first), ...rest.map(formatConsoleErrorArg)].join(" ").trim() ||
+          "Console error",
+      );
     capturing = true;
     try {
       capture(error, { error_boundary: "console_error" });

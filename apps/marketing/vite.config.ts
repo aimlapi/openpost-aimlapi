@@ -15,6 +15,11 @@ const sourceMaps = postHogSourceMaps('marketing');
 
 export default defineConfig({
 	plugins: [tailwindcss(), paraglidePlugin, sveltekit(), ...sourceMaps.plugins],
+	define: {
+		'import.meta.env.VITE_OPENPOST_REVISION': JSON.stringify(
+			process.env.VITE_OPENPOST_REVISION || process.env.CF_PAGES_COMMIT_SHA || ''
+		)
+	},
 	build: {
 		sourcemap: sourceMaps.enabled ? 'hidden' : false
 	},

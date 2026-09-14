@@ -728,10 +728,12 @@ func sourceFailureMessage(err error) string {
 }
 
 type safeBuildJobError struct {
+	code    string
 	message string
 }
 
-func (failure *safeBuildJobError) Error() string { return failure.message }
+func (failure *safeBuildJobError) Error() string       { return failure.message }
+func (failure *safeBuildJobError) FailureCode() string { return failure.code }
 
 func (application *Application) fail(
 	ctx context.Context,
@@ -740,8 +742,12 @@ func (application *Application) fail(
 	trace *generationTrace,
 	code string,
 	message string,
-	_ error,
+	cause error,
 ) error {
+	var generation *generationFailure
+	if errors.As(cause, &generation) {
+		code = generation.code
+	}
 	now := application.now().UTC()
 	model, providerRequestID, usageJSON := trace.encoded()
 	if model == "" {
@@ -758,16 +764,16 @@ func (application *Application) fail(
 		Where("id = ? AND state = ? AND lease_token = ?", record.ID, BuildStateBuilding, leaseToken).
 		Exec(ctx)
 	if updateErr != nil {
-		return &safeBuildJobError{message: message}
+		return &safeBuildJobError{code: code, message: message}
 	}
 	rows, rowsErr := result.RowsAffected()
 	if rowsErr != nil {
-		return &safeBuildJobError{message: message}
+		return &safeBuildJobError{code: code, message: message}
 	}
 	if rows == 0 {
 		return nil
 	}
-	return &safeBuildJobError{message: message}
+	return &safeBuildJobError{code: code, message: message}
 }
 
 // MarkTerminalJobFailure moves an unfinished build out of the active set when

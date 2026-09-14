@@ -782,6 +782,10 @@ func (w *BackgroundWorker) recordTerminalFailure(ctx context.Context, job *model
 	}
 	properties["error_kind"] = providerFailure.Kind
 	properties["error_code"] = providerFailure.Code
+	var coded interface{ FailureCode() string }
+	if errors.As(processErr, &coded) {
+		properties["error_code"] = coded.FailureCode()
+	}
 	properties["error_subcode"] = providerFailure.Subcode
 	properties["provider_trace_id"] = providerFailure.TraceID
 	properties["http_status"] = providerFailure.HTTPStatus
