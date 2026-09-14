@@ -1,4 +1,5 @@
 /* oxlint-disable anti-slop/no-unknown-parameters, anti-slop/no-runtime-typeof -- SvelteKit delivers untyped errors to this boundary; the helpers below narrow them before use. */
+import { updated } from '$app/state';
 import type { HandleClientError } from '@sveltejs/kit';
 import {
 	captureClientException,
@@ -8,16 +9,34 @@ import {
 	isUnsupportedBrowserError
 } from '@openpost/telemetry';
 
-// Marketing pages hold no unsaved state, so verified stale-asset failures can
-// reload automatically within the shared bounded budget. Anything else keeps
-// the error boundary's explicit retry.
-let chunkRecovery = createChunkRecovery();
+function createMarketingChunkRecovery() {
+	return createChunkRecovery({
+		// Marketing pages hold no unsaved state, so verified failures can
+		// reload automatically within the shared bounded budget. Anything
+		// else keeps the error boundary's explicit retry.
+		runningBuild: import.meta.env.VITE_OPENPOST_REVISION || undefined,
+		// SvelteKit's own deployment check backs URL-less import failures
+		// (for example a bare "Importing a module script failed"), where no
+		// asset URL exists to probe. It reads the non-immutable
+		// _app/version.json with no-cache headers: true means a newer
+		// deployment is confirmed, false means we are current.
+		checkForUpdate: async () => {
+			try {
+				return await updated.check();
+			} catch {
+				return null;
+			}
+		}
+	});
+}
+
+let chunkRecovery = createMarketingChunkRecovery();
 let uninstallChunkRecovery: (() => void) | null = null;
 
 export function init() {
 	// Page imports can fail before the root layout mounts during hydration.
 	uninstallChunkRecovery?.();
-	chunkRecovery = createChunkRecovery();
+	chunkRecovery = createMarketingChunkRecovery();
 	uninstallChunkRecovery = chunkRecovery.install();
 }
 

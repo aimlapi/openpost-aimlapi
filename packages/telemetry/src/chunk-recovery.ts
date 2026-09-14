@@ -65,6 +65,14 @@ export interface ChunkRecoveryRuntime {
 export interface ChunkRecoveryOptions extends ChunkRecoveryRuntime {
   /** Build identifier of the running page, when the surface knows it. */
   runningBuild?: string;
+  /**
+   * Verified deployment-change check, such as SvelteKit's `updated.check()`.
+   * Used only for URL-less import failures, where no asset exists to probe:
+   * `true` means a newer deployment is confirmed, `false` means the running
+   * deployment is current, and `null` (or a throw) means unknown. The
+   * controller never guesses from this signal.
+   */
+  checkForUpdate?: () => Promise<boolean | null>;
   /** Uncached probe of the currently served build, when the surface has one. */
   fetchCurrentBuild?: () => Promise<string | null>;
   /**
@@ -244,6 +252,21 @@ export function createChunkRecovery(options: ChunkRecoveryOptions = {}): ChunkRe
     }
 
     if (!assetPath) {
+      // URL-less failure: only a verified deployment change justifies a
+      // reload. A confirmed newer deployment reloads once per running
+      // build; anything else keeps the explicit retry.
+      if (options.checkForUpdate) {
+        let changed: boolean | null = null;
+        try {
+          changed = await options.checkForUpdate();
+        } catch {
+          changed = null;
+        }
+        if (changed === true) {
+          return autoReload(`stale-update:${options.runningBuild ?? "unknown"}`);
+        }
+        if (changed === false) return manual(null, "same-build", null);
+      }
       return manual(null, "unclassified", null);
     }
 

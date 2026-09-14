@@ -243,6 +243,68 @@ describe("bounded chunk recovery", () => {
     expect(unknown.state.reloads).toHaveLength(0);
   });
 
+  it("reloads URL-less failures once per running build after a verified deployment change", async () => {
+    const urlLess = () => new TypeError("Importing a module script failed.");
+    const shared: { current: ChunkRecoveryBudget | null } = { current: null };
+    const document = (runningBuild: string) => {
+      const { runtime, state } = fakeRuntime({
+        runningBuild,
+        checkForUpdate: async () => true,
+        loadBudget: () => shared.current,
+        saveBudget: (next: ChunkRecoveryBudget) => {
+          shared.current = next;
+        },
+      });
+      return { controller: createChunkRecovery(runtime), state };
+    };
+
+    expect((await document("rev-a").controller.recover(urlLess())).kind).toBe("reloaded");
+    // Same running build, same evidence: the pair budget is spent.
+    const repeat = await document("rev-a").controller.recover(urlLess());
+    expect(repeat.kind).toBe("manual");
+    expect(repeat).toMatchObject({ reason: "budget-exhausted" });
+    // A later running build that goes stale gets its own single attempt.
+    expect((await document("rev-b").controller.recover(urlLess())).kind).toBe("reloaded");
+    expect(shared.current).toEqual({
+      total: 2,
+      perAsset: { "stale-update:rev-a": 1, "stale-update:rev-b": 1 },
+    });
+  });
+
+  it("keeps the explicit retry when the deployment check reports no change", async () => {
+    const checkForUpdate = vi.fn(async () => false);
+    const { runtime, state } = fakeRuntime({ checkForUpdate });
+    const decision = await createChunkRecovery(runtime).recover(
+      new TypeError("Importing a module script failed."),
+    );
+    expect(decision).toMatchObject({ kind: "manual", reason: "same-build" });
+    expect(checkForUpdate).toHaveBeenCalledOnce();
+    expect(state.reloads).toHaveLength(0);
+  });
+
+  it("stays unclassified when the deployment check itself fails", async () => {
+    for (const checkForUpdate of [
+      async () => null,
+      async () => Promise.reject(new Error("offline")),
+    ]) {
+      const { runtime, state } = fakeRuntime({ checkForUpdate });
+      const decision = await createChunkRecovery(runtime).recover(
+        new TypeError("Importing a module script failed."),
+      );
+      expect(decision).toMatchObject({ kind: "manual", reason: "unclassified" });
+      expect(state.reloads).toHaveLength(0);
+    }
+  });
+
+  it("never consults the deployment check when an asset probe applies", async () => {
+    const checkForUpdate = vi.fn(async () => true);
+    const { runtime, state } = fakeRuntime({ checkForUpdate });
+    state.statusByPath.set("/_app/immutable/chunks/old.js", 404);
+    const decision = await createChunkRecovery(runtime).recover(new TypeError(staleMessage));
+    expect(decision.kind).toBe("reloaded");
+    expect(checkForUpdate).not.toHaveBeenCalled();
+  });
+
   it("ignores lookbehind syntax failures instead of reloading the same bytes", async () => {
     const { runtime, state } = fakeRuntime();
     const decision = await createChunkRecovery(runtime).recover(
