@@ -22,6 +22,12 @@ func PublishingTargetContract(provider string) TargetContract {
 		return TargetContract{Provider: provider, BaseKey: provider, Subdestination: "chat", Example: "telegram:chat:<chat_id>"}
 	case providerDiscord:
 		return TargetContract{Provider: provider, BaseKey: provider, Subdestination: "channel", Example: "discord:channel:<channel_id>"}
+	case providerPeerTube:
+		return TargetContract{Provider: provider, BaseKey: provider, Subdestination: "channel", Example: "peertube:channel:<channel_name>"}
+	case providerLemmy:
+		return TargetContract{Provider: provider, BaseKey: provider, Subdestination: "community", Example: "lemmy:community:<host>:<name>"}
+	case providerPieFed:
+		return TargetContract{Provider: provider, BaseKey: provider, Subdestination: "community", Example: "piefed:community:<host>:<name>"}
 	default:
 		return TargetContract{Provider: provider, BaseKey: provider}
 	}
@@ -40,6 +46,28 @@ func ResolveTargetKey(provider, base, requested string, settings map[string]inte
 				requested = derived
 			} else if requested != derived {
 				return "", errors.New("target_key does not match the selected Pinterest board")
+			}
+		}
+	}
+	if provider == providerPeerTube {
+		if channel := settingString(settings, "channel"); channel != "" {
+			derived := base + ":channel:" + channel
+			if requested == "" || requested == base {
+				requested = derived
+			} else if requested != derived {
+				return "", errors.New("target_key does not match the selected PeerTube channel")
+			}
+		}
+	}
+	if provider == providerLemmy || provider == providerPieFed {
+		if communityRef := settingString(settings, CommunitySettingCommunity); communityRef != "" {
+			if name, host, ok := ParseCommunityRef(communityRef); ok && host != "" {
+				derived := CommunityTargetKey(provider, host, name)
+				if requested == "" || requested == base {
+					requested = derived
+				} else if requested != derived {
+					return "", errors.New("target_key does not match the selected community")
+				}
 			}
 		}
 	}

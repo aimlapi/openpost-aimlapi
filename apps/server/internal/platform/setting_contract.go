@@ -22,6 +22,12 @@ func PublishingSettingsContract(provider string) PublishingSettingContract {
 		providerPeerTube: {
 			AdapterKeys: []string{"channel", "title", "description", "privacy", "language", "category", "licence", "tags", "nsfw", "nsfw_summary", "comments_policy", "download_enabled", "support", "caption_language"},
 		},
+		providerLemmy: {
+			AdapterKeys: []string{"community", "title", "body", "url", "nsfw", "language_id", "alt_text"},
+		},
+		providerPieFed: {
+			AdapterKeys: []string{"community", "title", "body", "url", "nsfw", "language_id"},
+		},
 		providerBluesky: {
 			AdapterKeys: []string{"link_url", "link_title", "link_description", "quote_url", "languages", "self_labels", "reply_gate", "thread_gate", "alt_text"},
 		},

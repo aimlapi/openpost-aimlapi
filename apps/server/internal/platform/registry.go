@@ -51,6 +51,18 @@ var appBuilders = map[string]appBuilder{
 		}
 		return NewMastodonAdapter(app.ClientID, app.ClientSecret, app.RedirectURI, app.InstanceURL), nil
 	},
+	providerLemmy: func(app AppConfig, _ RegistryOptions) (Adapter, error) {
+		if strings.TrimSpace(app.InstanceURL) == "" {
+			return nil, fmt.Errorf("lemmy provider app requires instance_url")
+		}
+		return NewLemmyAdapter(app.InstanceURL), nil
+	},
+	providerPieFed: func(app AppConfig, _ RegistryOptions) (Adapter, error) {
+		if strings.TrimSpace(app.InstanceURL) == "" {
+			return nil, fmt.Errorf("piefed provider app requires instance_url")
+		}
+		return NewPieFedAdapter(app.InstanceURL), nil
+	},
 	providerPeerTube: func(app AppConfig, _ RegistryOptions) (Adapter, error) {
 		if strings.TrimSpace(app.InstanceURL) == "" {
 			return nil, fmt.Errorf("peertube provider app requires instance_url")

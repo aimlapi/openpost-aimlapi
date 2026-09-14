@@ -410,6 +410,13 @@ func All() []Capability {
 		defaultQueued(Capability{Provider: ProviderPeerTube, Profile: models.ContentProfileShortVideo, Label: "PeerTube video", TextLimit: 5000, TitleRequired: true, Media: MediaConstraint{MinCount: 1, MaxCount: 1, AllowedMIMEs: []string{"video/mp4", "video/quicktime", "video/webm", "video/x-matroska"}}, Settings: peertubeSettings()}),
 		defaultQueued(Capability{Provider: ProviderPeerTube, Profile: models.ContentProfileLongVideo, Label: "PeerTube video", TextLimit: 5000, TitleRequired: true, Media: MediaConstraint{MinCount: 1, MaxCount: 1, AllowedMIMEs: []string{"video/mp4", "video/quicktime", "video/webm", "video/x-matroska"}}, Settings: peertubeSettings()}),
 
+		defaultQueued(Capability{Provider: ProviderLemmy, Profile: models.ContentProfileShortText, Label: "Lemmy discussion", TextLimit: 50000, TitleRequired: true, Media: text, Settings: lemmySettings()}),
+		defaultQueued(Capability{Provider: ProviderLemmy, Profile: models.ContentProfileLinkShare, Label: "Lemmy link", TextLimit: 50000, TitleRequired: true, Media: text, Settings: lemmySettings()}),
+		defaultQueued(Capability{Provider: ProviderLemmy, Profile: models.ContentProfileImagePost, Label: "Lemmy image", TextLimit: 50000, TitleRequired: true, Media: MediaConstraint{MinCount: 1, MaxCount: 1, AllowedMIMEs: []string{"image/jpeg", "image/png", "image/webp", "image/gif"}}, Settings: lemmySettings()}),
+		defaultQueued(Capability{Provider: ProviderPieFed, Profile: models.ContentProfileShortText, Label: "PieFed discussion", TextLimit: 50000, TitleRequired: true, Media: text, Settings: piefedSettings()}),
+		defaultQueued(Capability{Provider: ProviderPieFed, Profile: models.ContentProfileLinkShare, Label: "PieFed link", TextLimit: 50000, TitleRequired: true, Media: text, Settings: piefedSettings()}),
+		defaultQueued(Capability{Provider: ProviderPieFed, Profile: models.ContentProfileImagePost, Label: "PieFed image", TextLimit: 50000, TitleRequired: true, Media: MediaConstraint{MinCount: 1, MaxCount: 1, AllowedMIMEs: []string{"image/jpeg", "image/png", "image/webp", "image/gif"}}, Settings: piefedSettings()}),
+
 		defaultQueued(Capability{Provider: ProviderThreads, Profile: models.ContentProfileShortText, Label: "Threads post", TextLimit: 500, Media: text, Settings: threadsSettings()}),
 		defaultQueued(Capability{Provider: ProviderThreads, Profile: models.ContentProfileThread, Label: "Threads thread", TextLimit: 500, Media: threadsThreadMedia, RequiresPublicMedia: true, Settings: threadsSettings()}),
 		defaultQueued(Capability{Provider: ProviderThreads, Profile: models.ContentProfileLinkShare, Label: "Threads link", TextLimit: 500, Media: text, Settings: append(linkSettings(), threadsSettings()...)}),
@@ -613,6 +620,8 @@ func altTextMediaShapes(capability Capability) []string {
 	switch capability.Provider {
 	case ProviderX, ProviderMastodon, ProviderBluesky, ProviderPixelfed:
 		return filterMediaShapes(capability.MediaShapes, MediaShapeSingleImage, MediaShapeMultipleImage, MediaShapeMixedMedia, MediaShapeVideo)
+	case ProviderLemmy:
+		return filterMediaShapes(capability.MediaShapes, MediaShapeSingleImage)
 	case ProviderLinkedIn, ProviderInstagram, ProviderThreads:
 		return filterMediaShapes(capability.MediaShapes, MediaShapeSingleImage, MediaShapeMultipleImage, MediaShapeMixedMedia)
 	default:
@@ -2368,6 +2377,25 @@ func peertubeSettings() []SettingField {
 		{Key: "support", Label: "Support text", Type: "text"},
 		{Key: "caption_language", Label: "Caption language", Type: "tags", Control: "language", MediaShapes: []string{MediaShapeVideo}},
 	}
+}
+
+func communitySettings(optionsSource string) []SettingField {
+	return []SettingField{
+		{Key: "community", Label: "Community", Type: "select", Control: "remote_picker", OptionsSource: optionsSource, Required: true, Help: "Required. Search, paste a community address (!name@host), or choose a saved destination."},
+		{Key: "title", Label: "Title", Type: "text", Required: true, Help: "Required. Write a title for that community."},
+		{Key: "body", Label: "Body", Type: "textarea", Help: "Markdown-capable discussion text."},
+		{Key: "url", Label: "Link", Type: "url", Help: "Optional link for link and image posts."},
+		{Key: "nsfw", Label: "NSFW", Type: "boolean"},
+		{Key: "language_id", Label: "Language ID", Type: "number", Help: "Numeric language ID on the connected instance, when the community requires one."},
+	}
+}
+
+func lemmySettings() []SettingField {
+	return communitySettings("lemmy_communities")
+}
+
+func piefedSettings() []SettingField {
+	return communitySettings("piefed_communities")
 }
 
 func blueskySettings() []SettingField {
