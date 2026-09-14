@@ -55,8 +55,8 @@ export async function renderImageEditorPage(
 		onTransform() {},
 		onTextChange() {}
 	});
-	await adapter.mount();
 	try {
+		await adapter.mount();
 		signal?.throwIfAborted();
 		const format =
 			imageEditorDocument.export_defaults.format === 'jpeg'
@@ -120,8 +120,8 @@ export async function renderImageEditorPreview(
 		onTransform() {},
 		onTextChange() {}
 	});
-	await adapter.mount();
 	try {
+		await adapter.mount();
 		return await new Promise<Blob>((resolve, reject) => {
 			canvas.toBlob(
 				(result) =>

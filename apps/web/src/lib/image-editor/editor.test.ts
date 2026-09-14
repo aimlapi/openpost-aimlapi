@@ -126,11 +126,17 @@ describe('OpenPost Image Editor editor layer interactions', () => {
 		editor.load(response());
 		editor.addImage({ id: 'one', width: 100, height: 100, name: 'One' });
 		const first = editor.selectedLayers[0]!.id;
-		editor.previewImageAdjustment([first], 'wheels', { ...defaultEditorColorWheels(), gain: 1.5 });
+		editor.previewImageAdjustment([first], 'wheels', {
+			...defaultEditorColorWheels(),
+			gain: 1.5
+		});
 		editor.commitImageAdjustmentGesture();
 		editor.addImage({ id: 'two', width: 100, height: 100, name: 'Two' });
 		const second = editor.selectedLayers[0]!.id;
-		editor.previewImageColorTools([first, second], 'wheels', { offsetHue: 120, offsetAmount: 0.4 });
+		editor.previewImageColorTools([first, second], 'wheels', {
+			offsetHue: 120,
+			offsetAmount: 0.4
+		});
 		editor.commitImageAdjustmentGesture();
 		expect(
 			editor
@@ -179,6 +185,44 @@ describe('OpenPost Image Editor editor layer interactions', () => {
 				.filter((item) => item.image)
 				.map((item) => item.image?.adjustments.contrast)
 		).toEqual([0, 0]);
+	});
+	it('keeps unrelated pages and layers stable during color previews', () => {
+		const editor = new ImageEditorController();
+		editor.load(response());
+		editor.addImage({ id: 'image', width: 100, height: 100, name: 'Image' });
+		const imageID = editor.selectedLayers[0]!.id;
+		editor.addPage();
+		const before = editor.document!;
+		const firstPage = before.pages[0];
+		const otherPage = before.pages[1];
+		const untouchedLayer = firstPage.layers[0];
+
+		editor.previewImageAdjustment([imageID], 'contrast', 0.2);
+		expect(editor.document?.pages[1]).toBe(otherPage);
+		expect(editor.document?.pages[0].layers[0]).toBe(untouchedLayer);
+		editor.previewImageAdjustment([imageID], 'contrast', 0.4);
+		expect(editor.document?.pages[1]).toBe(otherPage);
+		expect(editor.document?.pages[0].layers[0]).toBe(untouchedLayer);
+		editor.cancelImageAdjustmentGesture();
+		expect(editor.document?.pages[0]).toBe(firstPage);
+	});
+
+	it('keeps an unrelated page and layer stable across a committed transform', () => {
+		const editor = new ImageEditorController();
+		editor.load(response());
+		editor.addPage();
+		const otherPage = editor.document!.pages[1];
+		const untouchedLayer = editor.document!.pages[0].layers[0];
+		editor.activePageID = 'page';
+
+		editor.updateTransform('front', { x: 260 });
+		editor.updateTransform('front', { x: 280 });
+
+		expect(editor.document?.pages[1]).toBe(otherPage);
+		expect(editor.document?.pages[0].layers[0]).toBe(untouchedLayer);
+		expect(editor.document?.pages[0].layers[2].transform.x).toBe(280);
+		editor.undo();
+		expect(editor.document?.pages[0].layers[2].transform.x).toBe(210);
 	});
 
 	it('cancels an image adjustment preview without adding history', () => {

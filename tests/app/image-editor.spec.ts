@@ -107,3 +107,99 @@ test("public image editor creates, restores, and exports a local design", async 
   expect(workspaceWrites).toEqual([]);
   expect(browserErrors.filter((message) => !message.includes("401 (Unauthorized)"))).toEqual([]);
 });
+
+test("page-strip previews render after adding a page and remain visible across a page switch", async ({
+  page,
+}, testInfo) => {
+  await page.goto("/image-editor");
+  await page.getByRole("button", { name: /Instagram square/ }).click();
+  await expect(page.getByRole("application", { name: "Design canvas" })).toBeVisible();
+  await page.getByRole("button", { name: "Add page" }).click();
+
+  const previews = page.locator(".template-preview-frame img");
+  await expect(previews).toHaveCount(2);
+  await expect
+    .poll(async () =>
+      previews.evaluateAll((images) =>
+        images.every((image) => image instanceof HTMLImageElement && image.naturalWidth > 0),
+      ),
+    )
+    .toBe(true);
+  await page.screenshot({ path: testInfo.outputPath("image-editor-pages-desktop.png") });
+
+  await page
+    .getByRole("button", { name: /Page 1/ })
+    .last()
+    .click();
+  await expect(previews).toHaveCount(2);
+  await expect
+    .poll(async () =>
+      previews.evaluateAll((images) =>
+        images.every((image) => image instanceof HTMLImageElement && image.naturalWidth > 0),
+      ),
+    )
+    .toBe(true);
+
+  const colorSchemes: Array<"light" | "dark"> = ["light", "dark"];
+  for (const width of [390, 320]) {
+    for (const colorScheme of colorSchemes) {
+      await page.setViewportSize({ width, height: 780 });
+      await page.emulateMedia({ colorScheme, reducedMotion: "reduce" });
+      const expandPages = page.getByRole("button", { name: "Expand pages" });
+      if (await expandPages.count()) await expandPages.click();
+      await expect(previews).toHaveCount(2);
+      await expect
+        .poll(async () =>
+          previews.evaluateAll((images) =>
+            images.every((image) => image instanceof HTMLImageElement && image.naturalWidth > 0),
+          ),
+        )
+        .toBe(true);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+        width,
+      );
+      await page.screenshot({
+        path: testInfo.outputPath(`image-editor-pages-${width}-${colorScheme}.png`),
+      });
+    }
+  }
+});
+
+test("a large rectangular selection keeps its visible outline after a document edit", async ({
+  page,
+}) => {
+  await page.goto("/image-editor");
+  await page.getByRole("button", { name: /Instagram square/ }).click();
+  await expect(page.getByRole("application", { name: "Design canvas" })).toBeVisible();
+  await page.getByRole("button", { name: "Rectangle select" }).first().click();
+  const overlay = page.getByTestId("image-editor-pixel-selection");
+  const bounds = await overlay.boundingBox();
+  expect(bounds).not.toBeNull();
+  if (!bounds) return;
+  await page.mouse.move(bounds.x + bounds.width * 0.1, bounds.y + bounds.height * 0.1);
+  await page.mouse.down();
+  await page.mouse.move(bounds.x + bounds.width * 0.8, bounds.y + bounds.height * 0.8, {
+    steps: 12,
+  });
+  await page.mouse.up();
+  await expect(overlay).toHaveAttribute("data-active", "true");
+  const outlinePixels = await overlay.evaluate((canvas: HTMLCanvasElement) => {
+    const context = canvas.getContext("2d");
+    if (!context) return 0;
+    const image = context.getImageData(0, 0, canvas.width, canvas.height);
+    let visible = 0;
+    for (let index = 3; index < image.data.length; index += 4) if (image.data[index]) visible++;
+    return visible;
+  });
+  expect(outlinePixels).toBeGreaterThan(100);
+  await page.getByRole("textbox", { name: "Design title" }).fill("Selection outline check");
+  await expect(overlay).toHaveAttribute("data-active", "true");
+  const afterEditPixels = await overlay.evaluate((canvas: HTMLCanvasElement) => {
+    const image = canvas.getContext("2d")?.getImageData(0, 0, canvas.width, canvas.height);
+    if (!image) return 0;
+    let visible = 0;
+    for (let index = 3; index < image.data.length; index += 4) if (image.data[index]) visible++;
+    return visible;
+  });
+  expect(afterEditPixels).toBe(outlinePixels);
+});

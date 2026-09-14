@@ -1,5 +1,6 @@
 import { getContext, setContext } from 'svelte';
 import { SvelteSet } from 'svelte/reactivity';
+import { current, enablePatches, Immer, isDraft } from 'immer';
 import { m } from '$lib/paraglide/messages';
 import {
 	blankImageEditorPage,
@@ -59,6 +60,8 @@ import {
 } from '$lib/editor-color-grade/model';
 
 const IMAGE_EDITOR_CONTEXT = Symbol('openpost-image-editor-editor');
+enablePatches();
+const imageEditorImmer = new Immer({ autoFreeze: false });
 
 function normalizeEditorRotation(value: number): number {
 	return ((((value + 180) % 360) + 360) % 360) - 180;
@@ -99,6 +102,53 @@ interface PageColorGradeGesture {
 	beforeContext: ImageEditorHistoryContext;
 	pageID: string;
 	key: keyof EditorColorGrade;
+}
+
+function previewImageLayers(
+	document: ImageEditorDocument,
+	layerIDs: ReadonlySet<string>,
+	update: (layer: ImageEditorLayer) => ImageEditorLayer
+): ImageEditorDocument {
+	let changed = false;
+	const pages = document.pages.map((page) => {
+		let pageChanged = false;
+		const layers = page.layers.map((layer) => {
+			if (!layerIDs.has(layer.id) || layer.locked || !layer.image) return layer;
+			pageChanged = true;
+			return update(layer);
+		});
+		if (!pageChanged) return page;
+		changed = true;
+		return { ...page, layers };
+	});
+	return changed ? { ...document, pages } : document;
+}
+
+function imageColorChangeBytes(
+	before: ImageEditorDocument,
+	after: ImageEditorDocument,
+	layerIDs: readonly string[]
+): number {
+	const ids = new Set(layerIDs);
+	const afterLayers = new Map(
+		after.pages.flatMap((page) =>
+			page.layers.filter((layer) => ids.has(layer.id)).map((layer) => [layer.id, layer] as const)
+		)
+	);
+	let bytes = 0;
+	for (const page of before.pages) {
+		for (const layer of page.layers) {
+			if (!ids.has(layer.id)) continue;
+			const previous = JSON.stringify([layer.image?.color_grade_version, layer.image?.adjustments]);
+			const nextLayer = afterLayers.get(layer.id);
+			const next = JSON.stringify([
+				nextLayer?.image?.color_grade_version,
+				nextLayer?.image?.adjustments
+			]);
+			if (previous !== next) bytes += (previous.length + next.length) * 2;
+		}
+	}
+	return bytes;
 }
 
 export interface ImageEditorPartialApplicationResult {
@@ -178,6 +228,7 @@ export class ImageEditorController {
 	colorComparisonBefore = $state(false);
 	colorComparisonPage = $state(false);
 	colorComparisonLayerIDs = $state.raw<string[]>([]);
+	colorPreviewActive = $state(false);
 	brandKit = $state.raw<ImageEditorBrandKit | null>(null);
 	recentColors = $state.raw<string[]>([]);
 	mediaLibraryRevision = $state(0);
@@ -278,6 +329,9 @@ export class ImageEditorController {
 	}
 
 	load(response: ImageEditorDocumentResponse): void {
+		this.imageAdjustmentGesture = null;
+		this.pageColorGradeGesture = null;
+		this.colorPreviewActive = false;
 		this.id = response.id;
 		this.workspaceID = response.workspace_id;
 		this.revision = response.revision;
@@ -321,19 +375,20 @@ export class ImageEditorController {
 		if (this.pageColorGradeGesture) this.commitPageColorGradeGesture();
 		if (this.floatingPixelSelection) this.commitFloatingPixelSelection();
 		this.history.updateCurrentContext(this.historyContext());
-		const next = this.history.execute(this.document, {
-			label,
-			coalesceKey,
-			context: this.historyContext(),
-			apply(document) {
-				mutation(document);
-				return document;
-			},
-			revert(document) {
-				return document;
-			}
+		const before = this.document;
+		const [next, patches, inversePatches] = imageEditorImmer.produceWithPatches(before, (draft) => {
+			mutation(draft);
 		});
-		if (!this.history.lastExecutionChanged) return;
+		if (patches.length === 0) return;
+		this.history.checkpointShared(
+			label,
+			before,
+			next,
+			(JSON.stringify(patches).length + JSON.stringify(inversePatches).length) * 2,
+			coalesceKey,
+			this.historyContext(),
+			this.historyContext()
+		);
 		this.document = next;
 		this.historyRevision++;
 		this.emitChange();
@@ -346,11 +401,12 @@ export class ImageEditorController {
 		if (!this.document || !this.canEdit || this.imageAdjustmentGesture) return;
 		if (this.pageColorGradeGesture) this.commitPageColorGradeGesture();
 		this.imageAdjustmentGesture = {
-			beforeDocument: cloneImageEditorDocument(this.document),
+			beforeDocument: this.document,
 			beforeContext: this.historyContext(),
 			layerIDs: [...new Set(layerIDs)],
 			key
 		};
+		this.colorPreviewActive = true;
 	}
 
 	previewImageAdjustment<K extends keyof ImageEditorImageAdjustments>(
@@ -361,15 +417,14 @@ export class ImageEditorController {
 		if (!this.document || !this.canEdit) return;
 		this.beginImageAdjustmentGesture(layerIDs, key);
 		const targetIDs = new Set(this.imageAdjustmentGesture?.layerIDs ?? layerIDs);
-		const next = cloneImageEditorDocument(this.document);
-		for (const page of next.pages) {
-			for (const layer of page.layers) {
-				if (!targetIDs.has(layer.id) || layer.locked || !layer.image) continue;
-				layer.image.color_grade_version = IMAGE_COLOR_GRADE_VERSION;
-				layer.image.adjustments = { ...layer.image.adjustments, [key]: value };
+		this.document = previewImageLayers(this.document, targetIDs, (layer) => ({
+			...layer,
+			image: {
+				...layer.image!,
+				color_grade_version: IMAGE_COLOR_GRADE_VERSION,
+				adjustments: { ...layer.image!.adjustments, [key]: value }
 			}
-		}
-		this.document = next;
+		}));
 		this.historyRevision++;
 	}
 
@@ -381,20 +436,24 @@ export class ImageEditorController {
 		if (!this.document || !this.canEdit) return;
 		this.beginImageAdjustmentGesture(layerIDs, key);
 		const ids = new Set(this.imageAdjustmentGesture?.layerIDs ?? layerIDs);
-		const next = cloneImageEditorDocument(this.document);
-		for (const page of next.pages)
-			for (const layer of page.layers) {
-				if (!ids.has(layer.id) || layer.locked || !layer.image) continue;
-				layer.image.color_grade_version = IMAGE_COLOR_GRADE_VERSION;
-				if (key === 'wheels')
-					layer.image.adjustments.wheels = {
-						...defaultEditorColorWheels(),
-						...layer.image.adjustments.wheels,
-						...updates
-					};
-				else layer.image.adjustments.curves = { ...layer.image.adjustments.curves, ...updates };
+		this.document = previewImageLayers(this.document, ids, (layer) => ({
+			...layer,
+			image: {
+				...layer.image!,
+				color_grade_version: IMAGE_COLOR_GRADE_VERSION,
+				adjustments: {
+					...layer.image!.adjustments,
+					[key]:
+						key === 'wheels'
+							? {
+									...defaultEditorColorWheels(),
+									...layer.image!.adjustments.wheels,
+									...updates
+								}
+							: { ...layer.image!.adjustments.curves, ...updates }
+				}
 			}
-		this.document = next;
+		}));
 		this.historyRevision++;
 	}
 
@@ -402,11 +461,19 @@ export class ImageEditorController {
 		const gesture = this.imageAdjustmentGesture;
 		if (!gesture || !this.document) return;
 		this.imageAdjustmentGesture = null;
-		this.history.checkpoint(
+		this.colorPreviewActive = false;
+		const changedBytes = imageColorChangeBytes(
+			gesture.beforeDocument,
+			this.document,
+			gesture.layerIDs
+		);
+		if (!changedBytes) return;
+		this.history.checkpointShared(
 			'Change image color',
 			gesture.beforeDocument,
 			this.document,
-			`image-${gesture.key}:${gesture.layerIDs.join(',')}`,
+			changedBytes,
+			undefined,
 			gesture.beforeContext,
 			this.historyContext()
 		);
@@ -418,7 +485,8 @@ export class ImageEditorController {
 		const gesture = this.imageAdjustmentGesture;
 		if (!gesture) return;
 		this.imageAdjustmentGesture = null;
-		this.document = cloneImageEditorDocument(gesture.beforeDocument);
+		this.colorPreviewActive = false;
+		this.document = gesture.beforeDocument;
 		this.restoreHistoryContext(gesture.beforeContext);
 		this.historyRevision++;
 	}
@@ -427,11 +495,12 @@ export class ImageEditorController {
 		if (!this.document || !this.canEdit || this.pageColorGradeGesture) return;
 		if (this.imageAdjustmentGesture) this.commitImageAdjustmentGesture();
 		this.pageColorGradeGesture = {
-			beforeDocument: cloneImageEditorDocument(this.document),
+			beforeDocument: this.document,
 			beforeContext: this.historyContext(),
 			pageID,
 			key
 		};
+		this.colorPreviewActive = true;
 	}
 
 	previewPageColorGrade<K extends keyof EditorColorGrade>(
@@ -443,16 +512,22 @@ export class ImageEditorController {
 		this.beginPageColorGradeGesture(pageID, key);
 		const gesture = this.pageColorGradeGesture;
 		if (!gesture) return;
-		const next = cloneImageEditorDocument(this.document);
-		const page = next.pages.find((candidate) => candidate.id === gesture.pageID);
-		if (!page) return;
-		page.color_grade_version = IMAGE_COLOR_GRADE_VERSION;
-		page.color_grade = {
-			...defaultEditorColorGradeAdjustments(),
-			...page.color_grade,
-			[gesture.key]: value
-		};
-		this.document = next;
+		let changed = false;
+		const pages = this.document.pages.map((page) => {
+			if (page.id !== gesture.pageID) return page;
+			changed = true;
+			return {
+				...page,
+				color_grade_version: IMAGE_COLOR_GRADE_VERSION,
+				color_grade: {
+					...defaultEditorColorGradeAdjustments(),
+					...page.color_grade,
+					[gesture.key]: value
+				}
+			};
+		});
+		if (!changed) return;
+		this.document = { ...this.document, pages };
 		this.historyRevision++;
 	}
 
@@ -460,11 +535,18 @@ export class ImageEditorController {
 		const gesture = this.pageColorGradeGesture;
 		if (!gesture || !this.document) return;
 		this.pageColorGradeGesture = null;
-		this.history.checkpoint(
+		this.colorPreviewActive = false;
+		const beforePage = gesture.beforeDocument.pages.find((page) => page.id === gesture.pageID);
+		const afterPage = this.document.pages.find((page) => page.id === gesture.pageID);
+		const beforeColor = JSON.stringify([beforePage?.color_grade_version, beforePage?.color_grade]);
+		const afterColor = JSON.stringify([afterPage?.color_grade_version, afterPage?.color_grade]);
+		if (beforeColor === afterColor) return;
+		this.history.checkpointShared(
 			'Change page color',
 			gesture.beforeDocument,
 			this.document,
-			`page-color-${gesture.key}:${gesture.pageID}`,
+			(beforeColor.length + afterColor.length) * 2,
+			undefined,
 			gesture.beforeContext,
 			this.historyContext()
 		);
@@ -476,7 +558,8 @@ export class ImageEditorController {
 		const gesture = this.pageColorGradeGesture;
 		if (!gesture) return;
 		this.pageColorGradeGesture = null;
-		this.document = cloneImageEditorDocument(gesture.beforeDocument);
+		this.colorPreviewActive = false;
+		this.document = gesture.beforeDocument;
 		this.restoreHistoryContext(gesture.beforeContext);
 		this.historyRevision++;
 	}
@@ -869,11 +952,12 @@ export class ImageEditorController {
 			if (!pixelMaskBounds(selected, projection.width, projection.height)) continue;
 
 			if (mode === 'promote' || mode === 'cut') {
+				const sourceLayer = isDraft(target) ? current(target) : target;
 				const copy = cloneImageEditorLayer(
-					target,
+					sourceLayer,
 					m.image_editor_selection_layer_name({ name: target.name })
 				);
-				copy.transform = structuredClone(target.transform);
+				copy.transform = structuredClone(sourceLayer.transform);
 				if (copy.paint) {
 					copy.paint.spans = pixelMaskToSpans(selected, projection.width, projection.height);
 					copy.erase_mask = undefined;
