@@ -213,7 +213,7 @@ Each provider owns ID normalization, pagination, caps, coverage copy, safe URLs,
 - Migrations are additive and support SQLite and PostgreSQL from a clean database and the current migration history.
 - Existing analytics snapshots, authored Publications, Renditions, and Discord webhook accounts remain valid.
 - Connection, publishing, discovery, and analytics have separate provider readiness or feature gates. Disabling discovery stops jobs and hides unsupported claims without deleting stored history.
-- Pinterest, Telegram, and Discord bot public claims remain disabled until app credentials, policy evidence, required scopes, and live certification are current.
+- Pinterest and Telegram public claims remain disabled until app credentials, policy evidence, required scopes, and live certification are current. Discord bot accounts follow the configured-account readiness path.
 - Rollback disables new jobs and provider gates. No rollback rewrites authored content or replays provider writes.
 
 ## Exclusions

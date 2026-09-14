@@ -10,20 +10,20 @@ OAuth and social app setup cause many connection errors. Use this guide as you t
 
 The table below is an implementation and setup inventory. It is not a Hosted service readiness claim. The Accounts page reads `GET /api/v1/accounts/providers`, which now uses the same evidence-based projection as scheduling and the publisher instead of treating adapter registration as availability.
 
-| Network   | Sign-in method         | Server setup                                    | Status       | Notes                                                                      |
-| --------- | ---------------------- | ----------------------------------------------- | ------------ | -------------------------------------------------------------------------- |
-| Bluesky   | App password           | None                                            | Built-in     | Users connect with handle + app password.                                  |
-| X         | OAuth 1.0a             | Client ID + secret                              | Configurable | Requires an X developer app with OAuth 1.0a user auth enabled.             |
-| Mastodon  | OAuth 2.0 per instance | Dynamic registration or `MASTODON_SERVERS` JSON | Configurable | One app per instance, unless dynamic registration is enabled.              |
-| LinkedIn  | OAuth 2.0              | Client ID + secret                              | Configurable | Replies may need extra approval.                                           |
-| Threads   | Meta OAuth             | Client ID + secret + redirect URI               | Configurable | Public media URL required.                                                 |
-| Facebook  | Meta OAuth             | Provider app registry                           | Configurable | Pages only; public HTTPS media required.                                   |
-| Instagram | Meta OAuth             | Provider app registry                           | Configurable | Business or Creator account; public media URL required.                    |
-| TikTok    | OAuth 2.0              | Provider app registry                           | Configurable | Video and photo paths; provider approval and public media required.        |
-| YouTube   | Google OAuth           | Provider app registry                           | Configurable | One-video upload with configurable privacy; live verification recommended. |
-| Pinterest | OAuth 2.0              | Standard-access provider app                    | Unavailable  | Development and certification paths only; no public Hosted claim.          |
-| Telegram  | Instance-owned bot     | Bot token, username, and webhook secret         | Unavailable  | Bot mode stays gated until current live certification.                     |
-| Discord   | Incoming webhook       | None                                            | Built-in     | Users connect a webhook URL; text and streamed attachments are supported.  |
+| Network   | Sign-in method                | Server setup                                    | Status       | Notes                                                                                  |
+| --------- | ----------------------------- | ----------------------------------------------- | ------------ | -------------------------------------------------------------------------------------- |
+| Bluesky   | App password                  | None                                            | Built-in     | Users connect with handle + app password.                                              |
+| X         | OAuth 1.0a                    | Client ID + secret                              | Configurable | Requires an X developer app with OAuth 1.0a user auth enabled.                         |
+| Mastodon  | OAuth 2.0 per instance        | Dynamic registration or `MASTODON_SERVERS` JSON | Configurable | One app per instance, unless dynamic registration is enabled.                          |
+| LinkedIn  | OAuth 2.0                     | Client ID + secret                              | Configurable | Replies may need extra approval.                                                       |
+| Threads   | Meta OAuth                    | Client ID + secret + redirect URI               | Configurable | Public media URL required.                                                             |
+| Facebook  | Meta OAuth                    | Provider app registry                           | Configurable | Pages only; public HTTPS media required.                                               |
+| Instagram | Meta OAuth                    | Provider app registry                           | Configurable | Business or Creator account; public media URL required.                                |
+| TikTok    | OAuth 2.0                     | Provider app registry                           | Configurable | Video and photo paths; provider approval and public media required.                    |
+| YouTube   | Google OAuth                  | Provider app registry                           | Configurable | One-video upload with configurable privacy; live verification recommended.             |
+| Pinterest | OAuth 2.0                     | Standard-access provider app                    | Unavailable  | Development and certification paths only; no public Hosted claim.                      |
+| Telegram  | Instance-owned bot            | Bot token, username, and webhook secret         | Unavailable  | Bot mode stays gated until current live certification.                                 |
+| Discord   | OAuth bot or incoming webhook | Bot application for OAuth bot mode              | Built-in     | Users can connect a bot guild or webhook; text and streamed attachments are supported. |
 
 Start with one network. Check that its callback works before you add another. A configured app may still need approval, a valid account grant, current local and live proof, an allowed policy mode, and an enabled runtime control.
 
@@ -65,7 +65,7 @@ This matrix reflects implemented OpenPost code paths, not the full theoretical c
 
 Direct messages, Comments and replies, Analytics, and Grow are optional and per connected account. Each feature starts off for a newly connected account. Enable supported features after connection or in Account details. Disabling a feature stops future provider reads and writes without deleting stored history or revoking provider authorization. Availability depends on provider support, required scopes, and plan access as distinct facts. Grow never follows automatically. Existing accounts keep their current behavior after upgrade. Use each provider page to see which optional features that provider supports.
 
-Grow discovery and follow are available only for Bluesky and Mastodon. Inbox Direct messages are available for X, Bluesky, Facebook Pages, Instagram Professional accounts, and Mastodon. Engagement Comments and replies are available for X, Mastodon, Bluesky, LinkedIn, Threads, Facebook Pages, Instagram, and YouTube. Analytics is available for X, Mastodon, Bluesky, LinkedIn, Threads, Facebook, Instagram, TikTok, and YouTube. Discord webhooks support none of these optional features. Pinterest, Telegram bot mode, and Discord bot mode remain excluded from public availability statements until their exact operations have current live certification.
+Grow discovery and follow are available only for Bluesky and Mastodon. Inbox Direct messages are available for X, Bluesky, Facebook Pages, Instagram Professional accounts, and Mastodon. Engagement Comments and replies are available for X, Mastodon, Bluesky, LinkedIn, Threads, Facebook Pages, Instagram, and YouTube. Analytics is available for X, Mastodon, Bluesky, LinkedIn, Threads, Facebook, Instagram, TikTok, and YouTube. Discord webhooks support none of these optional features; Discord bot analytics is available only where the connected bot account exposes it.
 
 ## Implementation limits
 
@@ -110,7 +110,7 @@ A platform can offer a feature while OpenPost still marks its implementation mis
 - **YouTube:** Use provider key `youtube`. OpenPost connects a selected channel, uploads one video with privacy, title, description, thumbnail, and playlist settings, and supports comment replies and moderation. Test a live channel before you rely on it.
 - **Pinterest:** The adapter remains publicly unavailable until Standard access and current live certification exist. See the [Pinterest boundary](pinterest.md).
 - **Telegram:** Bot mode remains publicly unavailable until current live certification exists for each operation. See the [Telegram bot boundary](telegram.md).
-- **Discord:** Connect an incoming webhook URL directly. OpenPost streams attachments and uses a safe 10 MiB file limit because Discord's actual limit can vary by server and account. Discord bot mode is separate and remains publicly unavailable without current live certification.
+- **Discord:** Connect an incoming webhook URL or an instance-configured OAuth bot. OpenPost streams attachments and uses a safe 10 MiB file limit because Discord's actual limit can vary by server and account.
 
 Social network API rules, access, request limits, and app review can change. Check that network's docs if a feature stops working.
 

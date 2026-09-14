@@ -160,7 +160,10 @@ func (s *Service) ResolveCertificationContext(
 	var contract CertificationContract
 	var err error
 	mandatoryCertification := requiresCertifiedOperation(account.Platform, accountConfigurationRef(account))
-	enforceCertification := s.managedProduction || mandatoryCertification
+	// Production identity and provider environment remain production-scoped even
+	// when the optional evidence gate is off. Only the explicit gate or a
+	// provider's mandatory certification policy should require recorded proof.
+	enforceCertification := s.enforceCertification || mandatoryCertification
 	if operation.IsPublish() {
 		policyMode = PublicationPolicyMode(account, capability, settings)
 		contract, err = PublicationContract(capability, operation, enforceCertification, accountKind, policyMode)
@@ -411,8 +414,6 @@ func requiresCertifiedOperation(provider, configurationRef string) bool {
 	switch provider {
 	case capabilities.ProviderPinterest, capabilities.ProviderTelegram:
 		return true
-	case capabilities.ProviderDiscord:
-		return strings.EqualFold(strings.TrimSpace(configurationRef), platform.ConnectionModeBot)
 	default:
 		return false
 	}
