@@ -321,8 +321,30 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
+  frontend-tests:
+    name: Frontend tests
+    needs: plan
+    if: needs.plan.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24.19.0"
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: bun-${{ runner.os }}-
+      - run: bun install --frozen-lockfile
+      - run: bunx playwright install --with-deps chromium
+      - run: bun run test -- frontend
+
   frontend-build:
-    name: Frontend tests and canonical build
+    name: Canonical frontend build
     needs: plan
     if: needs.plan.outputs.application == 'true'
     runs-on: ubuntu-latest
@@ -341,9 +363,6 @@ jobs:
           restore-keys: bun-${{ runner.os }}-
       - run: bash scripts/ci-timing-summary.sh start frontend-build
       - run: bun install --frozen-lockfile
-      - run: bunx playwright install --with-deps chromium
-      - if: needs.plan.outputs.frontend == 'true'
-        run: bun run test -- frontend
       - name: Build the canonical application artifact and source maps
         env:
           POSTHOG_SOURCEMAPS_ENABLED: ${{ github.event_name == 'push' && secrets.POSTHOG_PERSONAL_API_KEY != '' && vars.POSTHOG_PROJECT_ID != '' && '1' || '0' }}
@@ -691,8 +710,11 @@ jobs:
             ~/.bun/install/cache
             ~/.gradle/caches
             ~/.gradle/wrapper
-          key: android-${{ runner.os }}-${{ hashFiles('apps/mobile/bun.lock', 'apps/mobile/app.json', 'apps/mobile/plugins/**', 'packages/api-contract/**', 'packages/query-catalog/**') }}
-          restore-keys: android-${{ runner.os }}-
+          key: android-build-v2-${{ runner.os }}-${{ hashFiles('apps/mobile/bun.lock', 'apps/mobile/plugins/**') }}-${{ github.sha }}
+          restore-keys: |
+            android-build-v2-${{ runner.os }}-${{ hashFiles('apps/mobile/bun.lock', 'apps/mobile/plugins/**') }}-
+            android-build-v2-${{ runner.os }}-
+            android-${{ runner.os }}-
       - name: Install the standalone mobile app
         working-directory: apps/mobile
         run: bun install --frozen-lockfile
@@ -887,6 +909,7 @@ jobs:
         frontend-quality,
         backend,
         hosted-data-plane,
+        frontend-tests,
         frontend-build,
         marketing-build,
         docs-build,

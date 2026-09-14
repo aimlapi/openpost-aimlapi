@@ -43,6 +43,16 @@ function writeMobileIdentity(directory, version, versionCode) {
   );
 }
 
+test("release candidate requires every independent CI job", () => {
+  const jobs = load(ci).jobs;
+  assert.deepEqual(
+    [...jobs["release-candidate"].needs].sort(),
+    Object.keys(jobs)
+      .filter((job) => job !== "release-candidate")
+      .sort(),
+  );
+});
+
 test("only the image CI job can write packages", () => {
   const jobs = load(ci).jobs;
   assert.deepEqual(

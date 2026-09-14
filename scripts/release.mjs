@@ -5,6 +5,7 @@ import { mkdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 
 import { checkMCPRegistryOwnership } from "./check-mcp-registry.mjs";
+import { changelogFragmentEntries } from "./changelog-fragments.mjs";
 import { prepareMobileReleaseFiles } from "./mobile-release.mjs";
 import { releaseCommandEnvironment } from "./release-command-environment.mjs";
 import { requireConventionalCommitMessage, selectWorkflowRun } from "./release-lifecycle.mjs";
@@ -220,8 +221,10 @@ async function prepare(commitMessage) {
 
   run(["git", "fetch", "origin", "main", "--tags"]);
   const divergence = git(["rev-list", "--left-right", "--count", "HEAD...origin/main"]);
-  if (divergence !== "0\t0")
-    throw new Error(`main must match origin/main before preparation; divergence is ${divergence}`);
+  if (Number(divergence.split("\t")[1]) !== 0)
+    throw new Error(
+      `main must include origin/main before preparation; divergence is ${divergence}`,
+    );
 
   const latestTag = git(["tag", "--list", "v*", "--sort=-v:refname"]).split("\n").find(Boolean);
   if (!latestTag) throw new Error("no v* release tags found");
@@ -249,6 +252,12 @@ async function prepare(commitMessage) {
   const changelogPath = path.join(root, "CHANGELOG.md");
   const mobileConfigPath = path.join(root, "apps/mobile", "app.json");
   const mobilePackagePath = path.join(root, "apps/mobile", "package.json");
+  const originalFragments = await Promise.all(
+    changelogFragmentEntries(path.join(root, "changes")).map(async (entry) => {
+      const file = path.join(root, "changes", entry);
+      return { file, content: await readFile(file) };
+    }),
+  );
   const [originalChangelog, originalMobileConfig, originalMobilePackage] = await Promise.all([
     readFile(changelogPath),
     readFile(mobileConfigPath),
@@ -274,21 +283,28 @@ async function prepare(commitMessage) {
     );
     run(["bun", "scripts/prepare-release-changelog.mjs", tag]);
     checkReleaseContracts();
+    await check();
+    run(["bun", "run", "test", "--", "frontend"]);
+    run(["bun", "run", "test", "--", "e2e"]);
+    run(["bun", "run", "test", "--", "e2e-app"]);
   } catch (error) {
     await Promise.all([
       Bun.write(changelogPath, originalChangelog),
       Bun.write(mobileConfigPath, originalMobileConfig),
       Bun.write(mobilePackagePath, originalMobilePackage),
+      ...originalFragments.map(async ({ file, content }) => {
+        if (!(await exists(file))) await Bun.write(file, content);
+      }),
     ]);
     throw error;
   }
   run(["git", "add", "--all"]);
   if (git(["diff", "--cached", "--name-only"]).trim()) {
     run(["git", "commit", "-m", commitMessage || `docs: prepare ${tag} changelog`]);
-    run(["git", "push", "origin", "main"]);
   } else {
     console.log(`release prepare: ${tag} changelog is already prepared; reusing HEAD`);
   }
+  run(["git", "push", "origin", "main"]);
 
   const revision = git(["rev-parse", "HEAD"]);
   await waitForCI(revision);
