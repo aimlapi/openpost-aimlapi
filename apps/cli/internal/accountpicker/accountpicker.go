@@ -8,6 +8,8 @@
 //   - x:@username           x account whose AccountUsername is "username"
 //   - linkedin              first/only linkedin account
 //   - mastodon:server.example first/only mastodon account for that server
+//   - pixelfed:server.example, peertube:server.example, lemmy:server.example,
+//     piefed:server.example work the same way for instance-scoped providers
 //
 // On multiple matches the picker returns an error listing the
 // candidates so the user can disambiguate.
@@ -87,7 +89,7 @@ const (
 	accountSlugMatch
 	accountPlatformUsernameMatch
 	accountBarePlatformMatch
-	accountMastodonHostMatch
+	accountInstanceHostMatch
 )
 
 func accountMatches(a api.SocialAccount, sel string) accountMatch {
@@ -107,16 +109,26 @@ func accountMatches(a api.SocialAccount, sel string) accountMatch {
 	if a.Platform == sel {
 		return accountBarePlatformMatch
 	}
-	if strings.HasPrefix(sel, "mastodon:") {
-		if a.Platform != "mastodon" {
+	if provider, host, ok := strings.Cut(sel, ":"); ok && isInstanceScopedProvider(provider) {
+		if a.Platform != provider {
 			return noAccountMatch
 		}
-		want := strings.TrimPrefix(sel, "mastodon:")
-		if hostOf(a.InstanceURL) == want {
-			return accountMastodonHostMatch
+		if hostOf(a.InstanceURL) == host {
+			return accountInstanceHostMatch
 		}
 	}
 	return noAccountMatch
+}
+
+// isInstanceScopedProvider mirrors the backend's instance-scoped providers:
+// the same account identity can exist on many independent servers.
+func isInstanceScopedProvider(provider string) bool {
+	switch provider {
+	case "mastodon", "pixelfed", "peertube", "lemmy", "piefed":
+		return true
+	default:
+		return false
+	}
 }
 
 func hostOf(u string) string {

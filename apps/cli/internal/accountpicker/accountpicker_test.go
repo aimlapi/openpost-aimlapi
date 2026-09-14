@@ -158,3 +158,31 @@ func TestResolve(t *testing.T) {
 		})
 	}
 }
+
+func TestResolveInstanceHostSelectors(t *testing.T) {
+	accounts := []api.SocialAccount{
+		{ID: "acct-m-1", Platform: "mastodon", AccountUsername: "alice", InstanceURL: "https://masto.example", IsActive: true},
+		{ID: "acct-p-1", Platform: "pixelfed", AccountUsername: "alice", InstanceURL: "https://pix.example", IsActive: true},
+		{ID: "acct-t-1", Platform: "peertube", AccountUsername: "demos", InstanceURL: "https://tube.example", IsActive: true},
+		{ID: "acct-l-1", Platform: "lemmy", AccountUsername: "alice", InstanceURL: "https://lemmy.example", IsActive: true},
+	}
+
+	for selector, want := range map[string]string{
+		"mastodon:masto.example": "acct-m-1",
+		"pixelfed:pix.example":   "acct-p-1",
+		"peertube:tube.example":  "acct-t-1",
+		"lemmy:lemmy.example":    "acct-l-1",
+	} {
+		got, err := Resolve("workspace-1", []string{selector}, accounts)
+		if err != nil {
+			t.Fatalf("selector %s: unexpected error: %v", selector, err)
+		}
+		if len(got) != 1 || got[0] != want {
+			t.Fatalf("selector %s: got %v, want [%s]", selector, got, want)
+		}
+	}
+
+	if _, err := Resolve("workspace-1", []string{"peertube:other.example"}, accounts); err == nil {
+		t.Fatal("expected error for unknown instance host, got nil")
+	}
+}

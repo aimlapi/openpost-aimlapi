@@ -1,6 +1,6 @@
 import { afterEach, expect, test } from "bun:test";
 
-import { accountHandle, relativeTime } from "./format";
+import { accountHandle, platformLabel, relativeTime } from "./format";
 
 const relativeTimeFormat = Intl.RelativeTimeFormat;
 
@@ -31,4 +31,11 @@ test("formats account handles with exactly one at sign", () => {
   expect(accountHandle("@rodrgds", "youtube-rodrgds")).toBe("@rodrgds");
   expect(accountHandle("rodrgds", "youtube-rodrgds")).toBe("@rodrgds");
   expect(accountHandle("", "youtube-rodrgds")).toBe("youtube-rodrgds");
+});
+
+test("labels fediverse platforms by name", () => {
+  expect(platformLabel("pixelfed")).toBe("Pixelfed");
+  expect(platformLabel("peertube")).toBe("PeerTube");
+  expect(platformLabel("lemmy")).toBe("Lemmy");
+  expect(platformLabel("piefed")).toBe("PieFed");
 });

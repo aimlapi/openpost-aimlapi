@@ -235,6 +235,130 @@ const channelStories = {
 		answer:
 			'You can connect an account on a public Mastodon server. Servers may set different post lengths and media limits. OpenPost checks the limits reported by the connected server.'
 	},
+	pixelfed: {
+		title: 'Put your photos where your Fediverse audience is.',
+		intro:
+			'Your work deserves better than a screenshot in a microblog post. Publish photos and albums to Pixelfed with captions and alt text, straight from the same workspace.',
+		angle: 'Photo-first, not an afterthought.',
+		example:
+			'Golden hour over the workshop. Full album with alt text on every photo, scheduled for tomorrow morning.',
+		visual: 'image-editor',
+		sections: [
+			{
+				title: 'Design the album, then publish it.',
+				text: 'Arrange up to four photos, write one caption, and add alt text to each image. Review the order before it goes out.'
+			},
+			{
+				title: 'Keep accessibility with the post.',
+				text: 'Alt text travels with every image. Content warnings and sensitive-media flags are preserved, never dropped to make cross-posting succeed.'
+			},
+			{
+				title: 'Respect the instance you publish to.',
+				text: 'Photo and album limits can differ by server. OpenPost checks the connected instance and validates before scheduling.'
+			}
+		],
+		ideas: [
+			'A product shoot with per-photo alt text',
+			'A behind-the-scenes album from the week',
+			'A launch photo with a content warning where it helps'
+		],
+		question: 'Can I connect my own Pixelfed instance?',
+		answer:
+			'You can connect an account on a public Pixelfed instance. Photo and album limits can differ by server. OpenPost checks the limits reported by the connected instance.'
+	},
+	peertube: {
+		title: 'Publish videos to your own channel.',
+		intro:
+			'A demo, a tutorial, a launch walkthrough. Upload it to your PeerTube channel with a title, description, and captions, and know when it finishes processing.',
+		angle: 'The channel is the destination.',
+		example:
+			'Watch the two-minute tour of the new dashboard, with captions and chapters in the description.',
+		visual: 'video-editor',
+		sections: [
+			{
+				title: 'Pick the channel, not just the account.',
+				text: 'One account can own several channels with different subscribers. Choose the channel when you connect, and every upload lands in the right place.'
+			},
+			{
+				title: 'Upload once, with everything attached.',
+				text: 'Title, description, privacy, language, tags, thumbnail, and captions go with the upload. Interrupted transfers resume instead of duplicating.'
+			},
+			{
+				title: 'Trust the processing state.',
+				text: 'Transcoding takes time. OpenPost reports the video as published only after the instance confirms it, and keeps checking while it processes.'
+			}
+		],
+		ideas: [
+			'A product demo with captions',
+			'A tutorial published to your teaching channel',
+			'A launch update with a thumbnail'
+		],
+		question: 'Which channel will my video publish to?',
+		answer:
+			'The channel you connect is the destination. If your account owns several channels, pick one during setup. Each channel is a separate destination in OpenPost.'
+	},
+	lemmy: {
+		title: 'Join the Lemmy discussion properly.',
+		intro:
+			'Communities reward posts written for them. Pick the community, write a title and body for it, and follow the replies from the same workspace.',
+		angle: 'A community is a destination, not a hashtag.',
+		example:
+			'Why we self-host our analytics: the costs, the surprises, and what we would do differently. Discussion open.',
+		visual: 'main',
+		sections: [
+			{
+				title: 'Write for one community at a time.',
+				text: 'Each rendition targets one community with its own title, body, and validation. Adapting a post for another community means reviewing it again.'
+			},
+			{
+				title: 'Keep the rules next to the editor.',
+				text: 'The community description and rules stay alongside your draft, and OpenPost rechecks posting restrictions before submission.'
+			},
+			{
+				title: 'Stay for the conversation.',
+				text: 'Read comments and reply from the inbox instead of dropping a link and leaving. Moderation changes are reported, never silently reposted.'
+			}
+		],
+		ideas: [
+			'A lesson learned, written for one community',
+			'A question with enough context to answer',
+			'A launch announcement adapted per community'
+		],
+		question: 'Do I need an account on every community server?',
+		answer:
+			'No. You connect your home instance, and it resolves communities hosted elsewhere. Two communities with the same name on different servers stay separate destinations.'
+	},
+	piefed: {
+		title: 'Publish to PieFed communities natively.',
+		intro:
+			'PieFed shares the community-posting experience with Lemmy through its own native API. Pick the community, write for it, and follow the replies.',
+		angle: 'Same care, native API.',
+		example:
+			'What we changed in onboarding this week, written for this community with full context.',
+		visual: 'main',
+		sections: [
+			{
+				title: 'One community, one rendition.',
+				text: 'Each post targets one community with its own title, body, and validation. Nothing is shared implicitly across communities.'
+			},
+			{
+				title: 'See the rules while you write.',
+				text: 'Community descriptions and posting warnings stay next to the editor, and restrictions are rechecked before submission.'
+			},
+			{
+				title: 'Follow the replies.',
+				text: 'Read comments, reply, and manage the conversation from the inbox. Removed posts are reported, never reposted automatically.'
+			}
+		],
+		ideas: [
+			'A discussion post with full context',
+			'A link with a title written for the community',
+			'An update adapted from your launch notes'
+		],
+		question: 'How is PieFed different from Lemmy in OpenPost?',
+		answer:
+			'The authoring experience is shared, but PieFed connects through its own native API with its own adapter, validation, and community resolution.'
+	},
 	threads: {
 		title: 'Make room for a conversation on Threads.',
 		intro:

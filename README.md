@@ -148,12 +148,16 @@ Run OpenPost with Docker Compose. The default setup uses one container with SQLi
   <img src="./assets/postiz-socials/Threads.svg" alt="Threads" width="32" height="32">
   <img src="./assets/postiz-socials/Bluesky.svg" alt="Bluesky" width="32" height="32">
   <img src="./assets/postiz-socials/Mastodon.svg" alt="Mastodon" width="32" height="32">
+  <img src="./assets/postiz-socials/Pixelfed.svg" alt="Pixelfed" width="32" height="32">
+  <img src="./assets/postiz-socials/Peertube.svg" alt="PeerTube" width="32" height="32">
+  <img src="./assets/postiz-socials/Lemmy.svg" alt="Lemmy" width="32" height="32">
+  <img src="./assets/postiz-socials/PieFed.svg" alt="PieFed" width="32" height="32">
   <img src="./assets/postiz-socials/Discord.svg" alt="Discord" width="32" height="32">
   <img src="./assets/postiz-socials/Pinterest.svg" alt="Pinterest" width="32" height="32">
   <img src="./assets/postiz-socials/Telegram.svg" alt="Telegram" width="32" height="32">
 </p>
 
-OpenPost has integrations for Instagram, Facebook, LinkedIn, X, TikTok, YouTube, Threads, Bluesky, Mastodon, Discord, Pinterest, and Telegram. Discord supports incoming webhooks and a bot integration; Telegram uses a bot.
+OpenPost has integrations for Instagram, Facebook, LinkedIn, X, TikTok, YouTube, Threads, Bluesky, Mastodon, Pixelfed, PeerTube, Lemmy, PieFed, Discord, Pinterest, and Telegram. Mastodon and Pixelfed connect per instance over OAuth; PeerTube, Lemmy, and PieFed connect with instance credentials. Discord supports incoming webhooks and a bot integration; Telegram uses a bot.
 
 Posting formats, inbox features, and analytics vary by platform. Some integrations require provider app approval or publicly reachable media URLs.
 

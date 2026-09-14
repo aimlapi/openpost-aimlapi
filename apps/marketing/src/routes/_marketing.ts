@@ -324,6 +324,202 @@ const platformImplementations = [
 		docsUrl: 'https://docs.openpo.st/guides/accounts'
 	},
 	{
+		slug: 'pixelfed',
+		name: 'Pixelfed',
+		short: 'pixelfed',
+		tag: 'Photos, albums, alt text',
+		requiresProviderApproval: false,
+		implementationDetail: 'Publishing is implemented',
+		description:
+			'Connect a public Pixelfed instance, then schedule photo posts and albums with captions and alt text.',
+		heroTitle: 'Publish photos where your Fediverse audience already follows you.',
+		preview: {
+			label: 'pixelfed.social',
+			headline: 'A photo post with alt text',
+			body: 'Each account keeps its visibility, language, sensitive media, and server rules.',
+			detail: 'Up to 4 photos by default',
+			chips: ['Public', 'Alt text', 'Instance-aware']
+		},
+		accountRequirement: 'An account on a public HTTPS Pixelfed instance that allows app access.',
+		auth: 'OAuth 2.0 per instance',
+		setup: [
+			'Choose Pixelfed in Social accounts and enter the public server address.',
+			'Approve the dynamically registered or operator-configured app on that server.',
+			'Confirm the instance-specific photo and album rules before scheduling.'
+		],
+		formats: [
+			{
+				name: 'Photo post',
+				text: '500 characters by default',
+				media: '1-4 JPEG, PNG, or WebP photos'
+			},
+			{
+				name: 'Album',
+				text: '500 characters by default',
+				media: '2-4 photos with per-image alt text'
+			}
+		],
+		limits: [
+			`${PLATFORM_LIMITS.pixelfed.charLimit} characters by default`,
+			PLATFORM_LIMITS.pixelfed.media,
+			'Photo-first: video support depends on the instance',
+			'Instance rules can override the defaults'
+		],
+		limitations: [
+			'Photo and album limits can differ by server.',
+			'Custom instances must be public HTTPS and allow app registration.',
+			'Quote posts and interaction policies are not advertised for Pixelfed accounts.'
+		],
+		verification:
+			'Check the server rules and publish one photo test before you rely on a new server.',
+		docsUrl: 'https://docs.openpo.st/guides/accounts'
+	},
+	{
+		slug: 'peertube',
+		name: 'PeerTube',
+		short: 'peertube',
+		tag: 'Channels, video uploads',
+		requiresProviderApproval: false,
+		implementationDetail: 'Publishing is implemented',
+		description:
+			'Connect a PeerTube account, pick a channel, then publish videos with titles, descriptions, and captions.',
+		heroTitle: 'Publish videos to the channel your audience subscribes to.',
+		preview: {
+			label: 'Channel video',
+			headline: 'A video with title and description',
+			body: 'Each upload targets one channel and reports transcoding before delivery.',
+			detail: 'One video per post',
+			chips: ['Channel', 'Captions', 'Processing state']
+		},
+		accountRequirement: 'A PeerTube account with at least one channel on a reachable instance.',
+		auth: 'Instance username and password',
+		setup: [
+			'Choose PeerTube in Social accounts and enter the instance address, username, and password.',
+			'Pick the channel to connect when the account owns several.',
+			'Upload a short test video and follow its processing state.'
+		],
+		formats: [
+			{
+				name: 'Video',
+				text: 'Title required, description optional',
+				media: 'One MP4, QuickTime, WebM, or Matroska video'
+			}
+		],
+		limits: [
+			'A title and channel are required for every upload',
+			PLATFORM_LIMITS.peertube.media,
+			'Instance quota and transcoding policy apply',
+			'Thumbnails and caption files are applied after upload'
+		],
+		limitations: [
+			'Uploads wait for instance transcoding before delivery is reported.',
+			'Password-protected videos need their password in OpenPost for inbox reads.',
+			'One adapter registration is maintained per PeerTube instance.'
+		],
+		verification: 'Upload one test video and confirm it finishes transcoding before scheduling.',
+		docsUrl: 'https://docs.openpo.st/guides/accounts'
+	},
+	{
+		slug: 'lemmy',
+		name: 'Lemmy',
+		short: 'lemmy',
+		tag: 'Communities, discussions, links',
+		requiresProviderApproval: false,
+		implementationDetail: 'Publishing is implemented',
+		description:
+			'Connect a Lemmy account, choose a community, then publish discussions and links with replies from one inbox.',
+		heroTitle: 'Join the community discussion instead of just dropping a link.',
+		preview: {
+			label: 'Community post',
+			headline: 'A discussion with title and body',
+			body: 'Each rendition targets one community with its own title, body, and validation.',
+			detail: 'Community and title required',
+			chips: ['Community', 'Replies', 'Moderation-aware']
+		},
+		accountRequirement: 'A Lemmy account on a reachable instance (0.19 series).',
+		auth: 'Instance username and password',
+		setup: [
+			'Choose Lemmy in Social accounts and enter the home instance address, username, and password.',
+			'Search for a community or paste its address, then review its rules next to the editor.',
+			'Publish a test discussion and read its replies from the inbox.'
+		],
+		formats: [
+			{
+				name: 'Discussion',
+				text: 'Title required, Markdown body',
+				media: 'Text only'
+			},
+			{
+				name: 'Link or image post',
+				text: 'Title required',
+				media: 'One link or one uploaded image'
+			}
+		],
+		limits: [
+			'A community and title are required for every post',
+			PLATFORM_LIMITS.lemmy.media,
+			'Communities can restrict posting to moderators',
+			'A publication with an unresolved community cannot be scheduled'
+		],
+		limitations: [
+			'Publishing uses the Lemmy v3 API; 1.x instances on API v4 are refused explicitly.',
+			'Remote visibility depends on federation and instance moderation.',
+			'Removed remote posts are reported, never reposted automatically.'
+		],
+		verification: 'Post one test discussion and confirm it is visible in the target community.',
+		docsUrl: 'https://docs.openpo.st/guides/accounts'
+	},
+	{
+		slug: 'piefed',
+		name: 'PieFed',
+		short: 'piefed',
+		tag: 'Communities, discussions, links',
+		requiresProviderApproval: false,
+		implementationDetail: 'Publishing is implemented',
+		description:
+			'Connect a PieFed account, choose a community, then publish discussions and links through its native API.',
+		heroTitle: 'Publish to PieFed communities with the same care as Lemmy.',
+		preview: {
+			label: 'Community post',
+			headline: 'A discussion with title and body',
+			body: 'Each rendition targets one community with its own title, body, and validation.',
+			detail: 'Community and title required',
+			chips: ['Community', 'Replies', 'Native API']
+		},
+		accountRequirement: 'A PieFed account on a reachable instance.',
+		auth: 'Instance username and password',
+		setup: [
+			'Choose PieFed in Social accounts and enter the home instance address, username, and password.',
+			'Search for a community or paste its address, then review its rules next to the editor.',
+			'Publish a test discussion and read its replies from the inbox.'
+		],
+		formats: [
+			{
+				name: 'Discussion',
+				text: 'Title required, Markdown body',
+				media: 'Text only'
+			},
+			{
+				name: 'Link or image post',
+				text: 'Title required',
+				media: 'One link or one uploaded image'
+			}
+		],
+		limits: [
+			'A community and title are required for every post',
+			PLATFORM_LIMITS.piefed.media,
+			'Communities can restrict posting to moderators',
+			'A publication with an unresolved community cannot be scheduled'
+		],
+		limitations: [
+			'Publishing uses the native PieFed alpha API through its own adapter.',
+			'Remote visibility depends on federation and instance moderation.',
+			'Removed remote posts are reported, never reposted automatically.'
+		],
+		verification: 'Post one test discussion and confirm it is visible in the target community.',
+		docsUrl: 'https://docs.openpo.st/guides/accounts'
+	},
+	{
 		slug: 'bluesky',
 		name: 'Bluesky',
 		short: 'bluesky',
@@ -886,6 +1082,10 @@ const landingPlatformSlugs = [
 	'threads',
 	'facebook',
 	'mastodon',
+	'pixelfed',
+	'peertube',
+	'lemmy',
+	'piefed',
 	'discord'
 ] as const;
 
