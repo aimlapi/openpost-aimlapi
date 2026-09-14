@@ -135,6 +135,7 @@ export const assetSurfaceManifest = {
     "postiz-socials/Instagram.svg",
     "postiz-socials/Linkedin.svg",
     "postiz-socials/Mastodon.svg",
+    "postiz-socials/Telegram.svg",
     "postiz-socials/Threads.svg",
     "postiz-socials/TikTok.svg",
     "postiz-socials/X.svg",
