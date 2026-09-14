@@ -19,6 +19,9 @@ func PublishingSettingsContract(provider string) PublishingSettingContract {
 		providerPixelfed: {
 			AdapterKeys: []string{"url", "visibility", "spoiler_text", "sensitive", "language", "poll_options", "poll_expires_in_seconds", "poll_multiple", "poll_hide_totals", "alt_text"},
 		},
+		providerPeerTube: {
+			AdapterKeys: []string{"channel", "title", "description", "privacy", "language", "category", "licence", "tags", "nsfw", "nsfw_summary", "comments_policy", "download_enabled", "support", "caption_language"},
+		},
 		providerBluesky: {
 			AdapterKeys: []string{"link_url", "link_title", "link_description", "quote_url", "languages", "self_labels", "reply_gate", "thread_gate", "alt_text"},
 		},

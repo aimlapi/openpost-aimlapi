@@ -51,6 +51,12 @@ var appBuilders = map[string]appBuilder{
 		}
 		return NewMastodonAdapter(app.ClientID, app.ClientSecret, app.RedirectURI, app.InstanceURL), nil
 	},
+	providerPeerTube: func(app AppConfig, _ RegistryOptions) (Adapter, error) {
+		if strings.TrimSpace(app.InstanceURL) == "" {
+			return nil, fmt.Errorf("peertube provider app requires instance_url")
+		}
+		return NewPeerTubeAdapter(app.InstanceURL), nil
+	},
 	providerPixelfed: func(app AppConfig, _ RegistryOptions) (Adapter, error) {
 		if strings.TrimSpace(app.ClientID) == "" || strings.TrimSpace(app.ClientSecret) == "" || strings.TrimSpace(app.InstanceURL) == "" {
 			return nil, fmt.Errorf("pixelfed provider app requires client_id, client_secret, and instance_url")

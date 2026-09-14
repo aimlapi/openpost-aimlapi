@@ -407,6 +407,9 @@ func All() []Capability {
 		defaultQueued(Capability{Provider: ProviderPixelfed, Profile: models.ContentProfileImagePost, Label: "Pixelfed photo", TextLimit: 500, Media: MediaConstraint{MinCount: 1, MaxCount: 4, AllowedMIMEs: []string{"image/jpeg", "image/png", "image/webp"}}, Settings: pixelfedSettings()}),
 		defaultQueued(Capability{Provider: ProviderPixelfed, Profile: models.ContentProfileCarousel, Label: "Pixelfed album", TextLimit: 500, Media: MediaConstraint{MinCount: 2, MaxCount: 4, AllowedMIMEs: []string{"image/jpeg", "image/png", "image/webp"}}, Settings: pixelfedSettings()}),
 
+		defaultQueued(Capability{Provider: ProviderPeerTube, Profile: models.ContentProfileShortVideo, Label: "PeerTube video", TextLimit: 5000, TitleRequired: true, Media: MediaConstraint{MinCount: 1, MaxCount: 1, AllowedMIMEs: []string{"video/mp4", "video/quicktime", "video/webm", "video/x-matroska"}}, Settings: peertubeSettings()}),
+		defaultQueued(Capability{Provider: ProviderPeerTube, Profile: models.ContentProfileLongVideo, Label: "PeerTube video", TextLimit: 5000, TitleRequired: true, Media: MediaConstraint{MinCount: 1, MaxCount: 1, AllowedMIMEs: []string{"video/mp4", "video/quicktime", "video/webm", "video/x-matroska"}}, Settings: peertubeSettings()}),
+
 		defaultQueued(Capability{Provider: ProviderThreads, Profile: models.ContentProfileShortText, Label: "Threads post", TextLimit: 500, Media: text, Settings: threadsSettings()}),
 		defaultQueued(Capability{Provider: ProviderThreads, Profile: models.ContentProfileThread, Label: "Threads thread", TextLimit: 500, Media: threadsThreadMedia, RequiresPublicMedia: true, Settings: threadsSettings()}),
 		defaultQueued(Capability{Provider: ProviderThreads, Profile: models.ContentProfileLinkShare, Label: "Threads link", TextLimit: 500, Media: text, Settings: append(linkSettings(), threadsSettings()...)}),
@@ -2345,6 +2348,25 @@ func pixelfedSettings() []SettingField {
 		{Key: "poll_expires_in_seconds", Label: "Poll duration", Type: "number", Scope: SettingScopeSegment, Dependencies: []SettingCondition{{Key: "poll_options", Operator: "present"}}},
 		{Key: "poll_multiple", Label: "Allow multiple choices", Type: "boolean", Scope: SettingScopeSegment, Dependencies: []SettingCondition{{Key: "poll_options", Operator: "present"}}},
 		{Key: "poll_hide_totals", Label: "Hide totals until the poll ends", Type: "boolean", Scope: SettingScopeSegment, Dependencies: []SettingCondition{{Key: "poll_options", Operator: "present"}}},
+	}
+}
+
+func peertubeSettings() []SettingField {
+	return []SettingField{
+		{Key: "channel", Label: "Channel", Type: "select", Control: "remote_picker", OptionsSource: "peertube_channels", Required: true, Help: "The PeerTube channel this video is published to."},
+		{Key: "title", Label: "Title", Type: "text", MediaShapes: []string{MediaShapeVideo}, Required: true},
+		{Key: "description", Label: "Description", Type: "textarea", MediaShapes: []string{MediaShapeVideo}},
+		{Key: "privacy", Label: "Privacy", Type: "select", Options: []string{"public", "unlisted", "private", "internal"}},
+		{Key: "language", Label: "Language", Type: "tags", Control: "language", Help: "ISO 639 language code."},
+		{Key: "category", Label: "Category", Type: "select", Control: "remote_picker", OptionsSource: "peertube_categories"},
+		{Key: "licence", Label: "Licence", Type: "select", Control: "remote_picker", OptionsSource: "peertube_licences"},
+		{Key: "tags", Label: "Tags", Type: "tags", Help: "Up to 5 tags, 2-30 characters each."},
+		{Key: "nsfw", Label: "Sensitive content", Type: "boolean"},
+		{Key: "nsfw_summary", Label: "Sensitivity details", Type: "text", Dependencies: []SettingCondition{{Key: "nsfw", Operator: "equals", Value: true}}},
+		{Key: "comments_policy", Label: "Comments", Type: "select", Options: []string{"enabled", "disabled", "approval"}},
+		{Key: "download_enabled", Label: "Allow downloads", Type: "boolean"},
+		{Key: "support", Label: "Support text", Type: "text"},
+		{Key: "caption_language", Label: "Caption language", Type: "tags", Control: "language", MediaShapes: []string{MediaShapeVideo}},
 	}
 }
 
