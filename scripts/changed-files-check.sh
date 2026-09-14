@@ -32,7 +32,7 @@ if [ "$hook_mode" -eq 0 ] && [ "$#" -eq 1 ]; then
   esac
 fi
 
-declare -A seen=()
+declare -a seen=()
 declare -a files=() ranges=()
 declare -a go_files=() shell_files=() nix_files=()
 declare -a root_format=() frontend_format=() marketing_format=()
@@ -41,8 +41,12 @@ add_file() {
   local file="$1"
   [ -n "$file" ] || return
   [ -f "$file" ] || return
-  [ -z "${seen[$file]+x}" ] || return 0
-  seen["$file"]=1
+  if [ "${#seen[@]}" -gt 0 ]; then
+    for existing in "${seen[@]}"; do
+      [ "$existing" = "$file" ] && return 0
+    done
+  fi
+  seen+=("$file")
   files+=("$file")
 }
 
