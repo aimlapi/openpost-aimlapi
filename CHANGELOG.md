@@ -4,6 +4,32 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+## [4.31.2] - 2026-09-14
+
+### Fixed
+
+- Bluesky comment collection no longer creates blank, author-less comments for replies that are blocked or deleted in the thread.
+- Deleting or deselecting a text item while its on-canvas editor is focused no longer throws `Cannot read properties of undefined (reading 'text')`. The removal blur now ends the editing session without committing, since there is nothing to commit to.
+- Listing, replying to, hiding, and deleting comments through the API and MCP tools now works for Mastodon accounts and Bluesky accounts on a self-hosted PDS, instead of failing with "comments are not supported".
+- Scheduled account checks and account content discovery now use the account's own adapter for Bluesky accounts on a self-hosted PDS and for Discord bot connections, instead of the default Bluesky server or the Discord webhook adapter.
+- Nested replies collected from Bluesky and Mastodon now appear under the comment they answer in the engagement inbox, instead of as separate top-level comments.
+- Stale import recovery no longer reloads blindly. The app and marketing site share one bounded controller: one decision per failure, persisted per-asset and overall attempt budgets with no time-window reset, and automatic reloads only with evidence. URL-less import failures consult SvelteKit's own deployment check, reloading once per running build on a confirmed newer deployment.
+- Editors never lose unsaved work to an automatic import reload. While the layout reports unsaved changes, chunk failures fall back to the error boundary's explicit retry action.
+- Safari below 16.4 no longer hits an unclassified theme startup failure on `/video-editor`. The pinned `@asamuzakjp/css-color` no longer uses regex lookbehind in its calc/var/relative-color detectors, and unsupported-engine failures are reported under `theme_unsupported_browser` with the CSS fallback.
+- Telemetry keeps deployment context across identity resets and attaches surface, environment, edition, version, and revision to every exception capture, including buffered ones. Import failures retain the first-party asset pathname.
+- Console-logged failures now reach error tracking. `console.error` output is bridged into PostHog with a `console_error` boundary while preserving console output.
+- Official production builds fail loudly when `POSTHOG_UI_HOST` is missing while source-map upload is enabled, instead of silently uploading symbols to the wrong region.
+- The Video Editor animated-image subscription no longer feeds its own effect: cache callbacks run untracked so a warm-cache mount cannot invalidate the subscribing effect.
+
+### Changed
+
+- Documented the browser baseline (Safari 16.4 and equivalents) in `docs/development/frontend.md`.
+
+### Added
+
+- Self-hosting guides and deployment files for ZimaOS, CasaOS, Coolify, Dokploy, Portainer, Dockge, and NixOS.
+- Binary, Docker run, and reverse-proxy installation guides.
+
 ## [4.31.1] - 2026-09-13
 
 ### Fixed
