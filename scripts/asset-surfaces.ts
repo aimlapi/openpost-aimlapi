@@ -13,6 +13,10 @@ export const publishedProviderAssetSlugs = [
   "pinterest",
   "telegram",
   "discord",
+  "pixelfed",
+  "peertube",
+  "lemmy",
+  "piefed",
 ] as const;
 
 export const assetSurfaceManifest = {
@@ -79,6 +83,10 @@ export const assetSurfaceManifest = {
     "screenshots/connect-telegram-dark.webp",
 
     "logos/mastodon.svg",
+    "logos/pixelfed.svg",
+    "logos/peertube.svg",
+    "logos/lemmy.svg",
+    "logos/piefed.svg",
     "logos/discord.svg",
   ],
   marketing: [
@@ -135,6 +143,10 @@ export const assetSurfaceManifest = {
     "postiz-socials/Instagram.svg",
     "postiz-socials/Linkedin.svg",
     "postiz-socials/Mastodon.svg",
+    "postiz-socials/Lemmy.svg",
+    "postiz-socials/Peertube.svg",
+    "postiz-socials/PieFed.svg",
+    "postiz-socials/Pixelfed.svg",
     "postiz-socials/Threads.svg",
     "postiz-socials/TikTok.svg",
     "postiz-socials/X.svg",

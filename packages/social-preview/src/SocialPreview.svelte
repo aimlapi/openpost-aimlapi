@@ -3,6 +3,7 @@
   import FacebookPreview from "./FacebookPreview.svelte";
   import InstagramPreview from "./InstagramPreview.svelte";
   import LinkedInPreview from "./LinkedInPreview.svelte";
+  import CommunityPreview from "./CommunityPreview.svelte";
   import MicroPreview from "./MicroPreview.svelte";
   import type { PreviewModel } from "./model";
   import { platformNames } from "./model";
@@ -41,6 +42,14 @@
     <MicroPreview {model} platform="x" {compact} />
   {:else if model.platform === "mastodon"}
     <MicroPreview {model} platform="mastodon" {compact} />
+  {:else if model.platform === "pixelfed"}
+    <MicroPreview {model} platform="pixelfed" {compact} />
+  {:else if model.platform === "peertube"}
+    <YouTubePreview {model} platform="peertube" {compact} />
+  {:else if model.platform === "lemmy"}
+    <CommunityPreview {model} platform="lemmy" {compact} />
+  {:else if model.platform === "piefed"}
+    <CommunityPreview {model} platform="piefed" {compact} />
   {:else if model.platform === "bluesky"}
     <MicroPreview {model} platform="bluesky" {compact} />
   {:else if model.platform === "threads"}

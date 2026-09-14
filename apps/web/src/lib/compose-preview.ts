@@ -71,7 +71,8 @@ export function buildComposerPreview(input: ComposerPreviewInput): PreviewModel 
 		input.subtitle ||
 		parseSettingText(mergedSettings, 'description') ||
 		parseSettingText(mergedSettings, 'video_description') ||
-		parseSettingText(mergedSettings, 'article_description');
+		parseSettingText(mergedSettings, 'article_description') ||
+		parseSettingText(mergedSettings, 'community');
 
 	return createPreviewModel({
 		platform,
@@ -117,7 +118,7 @@ export function previewFormat(
 	}
 	if (platform === 'tiktok' && profileSuffix === 'photo') return 'photo';
 	if (mode === 'thread' && !outputProfile) return 'thread';
-	if (platform === 'youtube') return 'video';
+	if (platform === 'youtube' || platform === 'peertube') return 'video';
 	if (platform === 'linkedin' && media.some((item) => item.kind === 'document')) return 'document';
 	if (platform === 'tiktok' && media.length > 0 && media.every((item) => item.kind === 'image')) {
 		return 'photo';

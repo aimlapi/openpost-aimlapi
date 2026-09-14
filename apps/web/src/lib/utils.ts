@@ -21,6 +21,14 @@ export function getPlatformKey(platform: string): string {
 			return 'x';
 		case 'mastodon':
 			return 'mastodon';
+		case 'pixelfed':
+			return 'pixelfed';
+		case 'peertube':
+			return 'peertube';
+		case 'lemmy':
+			return 'lemmy';
+		case 'piefed':
+			return 'piefed';
 		case 'threads':
 			return 'threads';
 		case 'bluesky':
@@ -46,6 +54,22 @@ export function getPlatformName(platform: string): string {
 			return 'X';
 		case 'mastodon':
 			return 'Mastodon';
+		case 'pixelfed':
+			return 'Pixelfed';
+		case 'peertube':
+			return 'PeerTube';
+		case 'lemmy':
+			return 'Lemmy';
+		case 'piefed':
+			return 'PieFed';
+		case 'gotosocial':
+			return 'GoToSocial';
+		case 'akkoma':
+			return 'Akkoma';
+		case 'pleroma':
+			return 'Pleroma';
+		case 'friendica':
+			return 'Friendica';
 		case 'threads':
 			return 'Threads';
 		case 'bluesky':
@@ -80,6 +104,7 @@ const HANDLE_FIRST_PLATFORMS = new Set([
 	'bluesky',
 	'instagram',
 	'mastodon',
+	'pixelfed',
 	'threads',
 	'tiktok',
 	'x'
@@ -132,6 +157,10 @@ export function getPlatformColor(platform: string): string {
 	const colors = new Map([
 		['x', 'bg-black'],
 		['mastodon', 'bg-indigo-500'],
+		['pixelfed', 'bg-violet-500'],
+		['peertube', 'bg-orange-500'],
+		['lemmy', 'bg-emerald-600'],
+		['piefed', 'bg-blue-500'],
 		['threads', 'bg-orange-500'],
 		['bluesky', 'bg-sky-500'],
 		['discord', 'bg-indigo-500'],

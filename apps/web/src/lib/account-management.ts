@@ -9,19 +9,21 @@ export type AccountManagementLinks = {
 	createWorkspaceHref: string;
 	billingHref: string;
 	mastodonCallbackHref: string;
+	pixelfedCallbackHref: string;
 };
+export type CompatOAuthProvider = 'mastodon' | 'pixelfed';
 export type AccountManagementContinuation =
 	| {
 			kind: 'external-oauth';
 			url: string;
 			workspaceID: string;
-			mastodon?: { serverName?: string; instanceURL?: string };
+			fediverse?: { provider: CompatOAuthProvider; serverName?: string; instanceURL?: string };
 	  }
 	| {
-			kind: 'mastodon-code';
+			kind: 'fediverse-code';
 			href: string;
 			workspaceID: string;
-			mastodon: { serverName?: string; instanceURL?: string };
+			fediverse: { provider: CompatOAuthProvider; serverName?: string; instanceURL?: string };
 	  };
 
 export interface AccountManagementProps {

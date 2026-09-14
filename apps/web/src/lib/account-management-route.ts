@@ -51,16 +51,17 @@ export function rememberAccountManagementContinuation(continuation: AccountManag
 	if (!('localStorage' in globalThis)) return;
 	try {
 		globalThis.localStorage.setItem('oauth_workspace_id', continuation.workspaceID);
-		if (continuation.mastodon?.instanceURL) {
-			globalThis.localStorage.setItem(
-				'oauth_mastodon_instance_url',
-				continuation.mastodon.instanceURL
-			);
-			globalThis.localStorage.removeItem('oauth_mastodon_server');
-		} else if (continuation.mastodon?.serverName) {
-			globalThis.localStorage.setItem('oauth_mastodon_server', continuation.mastodon.serverName);
-			globalThis.localStorage.removeItem('oauth_mastodon_instance_url');
+		const fediverse = continuation.fediverse;
+		if (fediverse?.instanceURL) {
+			globalThis.localStorage.setItem('oauth_fediverse_provider', fediverse.provider);
+			globalThis.localStorage.setItem('oauth_fediverse_instance_url', fediverse.instanceURL);
+			globalThis.localStorage.removeItem('oauth_fediverse_server');
+		} else if (fediverse?.serverName) {
+			globalThis.localStorage.setItem('oauth_fediverse_provider', fediverse.provider);
+			globalThis.localStorage.setItem('oauth_fediverse_server', fediverse.serverName);
+			globalThis.localStorage.removeItem('oauth_fediverse_instance_url');
 		}
+		// Legacy Mastodon-only keys are left in place for callbacks already in flight.
 	} catch {
 		// Storage may be unavailable in hardened browser contexts; continuation is best-effort.
 	}
@@ -84,8 +85,46 @@ export function clearAccountManagementContinuation() {
 		globalThis.localStorage.removeItem('oauth_workspace_id');
 		globalThis.localStorage.removeItem('oauth_mastodon_server');
 		globalThis.localStorage.removeItem('oauth_mastodon_instance_url');
+		globalThis.localStorage.removeItem('oauth_fediverse_provider');
+		globalThis.localStorage.removeItem('oauth_fediverse_server');
+		globalThis.localStorage.removeItem('oauth_fediverse_instance_url');
 	} catch {
 		// Storage may be unavailable in hardened browser contexts; clearing is best-effort.
+	}
+}
+
+export type FediverseCodeContinuation = {
+	provider: 'mastodon' | 'pixelfed';
+	serverName: string;
+	instanceURL: string;
+};
+
+export function readFediverseCodeContinuation():
+	| (FediverseCodeContinuation & {
+			workspaceID: string;
+	  })
+	| null {
+	if (!('localStorage' in globalThis)) return null;
+	try {
+		const workspaceID = globalThis.localStorage.getItem('oauth_workspace_id') ?? '';
+		const provider =
+			globalThis.localStorage.getItem('oauth_fediverse_provider') ??
+			(globalThis.localStorage.getItem('oauth_mastodon_server') ||
+			globalThis.localStorage.getItem('oauth_mastodon_instance_url')
+				? 'mastodon'
+				: '');
+		const serverName =
+			globalThis.localStorage.getItem('oauth_fediverse_server') ??
+			globalThis.localStorage.getItem('oauth_mastodon_server') ??
+			'';
+		const instanceURL =
+			globalThis.localStorage.getItem('oauth_fediverse_instance_url') ??
+			globalThis.localStorage.getItem('oauth_mastodon_instance_url') ??
+			'';
+		if (provider !== 'mastodon' && provider !== 'pixelfed') return null;
+		return { provider, workspaceID, serverName, instanceURL };
+	} catch {
+		return null;
 	}
 }
 

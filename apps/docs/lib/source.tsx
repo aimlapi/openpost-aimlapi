@@ -16,6 +16,10 @@ const providerIcons: Record<string, string> = {
   bluesky: "/assets/logos/bluesky.svg",
   telegram: "/assets/logos/telegram.svg",
   mastodon: "/assets/logos/mastodon.svg",
+  pixelfed: "/assets/logos/pixelfed.svg",
+  peertube: "/assets/logos/peertube.svg",
+  lemmy: "/assets/logos/lemmy.svg",
+  piefed: "/assets/logos/piefed.svg",
   discord: "/assets/logos/discord.svg",
 };
 

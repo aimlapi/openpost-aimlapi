@@ -1,6 +1,10 @@
 <script lang="ts">
 	import x from '../../../../../assets/logos/x.svg?raw';
 	import mastodon from '../../../../../assets/logos/mastodon.svg?raw';
+	import pixelfed from '../../../../../assets/logos/pixelfed.svg?raw';
+	import peertube from '../../../../../assets/logos/peertube.svg?raw';
+	import lemmy from '../../../../../assets/logos/lemmy.svg?raw';
+	import piefed from '../../../../../assets/logos/piefed.svg?raw';
 	import threads from '../../../../../assets/logos/threads.svg?raw';
 	import bluesky from '../../../../../assets/logos/bluesky.svg?raw';
 	import discord from '../../../../../assets/logos/discord.svg?raw';
@@ -24,6 +28,10 @@
 	const svgs = new Map<string, string>([
 		['x', x],
 		['mastodon', mastodon],
+		['pixelfed', pixelfed],
+		['peertube', peertube],
+		['lemmy', lemmy],
+		['piefed', piefed],
 		['threads', threads],
 		['bluesky', bluesky],
 		['discord', discord],

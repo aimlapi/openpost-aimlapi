@@ -17,7 +17,7 @@
 
   type MicroPlatform = Extract<
     PreviewPlatform,
-    "x" | "mastodon" | "bluesky" | "threads"
+    "x" | "mastodon" | "pixelfed" | "bluesky" | "threads"
   >;
 
   interface Props {
@@ -27,6 +27,9 @@
   }
 
   let { model, platform, compact = false }: Props = $props();
+  // Pixelfed shares Mastodon's microblog rendering: handle line, content
+  // warning presentation, visibility indicator, and avatar sizing.
+  const compat = $derived(platform === "pixelfed" ? "mastodon" : platform);
   let revealedWarning = $state<string | null>(null);
 
   const handle = $derived(model.identity.handle.replace(/^@/u, ""));
@@ -59,7 +62,7 @@
           >· {model.createdAtLabel}</span
         >{/if}
     </div>
-    {#if platform === "mastodon"}
+    {#if compat === "mastodon"}
       <span class="mastodon-handle">@{handle}</span>
     {/if}
   </div>
@@ -70,11 +73,11 @@
     <div class="content-warning">
       <div>
         <strong
-          >{platform === "mastodon"
+          >{compat === "mastodon"
             ? model.contentWarning
             : "Hidden words"}</strong
         >
-        {#if platform === "mastodon"}<span>Content warning</span>{/if}
+        {#if compat === "mastodon"}<span>Content warning</span>{/if}
       </div>
       <button
         type="button"
@@ -122,6 +125,7 @@
   class={[
     "micro-preview",
     `platform-${platform}`,
+    compat !== platform && `platform-${compat}`,
     isThread && "is-thread",
     compact && "compact",
   ]}
@@ -131,7 +135,7 @@
       <div class="avatar-column">
         <PreviewAvatar
           identity={model.identity}
-          size={platform === "mastodon" ? 46 : platform === "x" ? 40 : 42}
+          size={compat === "mastodon" ? 46 : platform === "x" ? 40 : 42}
         />
         {#if isThread && index < model.segments.length - 1}<span
             class="thread-line"
@@ -139,7 +143,7 @@
           ></span>{/if}
       </div>
 
-      {#if platform === "mastodon"}
+      {#if compat === "mastodon"}
         <div class="mastodon-post">
           <header>
             {@render authorMeta()}

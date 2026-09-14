@@ -16,7 +16,7 @@
     model: PreviewModel;
     platform: Extract<
       PreviewPlatform,
-      "instagram" | "facebook" | "youtube" | "tiktok"
+      "instagram" | "facebook" | "youtube" | "peertube" | "tiktok"
     >;
     compact?: boolean;
   }

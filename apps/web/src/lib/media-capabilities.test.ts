@@ -50,6 +50,28 @@ describe('media-capabilities', () => {
 		expect(validateProviderMedia('mastodon', media)).toEqual([]);
 	});
 
+	it('warns on video for Pixelfed and requires video for PeerTube', () => {
+		expect(
+			providerMediaWarningMessages('pixelfed', [{ id: 'video-1', mimeType: 'video/mp4' }])
+		).toContain('Pixelfed is photo-first; video support depends on the instance and version.');
+		expect(validateProviderMedia('peertube', [])).toContainEqual(
+			expect.objectContaining({ provider: 'peertube', severity: 'error' })
+		);
+		expect(
+			validateProviderMedia('peertube', [{ id: 'image-1', mimeType: 'image/jpeg' }])
+		).toContainEqual(expect.objectContaining({ severity: 'error' }));
+		expect(validateProviderMedia('peertube', [{ id: 'video-1', mimeType: 'video/mp4' }])).toEqual(
+			[]
+		);
+	});
+
+	it('limits community posts to a single image', () => {
+		expect(validateProviderMedia('lemmy', [{ id: 'image-1', mimeType: 'image/jpeg' }])).toEqual([]);
+		expect(
+			validateProviderMedia('piefed', [{ id: 'video-1', mimeType: 'video/mp4' }])
+		).toContainEqual(expect.objectContaining({ severity: 'error' }));
+	});
+
 	it('keeps draft attachments independent from a destination single-media profile', () => {
 		expect(
 			validateProviderMedia(

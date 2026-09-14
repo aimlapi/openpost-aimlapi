@@ -1557,84 +1557,96 @@ func accountConnectionErrorMessage(err error) string {
 }
 
 func (h *OAuthHandler) ExchangeCode(api huma.API) {
+	for _, provider := range []string{mastodonProvider, pixelfedProvider} {
+		h.registerCompatExchangeCode(api, provider)
+	}
+}
+
+func (h *OAuthHandler) registerCompatExchangeCode(api huma.API, provider string) {
+	displayName := compatProviderDisplayName(provider)
 	huma.Register(api, huma.Operation{
-		OperationID: "exchange-mastodon-code",
+		OperationID: "exchange-" + provider + "-code",
 		Method:      http.MethodPost,
-		Path:        "/accounts/mastodon/exchange",
-		Summary:     "Exchange Mastodon OOB authorization code",
+		Path:        "/accounts/" + provider + "/exchange",
+		Summary:     "Exchange " + displayName + " OOB authorization code",
 		Tags:        []string{tagAccounts},
 		Middlewares: huma.Middlewares{middleware.AuthMiddleware(api, h.auth)},
 		Errors:      []int{400},
 	}, func(ctx context.Context, input *ExchangeCodeInput) (*ExchangeCodeOutput, error) {
-		userID := middleware.GetUserID(ctx)
-		intent, err := h.connectionIntent(ctx, input.Body.Intent)
-		if err != nil {
-			return nil, err
-		}
-		if err := h.ensureCanStartAccountConnection(ctx, input.Body.WorkspaceID, userID); err != nil {
-			return nil, err
-		}
-		requestedInstance := strings.TrimRight(strings.TrimSpace(firstNonEmpty(
-			input.Body.InstanceURL, input.Body.ServerName,
-		)), "/")
-		if err := h.requireProviderConnection(ctx, mastodonProvider, requestedInstance, intent); err != nil {
-			return nil, err
-		}
-
-		adapter, _, err := h.getMastodonProvider(ctx, input.Body.ServerName, input.Body.InstanceURL)
-		if err != nil {
-			return nil, huma.Error400BadRequest(err.Error())
-		}
-		instanceURL := mastodonInstanceURL(adapter)
-		if err := h.requireProviderConnectionCompletion(
-			ctx, mastodonProvider, instanceURL, string(intent), userID,
-		); err != nil {
-			return nil, err
-		}
-
-		tokenResp, err := adapter.ExchangeCode(ctx, input.Body.Code, nil)
-		if err != nil {
-			return nil, huma.Error500InternalServerError(fmt.Sprintf("mastodon exchange failed: %s", err.Error()))
-		}
-		if err := h.requireProviderConnectionCompletion(
-			ctx, mastodonProvider, instanceURL, string(intent), userID,
-		); err != nil {
-			return nil, err
-		}
-
-		profile, err := adapter.GetProfile(ctx, tokenResp.AccessToken)
-		if err != nil {
-			profile = &platform.UserProfile{ID: "mastodon-user", Username: ""}
-		}
-
-		if err := h.requireProviderConnectionCompletion(
-			ctx, mastodonProvider, instanceURL, string(intent), userID,
-		); err != nil {
-			return nil, err
-		}
-
-		account, err := h.accountSaver.SaveAccountFromInput(ctx, account_saver.SaveAccountInput{
-			Actor:            workspaceActor(ctx, userID),
-			UserID:           userID,
-			PlatformName:     mastodonProvider,
-			WorkspaceID:      input.Body.WorkspaceID,
-			AccountID:        profile.ID,
-			AccountUsername:  profile.Username,
-			AccountAvatarURL: profile.AvatarURL,
-			InstanceURL:      instanceURL,
-			Token:            tokenResp,
-			Grant:            authorizationGrantInput(adapter, profile.ID),
-		})
-		if err != nil {
-			log.Printf("[ExchangeCode] Failed to save account: %v", err)
-			return nil, huma.Error403Forbidden(accountConnectionErrorMessage(err))
-		}
-		firstConnection := account.ClaimedFirst
-
-		log.Printf("[ExchangeCode] Account saved successfully")
-		resp := h.normalizedAccountConnectionResponse(input.Body.WorkspaceID, []*models.SocialAccount{account}, firstConnection)
-		return &ExchangeCodeOutput{Body: resp}, nil
+		return h.exchangeCompatCode(ctx, provider, input)
 	})
+}
+
+func (h *OAuthHandler) exchangeCompatCode(ctx context.Context, provider string, input *ExchangeCodeInput) (*ExchangeCodeOutput, error) {
+	userID := middleware.GetUserID(ctx)
+	intent, err := h.connectionIntent(ctx, input.Body.Intent)
+	if err != nil {
+		return nil, err
+	}
+	if err := h.ensureCanStartAccountConnection(ctx, input.Body.WorkspaceID, userID); err != nil {
+		return nil, err
+	}
+	requestedInstance := strings.TrimRight(strings.TrimSpace(firstNonEmpty(
+		input.Body.InstanceURL, input.Body.ServerName,
+	)), "/")
+	if err := h.requireProviderConnection(ctx, provider, requestedInstance, intent); err != nil {
+		return nil, err
+	}
+
+	adapter, _, err := h.getCompatProvider(ctx, provider, input.Body.ServerName, input.Body.InstanceURL)
+	if err != nil {
+		return nil, huma.Error400BadRequest(err.Error())
+	}
+	instanceURL := mastodonInstanceURL(adapter)
+	if err := h.requireProviderConnectionCompletion(
+		ctx, provider, instanceURL, string(intent), userID,
+	); err != nil {
+		return nil, err
+	}
+
+	tokenResp, err := adapter.ExchangeCode(ctx, input.Body.Code, nil)
+	if err != nil {
+		return nil, huma.Error500InternalServerError(fmt.Sprintf("%s exchange failed: %s", provider, err.Error()))
+	}
+	if err := h.requireProviderConnectionCompletion(
+		ctx, provider, instanceURL, string(intent), userID,
+	); err != nil {
+		return nil, err
+	}
+
+	profile, err := adapter.GetProfile(ctx, tokenResp.AccessToken)
+	if err != nil {
+		profile = &platform.UserProfile{ID: provider + "-user", Username: ""}
+	}
+
+	if err := h.requireProviderConnectionCompletion(
+		ctx, provider, instanceURL, string(intent), userID,
+	); err != nil {
+		return nil, err
+	}
+
+	account, err := h.accountSaver.SaveAccountFromInput(ctx, account_saver.SaveAccountInput{
+		Actor:            workspaceActor(ctx, userID),
+		UserID:           userID,
+		PlatformName:     provider,
+		WorkspaceID:      input.Body.WorkspaceID,
+		AccountID:        profile.ID,
+		AccountUsername:  profile.Username,
+		AccountAvatarURL: profile.AvatarURL,
+		InstanceURL:      instanceURL,
+		Token:            tokenResp,
+		CapabilityState:  h.fediverseCapabilityState(ctx, provider, instanceURL, profile),
+		Grant:            authorizationGrantInput(adapter, profile.ID),
+	})
+	if err != nil {
+		log.Printf("[ExchangeCode] Failed to save account: %v", err)
+		return nil, huma.Error403Forbidden(accountConnectionErrorMessage(err))
+	}
+	firstConnection := account.ClaimedFirst
+
+	log.Printf("[ExchangeCode] Account saved successfully")
+	resp := h.normalizedAccountConnectionResponse(input.Body.WorkspaceID, []*models.SocialAccount{account}, firstConnection)
+	return &ExchangeCodeOutput{Body: resp}, nil
 }
 
 type BlueskyLoginInput struct {

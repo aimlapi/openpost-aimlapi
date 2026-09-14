@@ -61,6 +61,13 @@ export function validateProviderMedia(
 			return validateXMedia(media);
 		case 'mastodon':
 			return validateMastodonMedia(media);
+		case 'pixelfed':
+			return validatePixelfedMedia(media);
+		case 'peertube':
+			return validatePeerTubeMedia(media);
+		case 'lemmy':
+		case 'piefed':
+			return validateCommunityMedia(provider, media);
 		case 'bluesky':
 			return validateBlueskyMedia(media);
 		case 'linkedin':
@@ -138,6 +145,61 @@ function validateMastodonMedia(media: MediaCapabilityItem[]): MediaCapabilityIss
 				)
 			];
 		}
+	}
+	return [];
+}
+
+function validatePixelfedMedia(media: MediaCapabilityItem[]): MediaCapabilityIssue[] {
+	if (media.length === 0) return [];
+	for (const item of media) {
+		if (isVideoMime(item.mimeType)) {
+			return [
+				issue(
+					'pixelfed',
+					'warning',
+					'Pixelfed is photo-first; video support depends on the instance and version.',
+					item.id
+				)
+			];
+		}
+	}
+	if (media.length > 4) {
+		return [issue('pixelfed', 'error', 'Pixelfed supports up to 4 photos per post.')];
+	}
+	return [];
+}
+
+function validatePeerTubeMedia(media: MediaCapabilityItem[]): MediaCapabilityIssue[] {
+	if (media.length === 0) {
+		return [issue('peertube', 'error', 'PeerTube publishes exactly one video per post.')];
+	}
+	if (media.length > 1) {
+		return [issue('peertube', 'error', 'PeerTube publishes exactly one video per post.')];
+	}
+	if (!isVideoMime(media[0].mimeType)) {
+		return [issue('peertube', 'error', 'PeerTube only publishes video.', media[0].id)];
+	}
+	return [];
+}
+
+function validateCommunityMedia(
+	provider: string,
+	media: MediaCapabilityItem[]
+): MediaCapabilityIssue[] {
+	if (media.length === 0) return [];
+	if (media.length > 1) {
+		return [
+			issue(
+				getPlatformKey(provider),
+				'error',
+				'Community posts accept one image; attach a single image or post a link instead.'
+			)
+		];
+	}
+	if (!isImageMime(media[0].mimeType)) {
+		return [
+			issue(getPlatformKey(provider), 'error', 'Community posts accept images only.', media[0].id)
+		];
 	}
 	return [];
 }

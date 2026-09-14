@@ -10,10 +10,11 @@
 
   interface Props {
     model: PreviewModel;
+    platform?: "youtube" | "peertube";
     compact?: boolean;
   }
 
-  let { model, compact = false }: Props = $props();
+  let { model, platform = "youtube", compact = false }: Props = $props();
   const primary = $derived(model.segments[0] ?? { id: "primary", text: "" });
   const media = $derived(primary.media?.length ? primary.media : model.media);
   const title = $derived(model.title || primary.text || "Your video title");
@@ -25,15 +26,15 @@
 </script>
 
 {#if model.format === "short"}
-  <VerticalPreview {model} platform="youtube" {compact} />
+  <VerticalPreview {model} {platform} {compact} />
 {:else}
-  <article class={["youtube-preview", compact && "compact"]}>
+  <article class={["youtube-preview", `platform-${platform}`, compact && "compact"]}>
     <div class="player">
       {#if media.length > 0}
         <PreviewMedia media={media.slice(0, 1)} layout="single" />
       {:else}
         <div class="empty-player">
-          <PlatformGlyph platform="youtube" />
+          <PlatformGlyph {platform} />
           <span>Video preview</span>
         </div>
       {/if}
@@ -58,7 +59,7 @@
         <Bell aria-hidden="true" />
       </div>
       <div class="video-actions">
-        <PreviewActions platform="youtube" {compact} />
+        <PreviewActions {platform} {compact} />
       </div>
     </div>
 

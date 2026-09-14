@@ -1000,6 +1000,10 @@
 						"format": "date-time",
 						"type": "string"
 					},
+					"fediverse_software": {
+						"description": "Detected Fediverse server software (mastodon, pixelfed, peertube, lemmy, piefed, or a compatible implementation)",
+						"type": "string"
+					},
 					"grant_destination_count": {
 						"description": "Number of active destinations using this provider authorization",
 						"format": "int64",
@@ -1108,6 +1112,10 @@
 					"capability_checked_at": {
 						"description": "When account-specific publishing limits were last verified",
 						"format": "date-time",
+						"type": "string"
+					},
+					"fediverse_software": {
+						"description": "Detected Fediverse server software (mastodon, pixelfed, peertube, lemmy, piefed, or a compatible implementation)",
 						"type": "string"
 					},
 					"grant_destination_count": {
@@ -7276,6 +7284,93 @@
 					"stored_enabled",
 					"effective_enabled"
 				],
+				"type": "object"
+			},
+			"FediverseLoginInputBody": {
+				"additionalProperties": false,
+				"properties": {
+					"$schema": {
+						"description": "A URL to the JSON Schema for this object.",
+						"examples": ["https://example.com/api/v1/schemas/FediverseLoginInputBody.json"],
+						"format": "uri",
+						"readOnly": true,
+						"type": "string"
+					},
+					"channel": {
+						"description": "PeerTube channel to connect (required when the account owns several)",
+						"type": "string"
+					},
+					"instance_url": {
+						"description": "Fediverse instance URL",
+						"type": "string"
+					},
+					"intent": {
+						"description": "Typed execution intent; certification_test requires an unscoped instance administrator",
+						"enum": ["production", "certification_test"],
+						"type": "string"
+					},
+					"password": {
+						"description": "Instance password (exchanged once, never stored)",
+						"type": "string"
+					},
+					"username": {
+						"description": "Instance username",
+						"type": "string"
+					},
+					"workspace_id": {
+						"description": "Workspace ID",
+						"type": "string"
+					}
+				},
+				"required": ["workspace_id", "instance_url", "username", "password"],
+				"type": "object"
+			},
+			"FediverseLoginResponse": {
+				"additionalProperties": false,
+				"properties": {
+					"$schema": {
+						"description": "A URL to the JSON Schema for this object.",
+						"examples": ["https://example.com/api/v1/schemas/FediverseLoginResponse.json"],
+						"format": "uri",
+						"readOnly": true,
+						"type": "string"
+					},
+					"account_id": {
+						"description": "OpenPost destination account ID",
+						"type": "string"
+					},
+					"account_ids": {
+						"description": "All connected OpenPost account IDs",
+						"items": {
+							"type": "string"
+						},
+						"type": ["array", "null"]
+					},
+					"connection_id": {
+						"description": "Pending selection ID for the channel picker",
+						"type": "string"
+					},
+					"open_fresh_composer": {
+						"description": "Whether this is the Workspace's first connected destination",
+						"type": "boolean"
+					},
+					"options": {
+						"description": "Selectable channels when selection is required",
+						"items": {
+							"$ref": "#/components/schemas/AccountSelectionOption"
+						},
+						"type": ["array", "null"]
+					},
+					"selection_required": {
+						"description": "True when the caller must complete channel selection",
+						"type": "boolean"
+					},
+					"workspace_id": {
+						"description": "Workspace receiving the connected destination",
+						"type": "string"
+					}
+				},
+				"required": ["workspace_id", "account_id", "account_ids", "open_fresh_composer"],
 				"type": "object"
 			},
 			"FinishPasskeyLoginInputBody": {
@@ -22654,6 +22749,75 @@
 				"tags": ["Accounts"]
 			}
 		},
+		"/accounts/lemmy/login": {
+			"post": {
+				"operationId": "lemmy-login",
+				"requestBody": {
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/FediverseLoginInputBody"
+							}
+						}
+					},
+					"required": true
+				},
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/FediverseLoginResponse"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/problem+json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorModel"
+								}
+							}
+						},
+						"description": "Bad Request"
+					},
+					"403": {
+						"content": {
+							"application/problem+json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorModel"
+								}
+							}
+						},
+						"description": "Forbidden"
+					},
+					"422": {
+						"content": {
+							"application/problem+json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorModel"
+								}
+							}
+						},
+						"description": "Unprocessable Entity"
+					},
+					"500": {
+						"content": {
+							"application/problem+json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorModel"
+								}
+							}
+						},
+						"description": "Internal Server Error"
+					}
+				},
+				"summary": "Connect a Lemmy account using instance credentials",
+				"tags": ["Accounts"]
+			}
+		},
 		"/accounts/mastodon/exchange": {
 			"post": {
 				"operationId": "exchange-mastodon-code",
@@ -22742,6 +22906,235 @@
 					}
 				},
 				"summary": "List configured Mastodon servers",
+				"tags": ["Accounts"]
+			}
+		},
+		"/accounts/peertube/login": {
+			"post": {
+				"operationId": "peertube-login",
+				"requestBody": {
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/FediverseLoginInputBody"
+							}
+						}
+					},
+					"required": true
+				},
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/FediverseLoginResponse"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/problem+json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorModel"
+								}
+							}
+						},
+						"description": "Bad Request"
+					},
+					"403": {
+						"content": {
+							"application/problem+json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorModel"
+								}
+							}
+						},
+						"description": "Forbidden"
+					},
+					"422": {
+						"content": {
+							"application/problem+json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorModel"
+								}
+							}
+						},
+						"description": "Unprocessable Entity"
+					},
+					"500": {
+						"content": {
+							"application/problem+json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorModel"
+								}
+							}
+						},
+						"description": "Internal Server Error"
+					}
+				},
+				"summary": "Connect a PeerTube account using instance credentials",
+				"tags": ["Accounts"]
+			}
+		},
+		"/accounts/piefed/login": {
+			"post": {
+				"operationId": "piefed-login",
+				"requestBody": {
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/FediverseLoginInputBody"
+							}
+						}
+					},
+					"required": true
+				},
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/FediverseLoginResponse"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/problem+json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorModel"
+								}
+							}
+						},
+						"description": "Bad Request"
+					},
+					"403": {
+						"content": {
+							"application/problem+json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorModel"
+								}
+							}
+						},
+						"description": "Forbidden"
+					},
+					"422": {
+						"content": {
+							"application/problem+json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorModel"
+								}
+							}
+						},
+						"description": "Unprocessable Entity"
+					},
+					"500": {
+						"content": {
+							"application/problem+json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorModel"
+								}
+							}
+						},
+						"description": "Internal Server Error"
+					}
+				},
+				"summary": "Connect a PieFed account using instance credentials",
+				"tags": ["Accounts"]
+			}
+		},
+		"/accounts/pixelfed/exchange": {
+			"post": {
+				"operationId": "exchange-pixelfed-code",
+				"requestBody": {
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/ExchangeCodeInputBody"
+							}
+						}
+					},
+					"required": true
+				},
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/AccountConnectionResponse"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/problem+json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorModel"
+								}
+							}
+						},
+						"description": "Bad Request"
+					},
+					"422": {
+						"content": {
+							"application/problem+json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorModel"
+								}
+							}
+						},
+						"description": "Unprocessable Entity"
+					},
+					"500": {
+						"content": {
+							"application/problem+json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorModel"
+								}
+							}
+						},
+						"description": "Internal Server Error"
+					}
+				},
+				"summary": "Exchange Pixelfed OOB authorization code",
+				"tags": ["Accounts"]
+			}
+		},
+		"/accounts/pixelfed/servers": {
+			"get": {
+				"operationId": "list-pixelfed-servers",
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/MastodonServerInfo"
+									},
+									"type": ["array", "null"]
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"default": {
+						"content": {
+							"application/problem+json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorModel"
+								}
+							}
+						},
+						"description": "Error"
+					}
+				},
+				"summary": "List configured Pixelfed servers",
 				"tags": ["Accounts"]
 			}
 		},

@@ -60,6 +60,14 @@
           { name: "bookmark", label: "Bookmark" },
           { name: "more", label: "More" },
         ];
+      case "pixelfed":
+        return [
+          { name: "reply", label: "Reply" },
+          { name: "repost", label: "Boost" },
+          { name: "favorite", label: "Favorite" },
+          { name: "bookmark", label: "Bookmark" },
+          { name: "more", label: "More" },
+        ];
       case "bluesky":
         return [
           { name: "reply", label: "Reply" },
@@ -110,6 +118,24 @@
           { name: "bookmark", label: "Save" },
           { name: "share", label: "Share" },
         ];
+      case "peertube":
+        return [
+          { name: "like", label: "Like" },
+          { name: "dislike", label: "Dislike" },
+          { name: "share", label: "Share" },
+          { name: "download", label: "Download" },
+          { name: "bookmark", label: "Save" },
+          { name: "more", label: "More" },
+        ];
+      case "lemmy":
+      case "piefed":
+        return [
+          { name: "like", label: "Upvote" },
+          { name: "dislike", label: "Downvote" },
+          { name: "comment", label: "Comments" },
+          { name: "bookmark", label: "Save" },
+          { name: "more", label: "More" },
+        ];
       case "discord":
         return [
           { name: "like", label: "Add reaction" },
@@ -126,7 +152,8 @@
       !vertical &&
       (platform === "linkedin" ||
         platform === "facebook" ||
-        platform === "youtube"),
+        platform === "youtube" ||
+        platform === "peertube"),
   );
 </script>
 
@@ -136,7 +163,7 @@
   {:else if name === "repost"}
     <Repeat2 />
   {:else if name === "like"}
-    {#if platform === "linkedin" || platform === "facebook" || platform === "youtube"}
+    {#if platform === "linkedin" || platform === "facebook" || platform === "youtube" || platform === "peertube" || platform === "lemmy" || platform === "piefed"}
       <ThumbsUp />
     {:else}
       <Heart />

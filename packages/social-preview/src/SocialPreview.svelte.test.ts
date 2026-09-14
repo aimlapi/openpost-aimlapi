@@ -94,6 +94,44 @@ describe("SocialPreview destination presentations", () => {
     await expect.element(screen.getByText("Read the guide.")).toBeVisible();
   });
 
+  it("renders Pixelfed content warnings like Mastodon", async () => {
+    const model = {
+      ...previewModel("pixelfed"),
+      contentWarning: "Product details",
+    };
+    const screen = await render(SocialPreview, { model });
+
+    await expect.element(screen.getByText("Content warning")).toBeVisible();
+    await expect.element(screen.getByRole("button", { name: "Show more" })).toBeVisible();
+  });
+
+  it("renders a PeerTube video with its title", async () => {
+    const screen = await render(SocialPreview, {
+      model: {
+        ...previewModel("peertube", "video"),
+        title: "Launch demo",
+        subtitle: "Recorded on the release branch.",
+      },
+    });
+
+    await expect.element(screen.getByLabelText("PeerTube video preview")).toBeVisible();
+    await expect.element(screen.getByText("Launch demo")).toBeVisible();
+  });
+
+  it("renders a Lemmy community post with its title", async () => {
+    const screen = await render(SocialPreview, {
+      model: {
+        ...previewModel("lemmy"),
+        title: "Why I self-host",
+        subtitle: "!selfhosted@lemmy.world",
+      },
+    });
+
+    await expect.element(screen.getByText("Why I self-host")).toBeVisible();
+    await expect.element(screen.getByText("!selfhosted@lemmy.world")).toBeVisible();
+    await expect.element(screen.getByText("Upvote", { exact: true })).toBeVisible();
+  });
+
   it("fails explicitly for an unsupported provider", async () => {
     const screen = await render(SocialPreview, {
       model: previewModel("unsupported"),

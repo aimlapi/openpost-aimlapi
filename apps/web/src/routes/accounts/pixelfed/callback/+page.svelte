@@ -2,4 +2,4 @@
 	import FediverseCodeCallback from '$lib/components/fediverse-code-callback.svelte';
 </script>
 
-<FediverseCodeCallback provider="mastodon" />
+<FediverseCodeCallback provider="pixelfed" />

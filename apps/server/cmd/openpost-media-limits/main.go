@@ -17,7 +17,7 @@ icon: FileCheck
 
 These are OpenPost's default publishing limits, generated from the same capability catalogue used by the composer, API, CLI, and MCP. They are not a promise that every connected account can publish every format. The destination preview applies account-specific limits, permissions, and provider readiness.
 
-A dash means the catalogue has no fixed limit for that field. It does not mean unlimited. Your upload plan, server configuration, provider account, and Mastodon instance can impose lower limits. Sizes below are exact bytes; duration is in seconds. Attachment counts apply to each thread segment.
+A dash means the catalogue has no fixed limit for that field. It does not mean unlimited. Your upload plan, server configuration, provider account, and connected instance can impose lower limits. Sizes below are exact bytes; duration is in seconds. Attachment counts apply to each thread segment.
 
 ## Default limits
 
@@ -50,7 +50,7 @@ A dash means the catalogue has no fixed limit for that field. It does not mean u
 	fmt.Print(`
 ## Provider specifications and exceptions
 
-Catalogue and publisher validation reviewed: **12 September 2026**. The following API references were checked on that date:
+Catalogue and publisher validation reviewed: **14 September 2026**. The following API references were checked on that date:
 
 - **Bluesky:** [image specifications](https://docs.bsky.app/docs/tutorials/creating-a-post) and [video schema](https://github.com/bluesky-social/atproto/blob/main/lexicons/app/bsky/embed/video.json). Images are limited to 2,000,000 bytes. MP4 video is limited to 300,000,000 bytes and [10 minutes](https://bsky.app/profile/bsky.app/post/3mtwf7gxkwc2r). A segment can contain images or one video.
 - **X:** [media upload documentation](https://docs.x.com/x-api/media/introduction). OpenPost currently uses the legacy OAuth 1.0a upload route. Its default 512 MiB / 140-second limit is deliberate; the newer v2 route's 8 GB / 20-minute limits do not describe this adapter. Connected-account capabilities can adjust the default. A segment can contain images or one video.
@@ -58,6 +58,10 @@ Catalogue and publisher validation reviewed: **12 September 2026**. The followin
 - **YouTube:** [video upload API](https://developers.google.com/youtube/v3/docs/videos/insert). OpenPost's default file-size cap is lower than YouTube's API upload maximum. Unverified API projects can be restricted to private uploads. YouTube now supports [custom Shorts thumbnails for eligible channels](https://blog.youtube/news-and-events/youtube-studio-custom-thumbnail-updates/). OpenPost therefore does not impose a blanket Shorts restriction.
 - **LinkedIn:** [Videos API](https://learn.microsoft.com/en-us/linkedin/marketing/community-management/shares/videos-api). Video formats and account permissions differ from documents and image posts.
 - **Mastodon:** [instance configuration](https://docs.joinmastodon.org/methods/instance/#v2). OpenPost uses the connected instance's advertised MIME types, attachment count, and image/video size limits when available.
+- **Pixelfed:** [Mastodon-compatible statuses and media APIs](https://github.com/pixelfed/pixelfed/blob/dev/routes/api.php). Photo and album publishing reuse the compatible transport with Pixelfed's own identity and capability reporting. The connected instance's advertised configuration wins over catalogue defaults.
+- **PeerTube:** [REST API quick start](https://docs.joinpeertube.org/api/rest-getting-started) and [OpenAPI specification](https://github.com/Chocobozzz/PeerTube/blob/develop/support/doc/api/openapi.yaml). Videos upload through the resumable protocol to a selected channel; transcoding state is reconciled before delivery is reported. Instance quota and transcoding policy apply.
+- **Lemmy:** [API documentation](https://join-lemmy.org/docs/contributors/04-api.html) (v3, as used by the 0.19 series). Community posts carry a required title with an optional link and body. Lemmy 1.x instances using API v4 are refused with an explicit error until a v4 adapter is certified.
+- **PieFed:** [alpha API documentation](https://freamon.github.io/piefed-api/). Community posting shares the Lemmy authoring model through PieFed's native post, community, and comment endpoints.
 - **Telegram:** [Bot API file sending](https://core.telegram.org/bots/api#sending-files). File limits depend on the sending method and whether the deployment uses the hosted or local Bot API. The catalogue does not currently express every Telegram transfer limit.
 
 Other destinations retain their catalogue defaults. Check their current provider requirements before relying on a boundary value. OpenPost's preflight also checks analysed media, codecs, dimensions, and account restrictions that are not all shown in this table.

@@ -55,6 +55,34 @@ export const PLATFORM_LIMITS = {
 		media: 'Up to 4 attachments',
 		note: 'Instance rules can vary.'
 	},
+	pixelfed: {
+		key: 'pixelfed',
+		name: 'Pixelfed',
+		charLimit: 500,
+		media: 'Up to 4 photos, or one album of 2-4 photos',
+		note: 'Photo-first. Instance rules can vary.'
+	},
+	peertube: {
+		key: 'peertube',
+		name: 'PeerTube',
+		charLimit: 5000,
+		media: 'Exactly one video per channel',
+		note: 'A title and channel are required. Instance quota and transcoding apply.'
+	},
+	lemmy: {
+		key: 'lemmy',
+		name: 'Lemmy',
+		charLimit: 50000,
+		media: 'Text, link, or one image per community post',
+		note: 'A community and title are required. Community rules apply.'
+	},
+	piefed: {
+		key: 'piefed',
+		name: 'PieFed',
+		charLimit: 50000,
+		media: 'Text, link, or one image per community post',
+		note: 'A community and title are required. Community rules apply.'
+	},
 	bluesky: {
 		key: 'bluesky',
 		name: 'Bluesky',

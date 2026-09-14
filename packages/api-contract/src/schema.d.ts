@@ -90,6 +90,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/accounts/lemmy/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Connect a Lemmy account using instance credentials */
+        post: operations["lemmy-login"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/accounts/mastodon/exchange": {
         parameters: {
             query?: never;
@@ -116,6 +133,74 @@ export interface paths {
         };
         /** List configured Mastodon servers */
         get: operations["list-mastodon-servers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/accounts/peertube/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Connect a PeerTube account using instance credentials */
+        post: operations["peertube-login"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/accounts/piefed/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Connect a PieFed account using instance credentials */
+        post: operations["piefed-login"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/accounts/pixelfed/exchange": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Exchange Pixelfed OOB authorization code */
+        post: operations["exchange-pixelfed-code"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/accounts/pixelfed/servers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List configured Pixelfed servers */
+        get: operations["list-pixelfed-servers"];
         put?: never;
         post?: never;
         delete?: never;
@@ -5636,6 +5721,8 @@ export interface components {
              * @description When account-specific publishing limits were last verified
              */
             capability_checked_at?: string;
+            /** @description Detected Fediverse server software (mastodon, pixelfed, peertube, lemmy, piefed, or a compatible implementation) */
+            fediverse_software?: string;
             /**
              * Format: int64
              * @description Number of active destinations using this provider authorization
@@ -5695,6 +5782,8 @@ export interface components {
              * @description When account-specific publishing limits were last verified
              */
             capability_checked_at?: string;
+            /** @description Detected Fediverse server software (mastodon, pixelfed, peertube, lemmy, piefed, or a compatible implementation) */
+            fediverse_software?: string;
             /**
              * Format: int64
              * @description Number of active destinations using this provider authorization
@@ -8334,6 +8423,51 @@ export interface components {
             /** @description Why feature is unavailable */
             unavailable_reason?: string;
             /** @description Workspace ID */
+            workspace_id: string;
+        };
+        FediverseLoginInputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/api/v1/schemas/FediverseLoginInputBody.json
+             */
+            readonly $schema?: string;
+            /** @description PeerTube channel to connect (required when the account owns several) */
+            channel?: string;
+            /** @description Fediverse instance URL */
+            instance_url: string;
+            /**
+             * @description Typed execution intent; certification_test requires an unscoped instance administrator
+             * @enum {string}
+             */
+            intent?: "production" | "certification_test";
+            /** @description Instance password (exchanged once, never stored) */
+            password: string;
+            /** @description Instance username */
+            username: string;
+            /** @description Workspace ID */
+            workspace_id: string;
+        };
+        FediverseLoginResponse: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/api/v1/schemas/FediverseLoginResponse.json
+             */
+            readonly $schema?: string;
+            /** @description OpenPost destination account ID */
+            account_id: string;
+            /** @description All connected OpenPost account IDs */
+            account_ids: string[] | null;
+            /** @description Pending selection ID for the channel picker */
+            connection_id?: string;
+            /** @description Whether this is the Workspace's first connected destination */
+            open_fresh_composer: boolean;
+            /** @description Selectable channels when selection is required */
+            options?: components["schemas"]["AccountSelectionOption"][] | null;
+            /** @description True when the caller must complete channel selection */
+            selection_required?: boolean;
+            /** @description Workspace receiving the connected destination */
             workspace_id: string;
         };
         FinishPasskeyLoginInputBody: {
@@ -14877,6 +15011,66 @@ export interface operations {
             };
         };
     };
+    "lemmy-login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FediverseLoginInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FediverseLoginResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
     "exchange-mastodon-code": {
         parameters: {
             query?: never;
@@ -14929,6 +15123,206 @@ export interface operations {
         };
     };
     "list-mastodon-servers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MastodonServerInfo"][] | null;
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "peertube-login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FediverseLoginInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FediverseLoginResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "piefed-login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FediverseLoginInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FediverseLoginResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "exchange-pixelfed-code": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExchangeCodeInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountConnectionResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "list-pixelfed-servers": {
         parameters: {
             query?: never;
             header?: never;

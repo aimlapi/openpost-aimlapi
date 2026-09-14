@@ -1,6 +1,10 @@
 export const previewPlatforms = [
   "x",
   "mastodon",
+  "pixelfed",
+  "peertube",
+  "lemmy",
+  "piefed",
   "bluesky",
   "linkedin",
   "threads",
@@ -108,6 +112,27 @@ export const previewCapabilities: Record<PreviewPlatform, PreviewCapability> = {
     cards: ["link"],
     contentWarning: true,
   },
+  pixelfed: {
+    formats: ["post", "thread", "photo"],
+    media: ["image"],
+    polls: true,
+    cards: ["link"],
+    contentWarning: true,
+  },
+  peertube: {
+    formats: ["video"],
+    media: ["video"],
+  },
+  lemmy: {
+    formats: ["post"],
+    media: ["image"],
+    cards: ["link"],
+  },
+  piefed: {
+    formats: ["post"],
+    media: ["image"],
+    cards: ["link"],
+  },
   bluesky: {
     formats: ["post", "thread", "video"],
     media: commonMedia,
@@ -157,6 +182,10 @@ export const previewCapabilities: Record<PreviewPlatform, PreviewCapability> = {
 export const platformNames: Record<PreviewPlatformKey, string> = {
   x: "X",
   mastodon: "Mastodon",
+  pixelfed: "Pixelfed",
+  peertube: "PeerTube",
+  lemmy: "Lemmy",
+  piefed: "PieFed",
   bluesky: "Bluesky",
   linkedin: "LinkedIn",
   threads: "Threads",

@@ -83,6 +83,11 @@ describe('composer preview mapping', () => {
 		expect(previewFormat('youtube', 'post', [], 'youtube.short')).toBe('short');
 		expect(previewFormat('youtube', 'post', [], 'youtube.video')).toBe('video');
 		expect(previewFormat('tiktok', 'post', [], 'tiktok.video')).toBe('video');
+		expect(previewFormat('peertube', 'post', [], '')).toBe('video');
+		expect(previewFormat('peertube', 'post', [], 'peertube.video')).toBe('video');
+		expect(previewFormat('pixelfed', 'post', [], '')).toBe('post');
+		expect(previewFormat('lemmy', 'post', [], '')).toBe('post');
+		expect(previewFormat('piefed', 'post', [], '')).toBe('post');
 		expect(previewFormat('tiktok', 'post', [], 'tiktok.photo')).toBe('photo');
 		expect(
 			previewFormat(

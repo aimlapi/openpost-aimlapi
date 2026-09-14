@@ -107,7 +107,8 @@
 		createPublicationHref: '/',
 		createWorkspaceHref: '/',
 		billingHref: '/settings?tab=plan',
-		mastodonCallbackHref: '/accounts/mastodon/callback'
+		mastodonCallbackHref: '/accounts/mastodon/callback',
+		pixelfedCallbackHref: '/accounts/pixelfed/callback'
 	};
 
 	const activeSettingsDestination = $derived(

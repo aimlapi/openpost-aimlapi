@@ -143,20 +143,37 @@
 	function isAuthorizationError(cause: unknown) {
 		return cause instanceof OpenPostQueryError && (cause.status === 401 || cause.status === 403);
 	}
-	let mastodonModalOpen = $state(false);
-	let customMastodonInstance = $state('');
-	let customMastodonLoading = $state(false);
-	let mastodonError = $state('');
-	let mastodonProviders = $derived(
-		providerEntries.filter((provider) => provider.platform === 'mastodon')
-	);
+	let compatModalOpen = $state(false);
+	let compatModalProvider = $state<'mastodon' | 'pixelfed'>('mastodon');
+	let customCompatInstance = $state('');
+	let customCompatLoading = $state(false);
+	let compatError = $state('');
+	function compatProvidersFor(provider: 'mastodon' | 'pixelfed') {
+		return providerEntries.filter((entry) => entry.platform === provider);
+	}
 	let connectionProviderEntries = $derived.by(() => {
-		const preferredMastodon =
-			mastodonProviders.find(isCustomMastodonProvider) ?? mastodonProviders[0];
-		return providerEntries.filter(
-			(provider) => provider.platform !== 'mastodon' || provider === preferredMastodon
-		);
+		const entries: typeof providerEntries = [];
+		for (const provider of providerEntries) {
+			if (provider.platform !== 'mastodon' && provider.platform !== 'pixelfed') {
+				entries.push(provider);
+				continue;
+			}
+			const siblings = compatProvidersFor(provider.platform as 'mastodon' | 'pixelfed');
+			const preferred = siblings.find(isCustomCompatProvider) ?? siblings[0];
+			if (provider === preferred) entries.push(provider);
+		}
+		return entries;
 	});
+	let fediverseModalOpen = $state(false);
+	let fediverseProvider = $state<'peertube' | 'lemmy' | 'piefed'>('peertube');
+	let fediverseInstance = $state('');
+	let fediverseUsername = $state('');
+	let fediversePassword = $state('');
+	let fediverseChannel = $state('');
+	let fediverseLoading = $state(false);
+	let fediverseError = $state('');
+	let fediverseChannels = $state<{ id: string; display_name?: string | null }[]>([]);
+	let fediverseConnectionID = $state('');
 	let selectedWorkspaceName = $derived(
 		workspaces?.find((workspace) => workspace.id === selectedWorkspaceId)?.name ||
 			m.accounts_select_workspace()
@@ -482,7 +499,15 @@
 		return account.account_id || account.platform;
 	}
 
+	function accountSoftwareName(account: SocialAccount): string {
+		const software = account.fediverse_software?.trim() ?? '';
+		if (!software || software === account.platform) return '';
+		return getPlatformName(software);
+	}
+
 	function accountPlatformName(account: SocialAccount): string {
+		const softwareName = accountSoftwareName(account);
+		if (softwareName) return softwareName;
 		const provider = providerEntries.find(
 			(entry) =>
 				(entry.installation_id && entry.installation_id === account.provider_installation_id) ||
@@ -499,8 +524,10 @@
 		return account.slug || account.account_username || account.account_id || account.platform;
 	}
 
+	const INSTANCE_PLATFORMS = new Set(['mastodon', 'pixelfed', 'peertube', 'lemmy', 'piefed']);
+
 	function accountServer(account: SocialAccount): string {
-		if (account.platform !== 'mastodon' || !account.instance_url) return '';
+		if (!INSTANCE_PLATFORMS.has(account.platform) || !account.instance_url) return '';
 		try {
 			return new URL(account.instance_url).host;
 		} catch {
@@ -779,9 +806,14 @@
 			telegramModalOpen = false;
 			discordLoading = false;
 			discordError = '';
-			mastodonModalOpen = false;
-			customMastodonLoading = false;
-			mastodonError = '';
+			compatModalOpen = false;
+			customCompatLoading = false;
+			compatError = '';
+			fediverseModalOpen = false;
+			fediverseLoading = false;
+			fediverseError = '';
+			fediverseChannels = [];
+			fediverseConnectionID = '';
 			connectingInstallationID = '';
 		}
 		if (editingWorkspaceID && editingWorkspaceID !== workspaceID) resetAccountEditor();
@@ -822,12 +854,15 @@
 		}
 	}
 
-	type MastodonConnectionOptions = {
+	type CompatConnectionOptions = {
 		serverName?: string;
 		instanceURL?: string;
 	};
 
-	async function connectMastodon(options: MastodonConnectionOptions) {
+	async function connectCompat(
+		provider: 'mastodon' | 'pixelfed',
+		options: CompatConnectionOptions
+	) {
 		const request = beginConnectionRequest();
 		if (!request) {
 			throw new Error(m.accounts_create_workspace_first());
@@ -835,7 +870,7 @@
 
 		const { data, error: err } = await client.GET('/accounts/{platform}/auth-url', {
 			params: {
-				path: { platform: 'mastodon' },
+				path: { platform: provider },
 				query: {
 					workspace_id: request.workspaceID,
 					server_name: options.serverName,
@@ -850,24 +885,149 @@
 			kind: 'external-oauth',
 			url: data.url,
 			workspaceID: request.workspaceID,
-			mastodon: options
+			fediverse: { provider, ...options }
 		});
 	}
 
-	async function connectCustomMastodon() {
-		const options = mastodonConnectionOptions();
+	async function connectCustomCompat() {
+		const options = compatConnectionOptions();
 		if (!options) return;
-		customMastodonLoading = true;
-		mastodonError = '';
+		customCompatLoading = true;
+		compatError = '';
 		try {
-			await connectMastodon(options);
+			await connectCompat(compatModalProvider, options);
 		} catch (e) {
-			mastodonError = connectErrorMessage(
+			compatError = connectErrorMessage(
 				e instanceof Error ? e : new Error(m.accounts_connect_failed()),
 				m.accounts_connect_failed()
 			);
 		} finally {
-			customMastodonLoading = false;
+			customCompatLoading = false;
+		}
+	}
+
+	function openFediverseModal(provider: 'peertube' | 'lemmy' | 'piefed') {
+		if (!selectedWorkspaceId) {
+			showToast(m.accounts_create_workspace_first());
+			return;
+		}
+		clearToast();
+		fediverseProvider = provider;
+		fediverseInstance = '';
+		fediverseUsername = '';
+		fediversePassword = '';
+		fediverseChannel = '';
+		fediverseError = '';
+		fediverseChannels = [];
+		fediverseConnectionID = '';
+		fediverseModalOpen = true;
+	}
+
+	async function submitFediverseLogin() {
+		if (!fediverseInstance.trim() || !fediverseUsername.trim() || !fediversePassword.trim()) {
+			fediverseError = m.accounts_fediverse_fields_required();
+			return;
+		}
+		const request = beginConnectionRequest();
+		if (!request) return;
+		const workspaceID = request.workspaceID;
+		const isCurrentRequest = () => isCurrentConnectionRequest(request);
+		fediverseLoading = true;
+		fediverseError = '';
+		try {
+			const loginBody = {
+				workspace_id: workspaceID,
+				instance_url: fediverseInstance.trim(),
+				username: fediverseUsername.trim(),
+				password: fediversePassword,
+				channel: fediverseChannel.trim() || undefined
+			};
+			const loginResult =
+				fediverseProvider === 'peertube'
+					? await client.POST('/accounts/peertube/login', { body: loginBody })
+					: fediverseProvider === 'lemmy'
+						? await client.POST('/accounts/lemmy/login', { body: loginBody })
+						: await client.POST('/accounts/piefed/login', { body: loginBody });
+			const { data, error: err } = loginResult;
+			if (err) throw new Error(err.detail || m.accounts_login_failed());
+			if (!isCurrentRequest()) return;
+			if (data?.selection_required && data?.connection_id) {
+				fediverseChannels = (data.options ?? []).map((option) => ({
+					id: option.id,
+					display_name: option.display_name ?? option.username ?? option.id
+				}));
+				fediverseConnectionID = data.connection_id;
+				return;
+			}
+			await refreshAccountsAfterMutation(workspaceID, request.identity, isCurrentRequest);
+			if (!isCurrentRequest()) return;
+			fediverseModalOpen = false;
+			if (data?.open_fresh_composer) {
+				await goto(
+					resolveAppPath(
+						continuationHrefForNormalizedConnection({
+							workspaceID: data.workspace_id,
+							accountIDs: data.account_ids ?? [],
+							openFreshComposer: data.open_fresh_composer
+						})
+					)
+				);
+				return;
+			}
+			onAccountsChanged();
+		} catch (e) {
+			if (!isCurrentRequest()) return;
+			fediverseError = e instanceof Error && e.message ? e.message : m.accounts_login_failed();
+			showConnectError(
+				e instanceof Error ? e : new Error(m.accounts_login_failed()),
+				m.accounts_login_failed()
+			);
+		} finally {
+			if (isCurrentRequest()) fediverseLoading = false;
+		}
+	}
+
+	async function submitFediverseChannel(channelID: string) {
+		if (!fediverseConnectionID) {
+			fediverseError = m.accounts_fediverse_channel_required();
+			return;
+		}
+		const request = beginConnectionRequest();
+		if (!request) return;
+		const workspaceID = request.workspaceID;
+		const isCurrentRequest = () => isCurrentConnectionRequest(request);
+		fediverseLoading = true;
+		fediverseError = '';
+		try {
+			const { data, error: err } = await client.POST(
+				'/accounts/selections/{connection_id}/complete',
+				{
+					params: { path: { connection_id: fediverseConnectionID } },
+					body: { selection_id: channelID }
+				}
+			);
+			if (err) throw new Error(err.detail || m.accounts_login_failed());
+			await refreshAccountsAfterMutation(workspaceID, request.identity, isCurrentRequest);
+			if (!isCurrentRequest()) return;
+			fediverseModalOpen = false;
+			if (data?.open_fresh_composer) {
+				await goto(
+					resolveAppPath(
+						continuationHrefForNormalizedConnection({
+							workspaceID: data.workspace_id,
+							accountIDs: data.account_ids ?? [],
+							openFreshComposer: data.open_fresh_composer
+						})
+					)
+				);
+				return;
+			}
+			onAccountsChanged();
+		} catch (e) {
+			if (!isCurrentRequest()) return;
+			fediverseError = e instanceof Error && e.message ? e.message : m.accounts_login_failed();
+		} finally {
+			if (isCurrentRequest()) fediverseLoading = false;
 		}
 	}
 
@@ -1055,6 +1215,9 @@
 		if (provider.platform === 'mastodon') {
 			return m.accounts_provider_custom_mastodon();
 		}
+		if (provider.platform === 'pixelfed') {
+			return m.accounts_provider_custom_pixelfed();
+		}
 		switch (provider.platform) {
 			case 'x':
 				return m.accounts_provider_x();
@@ -1072,6 +1235,14 @@
 				return m.accounts_provider_facebook();
 			case 'youtube':
 				return m.accounts_provider_youtube();
+			case 'pixelfed':
+				return m.accounts_provider_pixelfed();
+			case 'peertube':
+				return m.accounts_provider_peertube();
+			case 'lemmy':
+				return m.accounts_provider_lemmy();
+			case 'piefed':
+				return m.accounts_provider_piefed();
 			case 'tiktok':
 				return m.accounts_provider_tiktok();
 			default:
@@ -1225,13 +1396,15 @@
 		}
 	}
 
-	function isCustomMastodonProvider(provider: ProviderEntry): boolean {
+	function isCustomCompatProvider(provider: ProviderEntry): boolean {
 		return (
-			provider.platform === 'mastodon' && providerCanConnect(provider) && !provider.instance_url
+			(provider.platform === 'mastodon' || provider.platform === 'pixelfed') &&
+			providerCanConnect(provider) &&
+			!provider.instance_url
 		);
 	}
 
-	function mastodonHost(value: string): string {
+	function compatHost(value: string): string {
 		try {
 			const url = new URL(value.includes('://') ? value : `https://${value}`);
 			return url.host.toLowerCase();
@@ -1240,17 +1413,20 @@
 		}
 	}
 
-	function mastodonConnectionOptions(): MastodonConnectionOptions | null {
-		const instance = customMastodonInstance.trim();
+	function compatConnectionOptions(): CompatConnectionOptions | null {
+		const instance = customCompatInstance.trim();
 		if (!instance) {
-			mastodonError = m.accounts_enter_mastodon_instance();
+			compatError =
+				compatModalProvider === 'pixelfed'
+					? m.accounts_enter_pixelfed_instance()
+					: m.accounts_enter_mastodon_instance();
 			return null;
 		}
 
-		const instanceHost = mastodonHost(instance);
-		const configuredProvider = mastodonProviders.find(
+		const instanceHost = compatHost(instance);
+		const configuredProvider = compatProvidersFor(compatModalProvider).find(
 			(provider) =>
-				(provider.instance_url && mastodonHost(provider.instance_url) === instanceHost) ||
+				(provider.instance_url && compatHost(provider.instance_url) === instanceHost) ||
 				provider.name?.toLowerCase() === instance.toLowerCase()
 		);
 		if (configuredProvider) {
@@ -1259,31 +1435,35 @@
 			};
 		}
 
-		if (mastodonProviders.some(isCustomMastodonProvider)) {
+		if (compatProvidersFor(compatModalProvider).some(isCustomCompatProvider)) {
 			return { instanceURL: instance };
 		}
 
-		mastodonError = m.accounts_mastodon_instance_unavailable();
+		compatError =
+			compatModalProvider === 'pixelfed'
+				? m.accounts_pixelfed_instance_unavailable()
+				: m.accounts_mastodon_instance_unavailable();
 		return null;
 	}
 
-	function openMastodonModal() {
+	function openCompatModal(provider: 'mastodon' | 'pixelfed') {
 		if (!selectedWorkspaceId) {
 			showToast(m.accounts_create_workspace_first());
 			return;
 		}
 		clearToast();
-		customMastodonInstance = '';
-		mastodonError = '';
-		mastodonModalOpen = true;
+		compatModalProvider = provider;
+		customCompatInstance = '';
+		compatError = '';
+		compatModalOpen = true;
 	}
 
-	async function openMastodonCode() {
-		const options = mastodonConnectionOptions();
+	async function openCompatCode() {
+		const options = compatConnectionOptions();
 		if (!options) return;
 		const request = beginConnectionRequest();
 		if (!request) {
-			mastodonError = m.accounts_create_workspace_first();
+			compatError = m.accounts_create_workspace_first();
 			return;
 		}
 
@@ -1295,21 +1475,29 @@
 
 		try {
 			const { error: err } = await client.GET('/accounts/{platform}/auth-url', {
-				params: { path: { platform: 'mastodon' }, query }
+				params: { path: { platform: compatModalProvider }, query }
 			});
 			if (!isCurrentConnectionRequest(request)) return;
 			if (err) {
-				throw new Error(err.detail || m.accounts_mastodon_connection_start_failed());
+				throw new Error(
+					err.detail ||
+						(compatModalProvider === 'pixelfed'
+							? m.accounts_pixelfed_connection_start_failed()
+							: m.accounts_mastodon_connection_start_failed())
+				);
 			}
 			onContinue({
-				kind: 'mastodon-code',
-				href: links.mastodonCallbackHref,
+				kind: 'fediverse-code',
+				href:
+					compatModalProvider === 'pixelfed'
+						? links.pixelfedCallbackHref
+						: links.mastodonCallbackHref,
 				workspaceID: request.workspaceID,
-				mastodon: options
+				fediverse: { provider: compatModalProvider, ...options }
 			});
 		} catch (e) {
 			if (!isCurrentConnectionRequest(request)) return;
-			mastodonError = connectErrorMessage(
+			compatError = connectErrorMessage(
 				e instanceof Error ? e : new Error(m.accounts_connect_failed()),
 				m.accounts_connect_failed()
 			);
@@ -1320,6 +1508,7 @@
 		return [
 			'x',
 			'mastodon',
+			'pixelfed',
 			'threads',
 			'linkedin',
 			'instagram',
@@ -1357,7 +1546,19 @@
 				connectTwitter();
 				break;
 			case 'mastodon':
-				openMastodonModal();
+				openCompatModal('mastodon');
+				break;
+			case 'pixelfed':
+				openCompatModal('pixelfed');
+				break;
+			case 'peertube':
+				openFediverseModal('peertube');
+				break;
+			case 'lemmy':
+				openFediverseModal('lemmy');
+				break;
+			case 'piefed':
+				openFediverseModal('piefed');
 				break;
 			case 'threads':
 				connectThreads();
@@ -1913,38 +2114,50 @@
 	</Dialog.Content>
 </Dialog.Root>
 
-<Dialog.Root bind:open={mastodonModalOpen}>
+<Dialog.Root bind:open={compatModalOpen}>
 	<Dialog.Content class="sm:max-w-md">
 		<Dialog.Header>
-			<Dialog.Title>{m.accounts_connect_mastodon()}</Dialog.Title>
-			<Dialog.Description>{m.accounts_mastodon_description()}</Dialog.Description>
+			<Dialog.Title>
+				{compatModalProvider === 'pixelfed'
+					? m.accounts_connect_pixelfed()
+					: m.accounts_connect_mastodon()}
+			</Dialog.Title>
+			<Dialog.Description>
+				{compatModalProvider === 'pixelfed'
+					? m.accounts_pixelfed_description()
+					: m.accounts_mastodon_description()}
+			</Dialog.Description>
 		</Dialog.Header>
 		<form
 			class="space-y-4"
 			onsubmit={(e: SubmitEvent) => {
 				e.preventDefault();
-				connectCustomMastodon();
+				connectCustomCompat();
 			}}
 		>
 			<div class="space-y-2">
-				<Label for="mastodon-server">{m.accounts_mastodon_server_address()}</Label>
+				<Label for="compat-server">
+					{compatModalProvider === 'pixelfed'
+						? m.accounts_pixelfed_server_address()
+						: m.accounts_mastodon_server_address()}
+				</Label>
 				<Input
-					id="mastodon-server"
+					id="compat-server"
 					class="h-11 sm:h-9"
-					bind:value={customMastodonInstance}
-					placeholder="mastodon.social"
+					bind:value={customCompatInstance}
+					placeholder={compatModalProvider === 'pixelfed' ? 'pixelfed.social' : 'mastodon.social'}
 					autocomplete="url"
 					autocapitalize="none"
 					spellcheck="false"
 					required
 				/>
 			</div>
-			{#if mastodonError}
+			{#if compatError}
 				<InlineNotice
 					tone="error"
-					message={mastodonError}
+					message={compatError}
 					dismissLabel={m.common_dismiss()}
-					onDismiss={() => (mastodonError = '')}
+					onDismiss={() => (compatError = '')}
 				/>
 			{/if}
 			<div class="flex flex-wrap justify-end gap-2">
@@ -1959,15 +2172,137 @@
 					class="min-h-11 sm:min-h-9"
 					variant="outline"
 					type="button"
-					onclick={openMastodonCode}
+					onclick={openCompatCode}
 				>
 					{m.accounts_code()}
 				</Button>
-				<Button class="min-h-11 sm:min-h-9" type="submit" disabled={customMastodonLoading}>
-					{customMastodonLoading ? m.common_connecting() : m.common_connect()}
+				<Button class="min-h-11 sm:min-h-9" type="submit" disabled={customCompatLoading}>
+					{customCompatLoading ? m.common_connecting() : m.common_connect()}
 				</Button>
 			</div>
 		</form>
+	</Dialog.Content>
+</Dialog.Root>
+
+<Dialog.Root bind:open={fediverseModalOpen}>
+	<Dialog.Content class="sm:max-w-md">
+		<Dialog.Header>
+			<Dialog.Title>
+				{fediverseProvider === 'peertube'
+					? m.accounts_connect_peertube()
+					: fediverseProvider === 'lemmy'
+						? m.accounts_connect_lemmy()
+						: m.accounts_connect_piefed()}
+			</Dialog.Title>
+			<Dialog.Description>
+				{fediverseProvider === 'peertube'
+					? m.accounts_provider_peertube()
+					: fediverseProvider === 'lemmy'
+						? m.accounts_provider_lemmy()
+						: m.accounts_provider_piefed()}
+			</Dialog.Description>
+		</Dialog.Header>
+		{#if fediverseConnectionID && fediverseChannels.length > 0}
+			<div class="space-y-4">
+				<p class="text-sm text-muted-foreground">
+					{m.accounts_fediverse_channel_description()}
+				</p>
+				<div class="space-y-2" role="listbox" aria-label={m.accounts_fediverse_select_channel()}>
+					{#each fediverseChannels as channel (channel.id)}
+						<Button
+							variant="outline"
+							class="min-h-11 w-full justify-start sm:min-h-9"
+							disabled={fediverseLoading}
+							onclick={() => submitFediverseChannel(channel.id)}
+						>
+							{channel.display_name}
+						</Button>
+					{/each}
+				</div>
+				{#if fediverseError}
+					<InlineNotice
+						tone="error"
+						message={fediverseError}
+						dismissLabel={m.common_dismiss()}
+						onDismiss={() => (fediverseError = '')}
+					/>
+				{/if}
+			</div>
+		{:else}
+			<form
+				class="space-y-4"
+				onsubmit={(e) => {
+					e.preventDefault();
+					submitFediverseLogin();
+				}}
+			>
+				<div class="space-y-2">
+					<Label for="fediverse-instance">{m.accounts_instance_url()}</Label>
+					<Input
+						type="text"
+						id="fediverse-instance"
+						bind:value={fediverseInstance}
+						placeholder="https://tube.example"
+						autocomplete="url"
+						autocapitalize="none"
+						spellcheck="false"
+						required
+					/>
+				</div>
+				<div class="space-y-2">
+					<Label for="fediverse-username">{m.accounts_fediverse_username()}</Label>
+					<Input
+						type="text"
+						id="fediverse-username"
+						bind:value={fediverseUsername}
+						autocomplete="username"
+						autocapitalize="none"
+						spellcheck="false"
+						required
+					/>
+				</div>
+				<div class="space-y-2">
+					<Label for="fediverse-password">{m.accounts_fediverse_password()}</Label>
+					<Input
+						type="password"
+						id="fediverse-password"
+						bind:value={fediversePassword}
+						autocomplete="current-password"
+						required
+					/>
+				</div>
+				{#if fediverseProvider === 'peertube'}
+					<div class="space-y-2">
+						<Label for="fediverse-channel">{m.accounts_fediverse_channel()}</Label>
+						<Input
+							type="text"
+							id="fediverse-channel"
+							bind:value={fediverseChannel}
+							autocapitalize="none"
+							spellcheck="false"
+						/>
+					</div>
+				{/if}
+				{#if fediverseError}
+					<InlineNotice
+						tone="error"
+						message={fediverseError}
+						dismissLabel={m.common_dismiss()}
+						onDismiss={() => (fediverseError = '')}
+					/>
+				{/if}
+				<div class="flex justify-end gap-2">
+					<Dialog.Close>
+						{#snippet child({ props })}
+							<Button {...props} variant="outline" type="button">{m.common_cancel()}</Button>
+						{/snippet}
+					</Dialog.Close>
+					<Button type="submit" disabled={fediverseLoading}>
+						{fediverseLoading ? m.common_connecting() : m.common_connect()}
+					</Button>
+				</div>
+			</form>
+		{/if}
 	</Dialog.Content>
 </Dialog.Root>
 
