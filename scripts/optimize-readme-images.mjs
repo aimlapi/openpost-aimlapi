@@ -37,7 +37,14 @@ const images = [
 ];
 
 export async function optimizeReadmeImages() {
-  const browser = await chromium.launch({ headless: true });
+  // Honor the same browser override as the app browser suites: some hosts
+  // cannot run Playwright's bundled headless shell (missing system
+  // libraries) and provide Chromium another way.
+  const executablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH || undefined;
+  const browser = await chromium.launch({
+    headless: true,
+    ...(executablePath ? { executablePath } : {}),
+  });
   let sourceBytes = 0;
   let outputBytes = 0;
 

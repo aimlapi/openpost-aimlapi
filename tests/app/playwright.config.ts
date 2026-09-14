@@ -19,13 +19,26 @@ const reuseExistingServer = process.env.OPENPOST_APP_E2E_REUSE_SERVER === "1";
 const usePrebuiltArtifact = process.env.OPENPOST_E2E_PREBUILT === "1";
 const workers = Number(process.env.OPENPOST_APP_E2E_WORKERS ?? (process.env.CI ? 1 : 2));
 const chromiumExecutablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH;
+// Extra Chromium flags for local runs whose browser renders differently from
+// the pinned CI browser (for example newer engines without overlay
+// scrollbars, which break the deterministic screenshot widths). Comma
+// separated, unset by default so CI behavior never changes.
+const extraChromiumArgs = (process.env.OPENPOST_CHROMIUM_EXTRA_ARGS ?? "")
+  .split(",")
+  .map((arg) => arg.trim())
+  .filter((arg) => arg.length > 0);
 const chromiumUse = {
   // Use the full browser's headless backend; headless shell can stall context creation.
   channel: "chromium",
   launchOptions: {
     ...(chromiumExecutablePath ? { executablePath: chromiumExecutablePath } : {}),
     // Keep software WebGL available without emulating a GPU for the whole browser.
-    args: ["--enable-unsafe-swiftshader", "--use-gl=angle", "--use-angle=swiftshader-webgl"],
+    args: [
+      "--enable-unsafe-swiftshader",
+      "--use-gl=angle",
+      "--use-angle=swiftshader-webgl",
+      ...extraChromiumArgs,
+    ],
   },
 };
 
