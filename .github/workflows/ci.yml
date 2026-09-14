@@ -478,7 +478,11 @@ jobs:
           retention-days: 14
 
   browser-app:
-    name: Application browser suite
+    name: Application browser suite (${{ matrix.shard }}/2)
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
     needs: [plan, frontend-build]
     if: needs.plan.outputs.application == 'true'
     runs-on: ubuntu-latest
@@ -514,12 +518,13 @@ jobs:
         env:
           OPENPOST_E2E_PREBUILT: "1"
           DEBUG: pw:browser
+          OPENPOST_APP_E2E_SHARD: ${{ matrix.shard }}/2
         run: bun run test -- e2e-app
       - name: Retain application browser failure diagnostics
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: browser-app-failure-${{ github.sha }}-${{ github.run_attempt }}
+          name: browser-app-failure-${{ matrix.shard }}-${{ github.sha }}-${{ github.run_attempt }}
           path: |
             playwright-report
             test-results

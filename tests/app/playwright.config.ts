@@ -18,6 +18,7 @@ const dbPath = `/tmp/openpost-app-e2e-${port}.db`;
 const reuseExistingServer = process.env.OPENPOST_APP_E2E_REUSE_SERVER === "1";
 const usePrebuiltArtifact = process.env.OPENPOST_E2E_PREBUILT === "1";
 const workers = Number(process.env.OPENPOST_APP_E2E_WORKERS ?? (process.env.CI ? 1 : 2));
+const shardParts = process.env.OPENPOST_APP_E2E_SHARD?.split("/").map(Number);
 const chromiumExecutablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH;
 // Extra Chromium flags for local runs whose browser renders differently from
 // the pinned CI browser (for example newer engines without overlay
@@ -46,6 +47,7 @@ export default defineConfig({
   testDir: ".",
   outputDir: `${repositoryRoot}/test-results`,
   fullyParallel: true,
+  shard: shardParts ? { current: shardParts[0], total: shardParts[1] } : undefined,
   workers,
   forbidOnly: !!process.env.CI,
   failOnFlakyTests: !!process.env.CI,
