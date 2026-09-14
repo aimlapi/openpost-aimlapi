@@ -15,8 +15,13 @@ import (
 const firstUserBootstrapLockID = int64(0x4f50454e504f5354)
 
 // LockFirstUserBootstrap serializes the one-time administrator decision across
-// PostgreSQL processes. SQLite serializes the write transaction itself.
+// PostgreSQL processes. SQLite must acquire its write reservation before reads
+// so another connection cannot invalidate the registration snapshot.
 func LockFirstUserBootstrap(ctx context.Context, tx bun.Tx) error {
+	if tx.Dialect().Name() == dialect.SQLite {
+		_, err := tx.ExecContext(ctx, "UPDATE users SET id = id WHERE 1 = 0")
+		return err
+	}
 	if tx.Dialect().Name() != dialect.PG {
 		return nil
 	}
