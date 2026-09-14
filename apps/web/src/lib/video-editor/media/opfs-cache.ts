@@ -15,6 +15,10 @@ async function directory(
 	}
 }
 
+export async function getOpfsCacheRoot(kind: string): Promise<FileSystemDirectoryHandle | null> {
+	return directory([kind], true);
+}
+
 export async function readOpfsBlob(kind: string, key: string, name: string): Promise<Blob | null> {
 	try {
 		const dir = await directory([kind, key], false);

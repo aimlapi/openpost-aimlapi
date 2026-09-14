@@ -19,7 +19,7 @@ import {
 	sceneThumbRelPath,
 	sceneThumbsDir
 } from './paths';
-import { requireWorkspaceRoot } from './root';
+import { getOpfsCacheRoot } from '../media/opfs-cache';
 
 const logger = createLogger('WorkspaceFS:SceneAnalysis');
 
@@ -88,7 +88,8 @@ export function sceneAnalysisMatchesMedia(analysis: SceneAnalysis, media: MediaM
 }
 
 export async function getSceneAnalysis(mediaId: string): Promise<SceneAnalysis | null> {
-	const root = requireWorkspaceRoot();
+	const root = await getOpfsCacheRoot('scene-analysis');
+	if (!root) return null;
 	try {
 		const document = await readJson<SceneAnalysisDocument>(root, sceneAnalysisPath(mediaId));
 		if (!document || document.schemaVersion !== 1) return null;
@@ -111,7 +112,8 @@ export async function getSceneAnalysis(mediaId: string): Promise<SceneAnalysis |
 }
 
 export async function saveSceneAnalysis(analysis: SceneAnalysis): Promise<void> {
-	const root = requireWorkspaceRoot();
+	const root = await getOpfsCacheRoot('scene-analysis');
+	if (!root) return;
 	const text = packVectors(analysis.scenes, (scene) => scene.embedding);
 	const image = packVectors(analysis.scenes, (scene) => scene.imageEmbedding);
 	const scenes = analysis.scenes.map(
@@ -139,7 +141,8 @@ export async function saveSceneThumbnail(
 	index: number,
 	blob: Blob
 ): Promise<string> {
-	const root = requireWorkspaceRoot();
+	const root = await getOpfsCacheRoot('scene-analysis');
+	if (!root) return '';
 	await writeBlob(root, sceneThumbPath(mediaId, index), blob);
 	return sceneThumbRelPath(mediaId, index);
 }
@@ -148,7 +151,8 @@ export async function getSceneThumbnail(relPath: string): Promise<Blob | null> {
 	const segments = relPath.split('/').filter(Boolean);
 	if (segments.length === 0) return null;
 	try {
-		return await readBlob(requireWorkspaceRoot(), segments);
+		const root = await getOpfsCacheRoot('scene-analysis');
+		return root ? await readBlob(root, segments) : null;
 	} catch (error) {
 		logger.warn(`getSceneThumbnail(${relPath}) failed`, error);
 		return null;
@@ -156,7 +160,8 @@ export async function getSceneThumbnail(relPath: string): Promise<Blob | null> {
 }
 
 export async function deleteSceneAnalysis(mediaId: string): Promise<void> {
-	const root = requireWorkspaceRoot();
+	const root = await getOpfsCacheRoot('scene-analysis');
+	if (!root) return;
 	await Promise.all([
 		removeEntry(root, sceneAnalysisPath(mediaId)),
 		removeEntry(root, sceneTextEmbeddingsPath(mediaId)),

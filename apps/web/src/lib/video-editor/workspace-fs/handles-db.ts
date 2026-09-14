@@ -44,7 +44,7 @@ let dbPromise: Promise<IDBDatabase> | null = null;
 
 function getHandlesDB(): Promise<IDBDatabase> {
 	if (!dbPromise) {
-		dbPromise = new Promise((resolve, reject) => {
+		const pending = new Promise<IDBDatabase>((resolve, reject) => {
 			const request = indexedDB.open(HANDLES_DB_NAME, HANDLES_DB_VERSION);
 			request.onupgradeneeded = () => {
 				const db = request.result;
@@ -56,11 +56,40 @@ function getHandlesDB(): Promise<IDBDatabase> {
 			request.onblocked = () => {
 				logger.warn('Handles DB upgrade blocked — close other tabs.');
 			};
-			request.onsuccess = () => resolve(request.result);
+			request.onsuccess = () => {
+				const db = request.result;
+				const invalidate = () => {
+					if (dbPromise === pending) dbPromise = null;
+				};
+				db.onclose = invalidate;
+				db.onversionchange = () => {
+					db.close();
+					invalidate();
+				};
+				resolve(db);
+			};
 			request.onerror = () => reject(request.error);
+		});
+		dbPromise = pending;
+		void pending.catch(() => {
+			if (dbPromise === pending) dbPromise = null;
 		});
 	}
 	return dbPromise;
+}
+
+async function handleStore(mode: IDBTransactionMode): Promise<IDBObjectStore> {
+	const pending = getHandlesDB();
+	const db = await pending;
+	try {
+		return db.transaction(HANDLES_STORE, mode).objectStore(HANDLES_STORE);
+	} catch (error) {
+		if (!(error instanceof DOMException && error.name === 'InvalidStateError')) throw error;
+		// The connection closed before a transaction began, so no write needs replaying.
+		if (dbPromise === pending) dbPromise = null;
+		db.close();
+		return (await getHandlesDB()).transaction(HANDLES_STORE, mode).objectStore(HANDLES_STORE);
+	}
 }
 
 function requestAsPromise<T>(request: IDBRequest<T>): Promise<T> {
@@ -76,13 +105,8 @@ function compoundKey(kind: HandleKind, id: string): string {
 
 export async function getHandle(kind: HandleKind, id: string): Promise<HandleRecord | null> {
 	try {
-		const db = await getHandlesDB();
-		const record = await requestAsPromise(
-			db
-				.transaction(HANDLES_STORE, 'readonly')
-				.objectStore(HANDLES_STORE)
-				.get(compoundKey(kind, id))
-		);
+		const store = await handleStore('readonly');
+		const record = await requestAsPromise(store.get(compoundKey(kind, id)));
 		// SAFETY: the store only persists HandleRecord values.
 		// SAFETY: the stored value satisfies HandleRecord | undefined here.
 		return (record as HandleRecord | undefined) ?? null;
@@ -93,29 +117,21 @@ export async function getHandle(kind: HandleKind, id: string): Promise<HandleRec
 }
 
 export async function saveHandle(record: Omit<HandleRecord, 'key'>): Promise<void> {
-	const db = await getHandlesDB();
+	const store = await handleStore('readwrite');
 	const full: HandleRecord = {
 		...record,
 		key: compoundKey(record.kind, record.id)
 	};
-	await requestAsPromise(
-		db.transaction(HANDLES_STORE, 'readwrite').objectStore(HANDLES_STORE).put(full)
-	);
+	await requestAsPromise(store.put(full));
 }
 
 export async function deleteHandle(kind: HandleKind, id: string): Promise<void> {
-	const db = await getHandlesDB();
-	await requestAsPromise(
-		db
-			.transaction(HANDLES_STORE, 'readwrite')
-			.objectStore(HANDLES_STORE)
-			.delete(compoundKey(kind, id))
-	);
+	const store = await handleStore('readwrite');
+	await requestAsPromise(store.delete(compoundKey(kind, id)));
 }
 
 async function listHandlesByKind(kind: HandleKind): Promise<HandleRecord[]> {
-	const db = await getHandlesDB();
-	const index = db.transaction(HANDLES_STORE, 'readonly').objectStore(HANDLES_STORE).index('kind');
+	const index = (await handleStore('readonly')).index('kind');
 	// SAFETY: the kind index only contains HandleRecord entries.
 	return requestAsPromise(index.getAll(kind)) as Promise<HandleRecord[]>;
 }

@@ -249,38 +249,51 @@
 		void Promise.all([
 			ensureSoundTouchPreviewWorkletLoaded(context),
 			decodedPreviewAudio(sourceUrl, audioCodec)
-		]).then(async ([loaded, decoded]) => {
-			if (!loaded || stale) return;
-			const prepared = await prepareAudioBufferForSoundTouchPreview(decoded, context.sampleRate);
-			if (stale) return;
-			const node = new AudioWorkletNode(context, SOUND_TOUCH_PREVIEW_PROCESSOR_NAME, {
-				numberOfInputs: 0,
-				numberOfOutputs: 1,
-				outputChannelCount: [2]
+		])
+			.then(async ([loaded, decoded]) => {
+				if (!loaded || stale) return;
+				const prepared = await prepareAudioBufferForSoundTouchPreview(decoded, context.sampleRate);
+				if (stale) return;
+				const node = new AudioWorkletNode(context, SOUND_TOUCH_PREVIEW_PROCESSOR_NAME, {
+					numberOfInputs: 0,
+					numberOfOutputs: 1,
+					outputChannelCount: [2]
+				});
+				node.connect(graph.sourceInputNode);
+				node.port.postMessage(
+					{
+						type: 'append-source',
+						startFrame: 0,
+						leftChannel: prepared.leftChannel.buffer,
+						rightChannel: prepared.rightChannel.buffer,
+						frameCount: prepared.frameCount,
+						sampleRate: prepared.sampleRate
+					},
+					[prepared.leftChannel.buffer, prepared.rightChannel.buffer]
+				);
+				node.port.postMessage({ type: 'set-tempo', tempo: entry.playbackRate });
+				node.port.postMessage({
+					type: 'set-pitch',
+					pitch: getAudioPitchRatioFromSemitones(entry.pitchShiftSemitones)
+				});
+				processedNode = node;
+				processedSampleRate = prepared.sampleRate;
+				const time = untrack(() => timelineStore.currentFrame) / editorSession.fps;
+				seekProcessed(time, editorSession.isPlaying);
+				void context.resume().catch(() => undefined);
+			})
+			.catch((error) => {
+				if (stale) return;
+				processedNode?.port.postMessage({ type: 'set-playing', playing: false });
+				processedNode?.disconnect();
+				detachProcessedFromMixer?.();
+				detachProcessedFromMixer = null;
+				graph.dispose();
+				processedNode = null;
+				processedGraph = null;
+				processedPlaying = false;
+				console.warn('Processed audio preview could not be prepared.', error);
 			});
-			node.connect(graph.sourceInputNode);
-			node.port.postMessage(
-				{
-					type: 'append-source',
-					startFrame: 0,
-					leftChannel: prepared.leftChannel.buffer,
-					rightChannel: prepared.rightChannel.buffer,
-					frameCount: prepared.frameCount,
-					sampleRate: prepared.sampleRate
-				},
-				[prepared.leftChannel.buffer, prepared.rightChannel.buffer]
-			);
-			node.port.postMessage({ type: 'set-tempo', tempo: entry.playbackRate });
-			node.port.postMessage({
-				type: 'set-pitch',
-				pitch: getAudioPitchRatioFromSemitones(entry.pitchShiftSemitones)
-			});
-			processedNode = node;
-			processedSampleRate = prepared.sampleRate;
-			const time = untrack(() => timelineStore.currentFrame) / editorSession.fps;
-			seekProcessed(time, editorSession.isPlaying);
-			void context.resume().catch(() => undefined);
-		});
 		return () => {
 			stale = true;
 			processedNode?.port.postMessage({ type: 'set-playing', playing: false });

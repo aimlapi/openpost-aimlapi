@@ -337,9 +337,17 @@
 				(item.sourceStart ?? 0) +
 					(item.durationInFrames / editorSession.fps) * (item.speed ?? 1) * sourceFps) / sourceFps;
 		let stale = false;
-		void reversedPreviewAudio(sourceUrl, startSeconds, endSeconds, audioCodec).then((buffer) => {
-			if (!stale) reverseBuffer = buffer;
-		});
+		reverseBuffer = null;
+		void reversedPreviewAudio(sourceUrl, startSeconds, endSeconds, audioCodec)
+			.then((buffer) => {
+				if (!stale) reverseBuffer = buffer;
+			})
+			.catch((error) => {
+				if (stale) return;
+				reverseBuffer = null;
+				stopReverseSource();
+				console.warn('Reversed audio preview could not be decoded.', error);
+			});
 		return () => {
 			stale = true;
 			stopReverseSource();
@@ -385,75 +393,88 @@
 		void Promise.all([
 			ensureSoundTouchPreviewWorkletLoaded(context),
 			decodedPreviewAudio(sourceUrl, audioCodec)
-		]).then(async ([loaded, decoded]) => {
-			if (!loaded || stale || previewAbort.signal.aborted) return;
-			let bufferForPreview = decoded;
-			if (isNoiseReductionActive(settings.noiseReduction)) {
-				try {
-					const channels: Float32Array[] = [];
-					for (let c = 0; c < decoded.numberOfChannels; c++) {
-						channels.push(new Float32Array(decoded.getChannelData(c)));
+		])
+			.then(async ([loaded, decoded]) => {
+				if (!loaded || stale || previewAbort.signal.aborted) return;
+				let bufferForPreview = decoded;
+				if (isNoiseReductionActive(settings.noiseReduction)) {
+					try {
+						const channels: Float32Array[] = [];
+						for (let c = 0; c < decoded.numberOfChannels; c++) {
+							channels.push(new Float32Array(decoded.getChannelData(c)));
+						}
+						const processed = await processPreviewNoiseReduction(
+							channels,
+							decoded.sampleRate,
+							settings.noiseReduction,
+							previewAbort.signal
+						);
+						if (stale || previewAbort.signal.aborted) return;
+						const nrBuffer = new AudioBuffer({
+							length: processed[0]?.length ?? decoded.length,
+							numberOfChannels: decoded.numberOfChannels,
+							sampleRate: decoded.sampleRate
+						});
+						for (let c = 0; c < decoded.numberOfChannels; c++) {
+							nrBuffer.copyToChannel(new Float32Array(processed[c] ?? processed[0]!), c);
+						}
+						bufferForPreview = nrBuffer;
+					} catch {
+						if (previewAbort.signal.aborted) return;
+						bufferForPreview = decoded;
 					}
-					const processed = await processPreviewNoiseReduction(
-						channels,
-						decoded.sampleRate,
-						settings.noiseReduction,
-						previewAbort.signal
-					);
-					if (stale || previewAbort.signal.aborted) return;
-					const nrBuffer = new AudioBuffer({
-						length: processed[0]?.length ?? decoded.length,
-						numberOfChannels: decoded.numberOfChannels,
-						sampleRate: decoded.sampleRate
-					});
-					for (let c = 0; c < decoded.numberOfChannels; c++) {
-						nrBuffer.copyToChannel(new Float32Array(processed[c] ?? processed[0]!), c);
-					}
-					bufferForPreview = nrBuffer;
-				} catch {
-					if (previewAbort.signal.aborted) return;
-					bufferForPreview = decoded;
 				}
-			}
-			const prepared = await prepareAudioBufferForSoundTouchPreview(
-				bufferForPreview,
-				context.sampleRate
-			);
-			if (stale) return;
-			const node = new AudioWorkletNode(context, SOUND_TOUCH_PREVIEW_PROCESSOR_NAME, {
-				numberOfInputs: 0,
-				numberOfOutputs: 1,
-				outputChannelCount: [2]
+				const prepared = await prepareAudioBufferForSoundTouchPreview(
+					bufferForPreview,
+					context.sampleRate
+				);
+				if (stale) return;
+				const node = new AudioWorkletNode(context, SOUND_TOUCH_PREVIEW_PROCESSOR_NAME, {
+					numberOfInputs: 0,
+					numberOfOutputs: 1,
+					outputChannelCount: [2]
+				});
+				node.connect(graph.sourceInputNode);
+				node.port.postMessage(
+					{
+						type: 'append-source',
+						startFrame: 0,
+						leftChannel: prepared.leftChannel.buffer,
+						rightChannel: prepared.rightChannel.buffer,
+						frameCount: prepared.frameCount,
+						sampleRate: prepared.sampleRate
+					},
+					[prepared.leftChannel.buffer, prepared.rightChannel.buffer]
+				);
+				node.port.postMessage({ type: 'set-tempo', tempo: settings.speed });
+				node.port.postMessage({
+					type: 'set-pitch',
+					pitch: getAudioPitchRatioFromSemitones(settings.pitch)
+				});
+				if (stale) {
+					node.disconnect();
+					return;
+				}
+				processedNode = node;
+				processedSampleRate = prepared.sampleRate;
+				seekProcessed(
+					untrack(() => timelineStore.currentFrame),
+					editorSession.isPlaying
+				);
+				void context.resume().catch(() => undefined);
+			})
+			.catch((error) => {
+				if (stale) return;
+				processedNode?.port.postMessage({ type: 'set-playing', playing: false });
+				processedNode?.disconnect();
+				detachProcessedFromMixer?.();
+				detachProcessedFromMixer = null;
+				graph.dispose();
+				processedNode = null;
+				processedGraph = null;
+				processedPlaying = false;
+				console.warn('Processed audio preview could not be prepared.', error);
 			});
-			node.connect(graph.sourceInputNode);
-			node.port.postMessage(
-				{
-					type: 'append-source',
-					startFrame: 0,
-					leftChannel: prepared.leftChannel.buffer,
-					rightChannel: prepared.rightChannel.buffer,
-					frameCount: prepared.frameCount,
-					sampleRate: prepared.sampleRate
-				},
-				[prepared.leftChannel.buffer, prepared.rightChannel.buffer]
-			);
-			node.port.postMessage({ type: 'set-tempo', tempo: settings.speed });
-			node.port.postMessage({
-				type: 'set-pitch',
-				pitch: getAudioPitchRatioFromSemitones(settings.pitch)
-			});
-			if (stale) {
-				node.disconnect();
-				return;
-			}
-			processedNode = node;
-			processedSampleRate = prepared.sampleRate;
-			seekProcessed(
-				untrack(() => timelineStore.currentFrame),
-				editorSession.isPlaying
-			);
-			void context.resume().catch(() => undefined);
-		});
 		return () => {
 			stale = true;
 			previewAbort.abort();
@@ -531,7 +552,10 @@
 				if (!media.paused) media.pause();
 				stopReverseSource();
 				if (needsProcessing) {
-					processedNode?.port.postMessage({ type: 'set-playing', playing: false });
+					processedNode?.port.postMessage({
+						type: 'set-playing',
+						playing: false
+					});
 				}
 				return;
 			}
