@@ -136,8 +136,11 @@ test("features navigation stays on the landing page", async ({ page }, testInfo)
 test("provider marks use the available icon area", async ({ page }) => {
   for (const platform of ["Pinterest", "Telegram"]) {
     await page.goto(`/platforms/${platform.toLowerCase()}`);
-    const icon = page.getByRole("img", { name: platform, exact: true });
+    const icon = page.locator("svg").filter({
+      has: page.locator("title", { hasText: new RegExp(`^${platform}$`) }),
+    });
     await expect(icon).toBeVisible();
+    await expect(icon).toHaveAttribute("aria-hidden", "true");
     expect(
       await icon.evaluate((svg: SVGSVGElement) => {
         const bounds = svg.getBBox();

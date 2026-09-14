@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
+	import { onMount } from 'svelte';
 	import { ArrowRight, Menu, Moon, Sun, X } from '@lucide/svelte';
 	import Clapperboard from '@lucide/svelte/icons/clapperboard';
 	import Images from '@lucide/svelte/icons/images';
@@ -15,6 +16,10 @@
 	type ResourceGroup = { label: string; items: readonly NavigationItem[] };
 
 	let mobileOpen = $state(false);
+	let hydrated = $state(false);
+	onMount(() => {
+		hydrated = true;
+	});
 	const currentPath = $derived(page.url.pathname);
 	const primaryNavItems = marketingNavigation.primary;
 	const resourceGroups: readonly ResourceGroup[] = marketingNavigation.resourceGroups;
@@ -68,6 +73,7 @@
 					{#if item.href === '/platforms'}
 						<NavigationMenu.Item>
 							<NavigationMenu.Trigger
+								disabled={!hydrated}
 								aria-current={isActive(item.href) ? 'page' : undefined}
 								class="focus-ring h-11 min-h-11 rounded-md px-3 text-sm text-muted-foreground hover:bg-muted/70 hover:text-foreground data-open:bg-muted data-open:text-foreground"
 							>
@@ -128,6 +134,7 @@
 					{:else if item.href === '/tools'}
 						<NavigationMenu.Item>
 							<NavigationMenu.Trigger
+								disabled={!hydrated}
 								aria-current={isActive(item.href) ? 'page' : undefined}
 								class="focus-ring h-11 min-h-11 rounded-md px-3 text-sm text-muted-foreground hover:bg-muted/70 hover:text-foreground data-open:bg-muted data-open:text-foreground"
 							>
@@ -225,6 +232,7 @@
 
 				<NavigationMenu.Item>
 					<NavigationMenu.Trigger
+						disabled={!hydrated}
 						aria-current={resourcesActive() ? 'page' : undefined}
 						class="focus-ring h-11 min-h-11 rounded-md px-3 text-sm text-muted-foreground hover:bg-muted/70 hover:text-foreground data-open:bg-muted data-open:text-foreground"
 					>
@@ -283,6 +291,7 @@
 			class="size-11 lg:hidden"
 			aria-label={mobileOpen ? 'Close navigation' : 'Open navigation'}
 			aria-expanded={mobileOpen}
+			disabled={!hydrated}
 			aria-controls="mobile-navigation"
 			onclick={() => (mobileOpen = !mobileOpen)}
 		>

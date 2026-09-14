@@ -12,9 +12,10 @@ const chromiumExecutablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH;
 const chromiumUse = chromiumExecutablePath
   ? { launchOptions: { executablePath: chromiumExecutablePath } }
   : {};
+const pagesPreview = `cd apps/marketing && bunx wrangler pages dev dist --ip ${host} --port ${port} --compatibility-date 2026-08-06`;
 const webServerCommand = usePrebuiltArtifact
-  ? `cd apps/marketing && bunx wrangler pages dev dist --ip ${host} --port ${port} --compatibility-date 2026-08-06`
-  : `bun run build -- marketing && bun run --filter @openpost/site preview --host ${host} --port ${port}`;
+  ? pagesPreview
+  : `bun run build -- marketing && ${pagesPreview}`;
 
 export default defineConfig({
   testDir: ".",

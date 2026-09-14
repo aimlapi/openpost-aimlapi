@@ -45,7 +45,9 @@
 	]);
 	const platformKey = $derived(getPlatformKey(platform));
 
-	const svg = $derived(svgs.get(platformKey)?.replace('<svg ', `<svg class="${className}" `) ?? '');
+	const svg = $derived(
+		svgs.get(platformKey)?.replace('<svg ', `<svg aria-hidden="true" class="${className}" `) ?? ''
+	);
 </script>
 
 {#if svg}

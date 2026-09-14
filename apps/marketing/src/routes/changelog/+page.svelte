@@ -43,7 +43,7 @@
 			{#each data.sections as entry (entry.label)}
 				<article
 					id={entry.label === 'Unreleased' ? 'unreleased' : `v${entry.label}`}
-					class="scroll-mt-24 py-10"
+					class="scroll-mt-24 py-10 wrap-anywhere"
 				>
 					<div class="flex flex-wrap items-center gap-x-4 gap-y-2">
 						{#if entry.date}
