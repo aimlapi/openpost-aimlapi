@@ -4,8 +4,16 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+## [4.32.0] - 2026-09-14
+
 ### Added
 
+- Connect Pixelfed instances over per-instance OAuth and publish photo posts and albums with captions, per-image alt text, content warnings, and visibility controls.
+- Connect PeerTube accounts with instance credentials, pick a channel, and publish videos with titles, descriptions, privacy, captions, and thumbnails. Uploads resume after interruptions and delivery waits for transcoding.
+- Connect Lemmy accounts with instance credentials and post discussions, links, and images to communities, each with its own title, body, validation, and reply inbox.
+- Connect PieFed accounts with instance credentials and publish to communities through its native API, sharing the Lemmy authoring experience.
+- Connected Fediverse accounts now name their detected server software (Pixelfed, PeerTube, Lemmy, PieFed, GoToSocial, Akkoma, Pleroma, or Friendica) instead of showing a generic provider name.
+- New `/platforms` guides for Pixelfed, PeerTube, Lemmy, and PieFed, plus self-hosting integration guides for each.
 - Maintainer diagnostic reports are on by default for self-hosted instances. Upgrading activates an external reporting channel where previous versions sent nothing: instances send privacy-limited failure reports (normalized error codes, build, sanitized stack frames, occurrence counts) to the official OpenPost receiver through a bounded queue that never blocks application work and never touches the application database. Set `OPENPOST_DIAGNOSTICS_ENABLED=false` to opt out; the environment disable always wins and clears pending reports. Browser reports additionally stop on Do Not Track or Global Privacy Control.
 - The official receiver (`POST /api/v1/diagnostics/ingest`, enabled with `OPENPOST_DIAGNOSTICS_INGEST_ENABLED` plus the server-only `OPENPOST_DIAGNOSTICS_DISCORD_WEBHOOK_URL`) validates, quota-limits, and forwards accepted cross-instance reports to the maintainer Discord channel.
 - Uncaught browser exceptions and unhandled promise rejections now report through the viewer's own instance as normalized codes with app-relative locations, never message text. Chunk-load deployment skew stays excluded.
@@ -13,8 +21,36 @@ All notable changes to this project are documented in this file.
 
 ### Fixed
 
+- Background edits update the existing Image Editor canvas without rebuilding its layers. Selection outlines use bounded temporary buffers, and failed export setup releases its renderer.
+- Maintainer diagnostics now accept reports from every supported provider, preserve build and storage context through the official receiver, and keep the installation identity stable across release-container recreation.
+- Scene Browser caches analysis and thumbnails in browser storage, so Cloud projects no longer require a picked local folder.
+- Reversed, processed, and nested-sequence audio previews handle unsupported media without an uncaught decode failure and clears the previous source's audio while a new source loads.
+- Local file-handle storage reopens closed IndexedDB connections before starting a transaction.
+- A Facebook post's first comment, which the Page publishes itself, no longer shows up in the engagement inbox as a new comment or sends an "engagement received" notification.
+- LinkedIn "root plus comments" publications with more than one comment no longer fail at the second comment; later comments are now published as replies under the previous comment.
+- Fixed marketing navigation losing clicks before the page was ready, decorative channel icons exposed as unnamed images, and long changelog entries overflowing phone screens.
+- MCP connections now accept requests for both `mcp:read` and `mcp:full`, including repeated scopes. Read-only requests retain read-only access, and unsupported or unregistered scopes remain rejected.
+- Removed excess space from the right side of README action buttons.
+- Adding new changelog sections during release preparation no longer splits existing release-note bullets.
+- Restored distinct social preview images for every marketing and documentation page.
+- Prevent SQLite account registration from failing when another connection writes while the first-user and identity checks are running.
+- Follow-up posts in a published Threads thread no longer show up in the engagement inbox as new replies or send an "engagement received" notification.
+- YouTube videos with comments turned off, or collection runs that hit the daily YouTube API quota, no longer tell you to reconnect the account in the engagement inbox.
 - The feedback dialog category options (Bug, Idea, Question) are truly centered: the radio input no longer occupies flex layout.
 - The dialog overlay no longer applies a full-screen backdrop blur, removing a suspected source of the intermittent horizontal white line and lowering compositing cost.
+
+### Changed
+
+- Image Editor color previews and ordinary document edits now preserve unchanged pages and layers, reducing work during sliders and transforms. Page-strip thumbnails render as queued images after color gestures finish.
+- Console error reports preserve original exceptions and stack traces. Marketing telemetry includes the Cloudflare deployment revision.
+- Publication Builder job reports retain safe failure categories, including invalid director, rendition, or reviewer output, without exposing private model text.
+- Application, marketing, and documentation builds receive the server-only source-map upload credential through Turbo without putting it in frontend bundles or build hashes.
+
+### Improved
+
+- Made the landing page load faster with inline styles, responsive product screenshots, and lower-priority decorative images.
+- Release preparation checks generated files, types, lint, tests, and browser flows before pushing. Local commits can be verified together and sent in one push.
+- Frontend tests run alongside the canonical build in CI, the application browser suite is split across two required runners, and Android builds can reuse cached Gradle task outputs.
 
 ## [4.31.2] - 2026-09-14
 
