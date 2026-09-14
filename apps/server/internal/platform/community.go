@@ -1,9 +1,15 @@
 package platform
 
 import (
+	"bytes"
+	"context"
+	"encoding/json"
 	"fmt"
+	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
+	"time"
 )
 
 // Community posting is one publishing experience shared by Lemmy, PieFed,
@@ -157,11 +163,10 @@ func ValidateCommunityPost(provider, communityRef, title string) error {
 	if strings.TrimSpace(communityRef) == "" {
 		return fmt.Errorf("%s posts require a community: search, paste a community address, or choose a saved destination", provider)
 	}
-	name, host, ok := ParseCommunityRef(communityRef)
+	_, host, ok := ParseCommunityRef(communityRef)
 	if !ok || (host == "" && strings.Contains(communityRef, "@")) {
 		return fmt.Errorf("%s community %q is not a valid community address (use !name@host or paste the community URL)", provider, communityRef)
 	}
-	_ = name
 	if strings.TrimSpace(title) == "" {
 		return fmt.Errorf("%s posts require a title written for that community", provider)
 	}
@@ -184,4 +189,160 @@ func communityBody(content string, settings map[string]interface{}) string {
 		return trimmed
 	}
 	return settingString(settings, CommunitySettingBody)
+}
+
+func communityAuthHeaders(token string) map[string]string {
+	if strings.TrimSpace(token) == "" {
+		return map[string]string{}
+	}
+	return map[string]string{headerAuthorization: bearerPrefix + token}
+}
+
+func communityJSONGet[T any](ctx context.Context, instanceURL, path string, query url.Values, token, label string) (T, error) {
+	var zero T
+	endpoint := strings.TrimRight(instanceURL, "/") + path
+	if len(query) > 0 {
+		endpoint += "?" + query.Encode()
+	}
+	body, err := DoRequest(ctx, http.MethodGet, endpoint, nil, communityAuthHeaders(token))
+	if err != nil {
+		return zero, fmt.Errorf("%s: %w", label, err)
+	}
+	var result T
+	if err := json.Unmarshal(body, &result); err != nil {
+		return zero, fmt.Errorf("decoding %s: %w", label, err)
+	}
+	return result, nil
+}
+
+func communityJSONPost[T any](ctx context.Context, instanceURL, path string, payload any, token, label string) (T, error) {
+	var zero T
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return zero, fmt.Errorf("encoding %s: %w", label, err)
+	}
+	headers := communityAuthHeaders(token)
+	headers[headerContentType] = contentTypeJSON
+	body, err := DoRequest(ctx, http.MethodPost, strings.TrimRight(instanceURL, "/")+path, bytes.NewReader(data), headers)
+	if err != nil {
+		return zero, fmt.Errorf("%s: %w", label, err)
+	}
+	var result T
+	if err := json.Unmarshal(body, &result); err != nil {
+		return zero, fmt.Errorf("decoding %s: %w", label, err)
+	}
+	return result, nil
+}
+
+type communityResolveResponse[T any] struct {
+	Community *T `json:"community"`
+}
+
+func resolveCommunity[T any](ctx context.Context, provider, instanceURL, path, token, ref, label string, identity func(T) CommunityIdentity) (CommunityIdentity, error) {
+	queryAddress, err := communityResolveQuery(provider, ref)
+	if err != nil {
+		return CommunityIdentity{}, err
+	}
+	resolved, err := communityJSONGet[communityResolveResponse[T]](
+		ctx, instanceURL, path, url.Values{"q": {queryAddress}}, token, label,
+	)
+	if err != nil {
+		return CommunityIdentity{}, err
+	}
+	if resolved.Community == nil {
+		return CommunityIdentity{}, fmt.Errorf("%s community %q was not found on this instance", provider, ref)
+	}
+	return identity(*resolved.Community), nil
+}
+
+func communityResolveQuery(provider, ref string) (string, error) {
+	name, host, ok := ParseCommunityRef(ref)
+	if !ok {
+		return "", fmt.Errorf("%s community %q is not a valid community address", provider, ref)
+	}
+	if host != "" {
+		return CommunityDisplayRef(name, host), nil
+	}
+	if !strings.Contains(ref, "://") {
+		return "!" + name, nil
+	}
+	return ref, nil
+}
+
+func firstCommunityMediaURL(req *PublishRequest) string {
+	if req == nil {
+		return ""
+	}
+	for _, id := range req.PlatformMediaIDs {
+		if trimmed := strings.TrimSpace(id); strings.HasPrefix(trimmed, "http") {
+			return trimmed
+		}
+	}
+	return ""
+}
+
+func communityCommentRef(provider string, postID int64, commentID string) string {
+	return provider + ":" + strconv.FormatInt(postID, 10) + ":" + commentID
+}
+
+func replyToCommunityComment[T any](ctx context.Context, provider, instanceURL, path, contentField, token, commentID, message, label string, extractID func(T) int64) (string, error) {
+	postID, parentID, err := splitCommunityCommentRef(provider, commentID)
+	if err != nil {
+		return "", err
+	}
+	response, err := communityJSONPost[T](ctx, instanceURL, path, map[string]any{
+		contentField: strings.TrimSpace(message),
+		"post_id":    postID,
+		"parent_id":  parentID,
+	}, token, label)
+	if err != nil {
+		return "", err
+	}
+	return communityCommentRef(provider, postID, strconv.FormatInt(extractID(response), 10)), nil
+}
+
+func splitCommunityCommentRef(provider, ref string) (int64, int64, error) {
+	parts := strings.Split(strings.TrimSpace(ref), ":")
+	if len(parts) != 3 || parts[0] != provider {
+		return 0, 0, fmt.Errorf("%s reply reference is invalid", provider)
+	}
+	postID, postErr := strconv.ParseInt(parts[1], 10, 64)
+	commentID, commentErr := strconv.ParseInt(parts[2], 10, 64)
+	if postErr != nil || commentErr != nil || postID <= 0 || commentID <= 0 {
+		return 0, 0, fmt.Errorf("%s reply reference is invalid", provider)
+	}
+	return postID, commentID, nil
+}
+
+func normalizeCommunityAccountContent(provider, instanceURL string, id int64, profile, title string, body *string, actorID, published string, publishedAfter time.Time) (AccountContentItem, bool) {
+	publishedAt, err := time.Parse(time.RFC3339Nano, strings.TrimSpace(published))
+	if err != nil || publishedAt.IsZero() {
+		return AccountContentItem{}, false
+	}
+	publishedAt = publishedAt.UTC()
+	actorID = strings.TrimSpace(actorID)
+	if actorID == "" || (!publishedAfter.IsZero() && publishedAt.Before(publishedAfter)) {
+		return AccountContentItem{}, false
+	}
+	item := AccountContentItem{
+		ProviderContentID: strings.TrimRight(instanceURL, "/") + "/post/" + strconv.FormatInt(id, 10),
+		ContentProfile:    profile,
+		Title:             title,
+		ExternalURL:       actorID,
+		PublishedAt:       publishedAt,
+		Origin:            AccountContentOriginExternal,
+		OriginConfidence:  AccountContentOriginConfidenceExact,
+	}
+	if body != nil {
+		item.Text = strings.TrimSpace(*body)
+	}
+	normalized, err := NormalizeAccountContentItem(provider, item)
+	return normalized, err == nil
+}
+
+func appendCommunityAccountContent(page *AccountContentPage, item AccountContentItem) {
+	page.Items = append(page.Items, item)
+	if page.BackfillWatermark.IsZero() || item.PublishedAt.Before(page.BackfillWatermark) {
+		page.BackfillWatermark = item.PublishedAt
+	}
 }

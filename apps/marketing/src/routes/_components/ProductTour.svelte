@@ -12,6 +12,11 @@
 			icon: '/assets/brand/features/compose.svg',
 			lightSrc: '/assets/screenshots/main-light.webp',
 			darkSrc: '/assets/screenshots/main-dark.webp',
+			lightSrcset:
+				'/assets/screenshots/main-light-768.webp 768w, /assets/screenshots/main-light-1536.webp 1536w, /assets/screenshots/main-light.webp 2880w',
+			darkSrcset:
+				'/assets/screenshots/main-dark-768.webp 768w, /assets/screenshots/main-dark-1536.webp 1536w, /assets/screenshots/main-dark.webp 2880w',
+			sizes: '(max-width: 800px) calc(100vw - 32px), 1248px',
 			alt: 'OpenPost composer with a draft, six social destinations, and scheduling controls',
 			caption: 'Turn your next idea into a post.'
 		},
@@ -145,6 +150,9 @@
 			<ProductScreenshot
 				lightSrc={view.lightSrc}
 				darkSrc={view.darkSrc}
+				lightSrcset={view.lightSrcset}
+				darkSrcset={view.darkSrcset}
+				sizes={view.sizes}
 				alt={view.alt}
 				label={view.name}
 				priority={selected === 0}

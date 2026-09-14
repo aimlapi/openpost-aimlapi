@@ -840,6 +840,22 @@ export const docsPageCatalog = Object.freeze([
     }
   },
   {
+    "page": "self-hosting/integrations/lemmy.mdx",
+    "title": "Lemmy",
+    "description": "Post discussions and links to Lemmy communities, then follow the conversation.",
+    "route": "/self-hosting/integrations/lemmy",
+    "agentRepresentation": {
+      "membership": "ordinary"
+    },
+    "agentDiscovery": {
+      "membership": "unlisted"
+    },
+    "agentCorpus": {
+      "membership": "included",
+      "section": "self-hosting"
+    }
+  },
+  {
     "page": "self-hosting/integrations/linkedin.mdx",
     "title": "LinkedIn",
     "description": "Connect LinkedIn member profiles and, with approved access, Organization Pages.",
@@ -872,10 +888,58 @@ export const docsPageCatalog = Object.freeze([
     }
   },
   {
+    "page": "self-hosting/integrations/peertube.mdx",
+    "title": "PeerTube",
+    "description": "Publish videos to a PeerTube channel with upload and transcoding state.",
+    "route": "/self-hosting/integrations/peertube",
+    "agentRepresentation": {
+      "membership": "ordinary"
+    },
+    "agentDiscovery": {
+      "membership": "unlisted"
+    },
+    "agentCorpus": {
+      "membership": "included",
+      "section": "self-hosting"
+    }
+  },
+  {
+    "page": "self-hosting/integrations/piefed.mdx",
+    "title": "PieFed",
+    "description": "Post discussions and links to PieFed communities through its native API.",
+    "route": "/self-hosting/integrations/piefed",
+    "agentRepresentation": {
+      "membership": "ordinary"
+    },
+    "agentDiscovery": {
+      "membership": "unlisted"
+    },
+    "agentCorpus": {
+      "membership": "included",
+      "section": "self-hosting"
+    }
+  },
+  {
     "page": "self-hosting/integrations/pinterest.mdx",
     "title": "Pinterest",
     "description": "Configure a Pinterest app and understand the approval needed to connect and publish.",
     "route": "/self-hosting/integrations/pinterest",
+    "agentRepresentation": {
+      "membership": "ordinary"
+    },
+    "agentDiscovery": {
+      "membership": "unlisted"
+    },
+    "agentCorpus": {
+      "membership": "included",
+      "section": "self-hosting"
+    }
+  },
+  {
+    "page": "self-hosting/integrations/pixelfed.mdx",
+    "title": "Pixelfed",
+    "description": "Connect a Pixelfed instance for photo and album publishing.",
+    "route": "/self-hosting/integrations/pixelfed",
     "agentRepresentation": {
       "membership": "ordinary"
     },

@@ -61,7 +61,7 @@ func peertubeUploadError(status int, body []byte, label string) error {
 	}
 	return &MediaUploadError{
 		RetryClassification: classification,
-		Err:                 NewHTTPError(status, nil, body),
+		Err:                 fmt.Errorf("%s: %w", label, NewHTTPError(status, nil, body)),
 	}
 }
 
@@ -194,8 +194,8 @@ func peertubeCommentsPolicy(settings map[string]interface{}) int {
 		return peertubeCommentsDisabled
 	case "approval", "requires_approval":
 		return peertubeCommentsRequiresApproval
-	case "enabled", "":
-		return 0
+	case "enabled":
+		return peertubeCommentsEnabled
 	default:
 		return 0
 	}
@@ -476,46 +476,55 @@ func (p *PeerTubeAdapter) finalizePeerTubeUpload(
 	state *ResumableMediaUploadState,
 	checkpoint MediaUploadCheckpoint,
 ) error {
-	if req.ThumbnailReader != nil && !session.ThumbnailApplied {
-		thumbnail, err := io.ReadAll(req.ThumbnailReader)
-		if err != nil {
-			return fmt.Errorf("reading peertube thumbnail: %w", err)
-		}
-		if len(thumbnail) > 0 {
-			if err := p.uploadPeerTubeThumbnail(ctx, accessToken, uuid, thumbnail, req); err != nil {
-				return err
-			}
-		}
-		session.ThumbnailApplied = true
-		if encoded, err := encodePeerTubeUploadSession(*session); err == nil {
-			state.OpaqueState = encoded
-			state.LastCheckedAt = time.Now().UTC()
-			if err := checkpoint(*state); err != nil {
-				return err
-			}
+	if err := p.finalizePeerTubeThumbnail(ctx, accessToken, uuid, req, session, state, checkpoint); err != nil {
+		return err
+	}
+	return p.finalizePeerTubeCaption(ctx, accessToken, uuid, req, session, state, checkpoint)
+}
+
+func (p *PeerTubeAdapter) finalizePeerTubeThumbnail(ctx context.Context, accessToken, uuid string, req UploadMediaRequest, session *peertubeUploadSession, state *ResumableMediaUploadState, checkpoint MediaUploadCheckpoint) error {
+	if req.ThumbnailReader == nil || session.ThumbnailApplied {
+		return nil
+	}
+	thumbnail, err := io.ReadAll(req.ThumbnailReader)
+	if err != nil {
+		return fmt.Errorf("reading peertube thumbnail: %w", err)
+	}
+	if len(thumbnail) > 0 {
+		if err := p.uploadPeerTubeThumbnail(ctx, accessToken, uuid, thumbnail, req); err != nil {
+			return err
 		}
 	}
-	if req.CaptionReader != nil && !session.CaptionApplied {
-		caption, err := io.ReadAll(req.CaptionReader)
-		if err != nil {
-			return fmt.Errorf("reading peertube captions: %w", err)
-		}
-		if len(caption) > 0 {
-			language := firstNonEmptyString(settingString(req.Settings, "caption_language"), "en")
-			if err := p.uploadPeerTubeCaption(ctx, accessToken, uuid, language, caption, req); err != nil {
-				return err
-			}
-		}
-		session.CaptionApplied = true
-		if encoded, err := encodePeerTubeUploadSession(*session); err == nil {
-			state.OpaqueState = encoded
-			state.LastCheckedAt = time.Now().UTC()
-			if err := checkpoint(*state); err != nil {
-				return err
-			}
+	session.ThumbnailApplied = true
+	return checkpointPeerTubeFinalization(*session, state, checkpoint)
+}
+
+func (p *PeerTubeAdapter) finalizePeerTubeCaption(ctx context.Context, accessToken, uuid string, req UploadMediaRequest, session *peertubeUploadSession, state *ResumableMediaUploadState, checkpoint MediaUploadCheckpoint) error {
+	if req.CaptionReader == nil || session.CaptionApplied {
+		return nil
+	}
+	caption, err := io.ReadAll(req.CaptionReader)
+	if err != nil {
+		return fmt.Errorf("reading peertube captions: %w", err)
+	}
+	if len(caption) > 0 {
+		language := firstNonEmptyString(settingString(req.Settings, "caption_language"), "en")
+		if err := p.uploadPeerTubeCaption(ctx, accessToken, uuid, language, caption, req); err != nil {
+			return err
 		}
 	}
-	return nil
+	session.CaptionApplied = true
+	return checkpointPeerTubeFinalization(*session, state, checkpoint)
+}
+
+func checkpointPeerTubeFinalization(session peertubeUploadSession, state *ResumableMediaUploadState, checkpoint MediaUploadCheckpoint) error {
+	encoded, err := encodePeerTubeUploadSession(session)
+	if err != nil {
+		return err
+	}
+	state.OpaqueState = encoded
+	state.LastCheckedAt = time.Now().UTC()
+	return checkpoint(*state)
 }
 
 func (p *PeerTubeAdapter) uploadPeerTubeThumbnail(ctx context.Context, accessToken, uuid string, thumbnail []byte, req UploadMediaRequest) error {

@@ -39,36 +39,12 @@ func ResolveTargetKey(provider, base, requested string, settings map[string]inte
 	provider = strings.ToLower(strings.TrimSpace(provider))
 	base = strings.TrimSpace(base)
 	requested = strings.TrimSpace(requested)
-	if provider == providerPinterest {
-		if boardID := settingString(settings, "board_id"); boardID != "" {
-			derived := base + ":board:" + boardID
-			if requested == "" || requested == base {
-				requested = derived
-			} else if requested != derived {
-				return "", errors.New("target_key does not match the selected Pinterest board")
-			}
-		}
-	}
-	if provider == providerPeerTube {
-		if channel := settingString(settings, "channel"); channel != "" {
-			derived := base + ":channel:" + channel
-			if requested == "" || requested == base {
-				requested = derived
-			} else if requested != derived {
-				return "", errors.New("target_key does not match the selected PeerTube channel")
-			}
-		}
-	}
-	if provider == providerLemmy || provider == providerPieFed {
-		if communityRef := settingString(settings, CommunitySettingCommunity); communityRef != "" {
-			if name, host, ok := ParseCommunityRef(communityRef); ok && host != "" {
-				derived := CommunityTargetKey(provider, host, name)
-				if requested == "" || requested == base {
-					requested = derived
-				} else if requested != derived {
-					return "", errors.New("target_key does not match the selected community")
-				}
-			}
+	derived, mismatch := derivedTargetKey(provider, base, settings)
+	if derived != "" {
+		if requested == "" || requested == base {
+			requested = derived
+		} else if requested != derived {
+			return "", errors.New(mismatch)
 		}
 	}
 	if requested == "" {
@@ -78,6 +54,24 @@ func ResolveTargetKey(provider, base, requested string, settings map[string]inte
 		return "", err
 	}
 	return requested, nil
+}
+
+func derivedTargetKey(provider, base string, settings map[string]interface{}) (string, string) {
+	switch provider {
+	case providerPinterest:
+		if boardID := settingString(settings, "board_id"); boardID != "" {
+			return base + ":board:" + boardID, "target_key does not match the selected Pinterest board"
+		}
+	case providerPeerTube:
+		if channel := settingString(settings, "channel"); channel != "" {
+			return base + ":channel:" + channel, "target_key does not match the selected PeerTube channel"
+		}
+	case providerLemmy, providerPieFed:
+		if name, host, ok := ParseCommunityRef(settingString(settings, CommunitySettingCommunity)); ok && host != "" {
+			return CommunityTargetKey(provider, host, name), "target_key does not match the selected community"
+		}
+	}
+	return "", ""
 }
 
 // ValidateTargetKey preserves legacy account-owned target suffixes while

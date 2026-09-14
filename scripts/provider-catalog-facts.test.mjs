@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { publishedProviderAssetSlugs } from "./asset-surfaces.ts";
 import {
   backendProviderCatalog,
   providerCountCopyProblems,
@@ -30,4 +31,11 @@ test("rejects public total copy that drifts from the catalogue", () => {
     ),
     ['copy.md says "Preview nine platforms"; canonical provider count is 10'],
   );
+});
+
+test("published provider assets stay aligned with the backend catalogue", async () => {
+  const source = await import("node:fs/promises").then(({ readFile }) =>
+    readFile(new URL("../apps/server/internal/api/handlers/oauth.go", import.meta.url), "utf8"),
+  );
+  assert.deepEqual(new Set(publishedProviderAssetSlugs), new Set(backendProviderCatalog(source)));
 });

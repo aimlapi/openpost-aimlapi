@@ -92,12 +92,6 @@ func compatDiscoverAccountContent(ctx context.Context, rawInstanceURL, accessTok
 }
 
 //nolint:gocyclo // One bounded page owns visibility, time, identity, URL, media-profile, and cursor validation.
-func mastodonAccountContentPage(statuses []mastodonAccountContentStatus, instanceURL string, publishedAfter time.Time, pageSize int) (AccountContentPage, error) {
-	return compatAccountContentPage(statuses, providerMastodon, instanceURL,
-		"Only public statuses visible through the authenticated Mastodon instance are included.", publishedAfter, pageSize)
-}
-
-//nolint:gocyclo // One bounded page owns visibility, time, identity, URL, media-profile, and cursor validation.
 func compatAccountContentPage(statuses []mastodonAccountContentStatus, provider, instanceURL, coverageNote string, publishedAfter time.Time, pageSize int) (AccountContentPage, error) {
 	page := AccountContentPage{Coverage: AccountContentCoverage{
 		Status:      AccountContentDiscoveryPartial,

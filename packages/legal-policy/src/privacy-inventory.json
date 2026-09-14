@@ -608,9 +608,9 @@
       "owner": "OpenPost social-account connection flow",
       "identifier_kind": "exact",
       "identifier": "oauth_workspace_id",
-      "purpose": "Carries the selected workspace through the browser-staged Mastodon code exchange. Other social OAuth starts currently also write this key but rely on server callback state.",
+      "purpose": "Carries the selected workspace through browser-staged Fediverse code exchanges. Other social OAuth starts currently also write this key but rely on server callback state.",
       "scope": "Application origin.",
-      "duration": "Removed after a successful Mastodon exchange or account-data cleanup; otherwise retained until replaced or site data is cleared.",
+      "duration": "Removed after a successful Fediverse exchange or account-data cleanup; otherwise retained until replaced or site data is cleared.",
       "necessity": "strictly_necessary",
       "source_refs": [
         "apps/web/src/lib/account-management-route.ts",
@@ -647,6 +647,42 @@
         "apps/web/src/lib/account-management-route.ts",
         "apps/web/src/routes/accounts/mastodon/callback/+page.svelte"
       ]
+    },
+    {
+      "id": "local-oauth-fediverse-provider",
+      "technology": "localStorage",
+      "owner": "OpenPost Fediverse connection flow",
+      "identifier_kind": "exact",
+      "identifier": "oauth_fediverse_provider",
+      "purpose": "Restores whether a browser-staged Fediverse code exchange is connecting Mastodon or Pixelfed.",
+      "scope": "Application origin.",
+      "duration": "Removed after a successful exchange or account-data cleanup; otherwise retained until replaced or site data is cleared.",
+      "necessity": "strictly_necessary",
+      "source_refs": ["apps/web/src/lib/account-management-route.ts"]
+    },
+    {
+      "id": "local-oauth-fediverse-server",
+      "technology": "localStorage",
+      "owner": "OpenPost Fediverse connection flow",
+      "identifier_kind": "exact",
+      "identifier": "oauth_fediverse_server",
+      "purpose": "Restores the named preconfigured Mastodon or Pixelfed server after its OAuth redirect.",
+      "scope": "Application origin.",
+      "duration": "Removed after a successful exchange, when another Fediverse connection mode replaces it, or when account/site data is cleared.",
+      "necessity": "strictly_necessary",
+      "source_refs": ["apps/web/src/lib/account-management-route.ts"]
+    },
+    {
+      "id": "local-oauth-fediverse-instance",
+      "technology": "localStorage",
+      "owner": "OpenPost Fediverse connection flow",
+      "identifier_kind": "exact",
+      "identifier": "oauth_fediverse_instance_url",
+      "purpose": "Restores a custom Mastodon or Pixelfed instance URL after its OAuth redirect.",
+      "scope": "Application origin.",
+      "duration": "Removed after a successful exchange, when another Fediverse connection mode replaces it, or when account/site data is cleared.",
+      "necessity": "strictly_necessary",
+      "source_refs": ["apps/web/src/lib/account-management-route.ts"]
     },
     {
       "id": "local-first-account-celebration",

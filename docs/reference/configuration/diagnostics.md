@@ -44,6 +44,9 @@ Delivery never blocks application work: bounded in-memory queue, short timeouts,
 OPENPOST_DIAGNOSTICS_ENABLED=true
 # Receiver endpoint. Defaults to the official OpenPost receiver.
 OPENPOST_DIAGNOSTICS_RECEIVER_URL=https://app.openpo.st/api/v1/diagnostics/ingest
+# Installation identity file. The release container defaults this to the
+# persistent /data volume; standalone installs may override the path.
+OPENPOST_DIAGNOSTICS_STATE_FILE=/data/diagnostics-installation-id
 # Public cross-instance ingest endpoint. Off unless this instance IS the
 # official receiver. Hosted enables it with the maintainer webhook below.
 OPENPOST_DIAGNOSTICS_INGEST_ENABLED=false

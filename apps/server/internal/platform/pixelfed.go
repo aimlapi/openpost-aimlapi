@@ -82,35 +82,11 @@ func (p *PixelfedAdapter) GetProfile(ctx context.Context, accessToken string) (*
 	if err != nil {
 		return nil, err
 	}
-	return &UserProfile{
-		ID:              profile.ID,
-		Username:        firstNonEmptyString(profile.Acct, profile.Username),
-		DisplayName:     profile.DisplayName,
-		AvatarURL:       firstNonEmptyString(profile.AvatarStatic, profile.Avatar),
-		CapabilityState: map[string]string{"fediverse_software": string(FediverseSoftwarePixelfed)},
-	}, nil
+	return compatUserProfile(profile, FediverseSoftwarePixelfed), nil
 }
 
 func (p *PixelfedAdapter) ResolveAccountPublishingCapabilities(ctx context.Context, accessToken string, _ AccountCapabilityInput) (AccountCapabilityResult, error) {
-	result, err := compatInstanceCapabilities(ctx, p.compat.instanceURL, accessToken, "Pixelfed")
-	if err != nil {
-		return AccountCapabilityResult{}, err
-	}
-	version := strings.TrimPrefix(result.Revision, "compat-v1:")
-	version = strings.TrimPrefix(version, "compat:")
-	if version == "" || version == result.Revision {
-		version = "unknown"
-	}
-	result.Revision = "pixelfed:" + version
-	if result.AvailableFeatures == nil {
-		result.AvailableFeatures = map[string]bool{}
-	}
-	// Pixelfed does not implement Mastodon's quote/interaction policy APIs or
-	// media focal points. Unknown support stays unsupported.
-	result.AvailableFeatures["quote_url"] = false
-	result.AvailableFeatures["interaction_policy"] = false
-	result.AvailableFeatures["focal_point"] = false
-	return result, nil
+	return compatPublishingCapabilities(ctx, p.compat.instanceURL, accessToken, "Pixelfed", "pixelfed", false)
 }
 
 func (p *PixelfedAdapter) UploadMedia(ctx context.Context, accessToken, _ string, mimeType string, reader io.Reader) (string, error) {

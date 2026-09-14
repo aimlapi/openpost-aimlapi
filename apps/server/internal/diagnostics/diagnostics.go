@@ -90,9 +90,10 @@ var allowedSurfaces = map[string]struct{}{
 // allowedProviders mirrors the first-party platform allowlist used for
 // product telemetry. Only these values may appear in a report.
 var allowedProviders = map[string]struct{}{
-	"bluesky": {}, "facebook": {}, "instagram": {}, "linkedin": {},
-	"mastodon": {}, "pinterest": {}, "reddit": {}, "threads": {},
-	"tiktok": {}, "x": {}, "youtube": {},
+	"bluesky": {}, "discord": {}, "facebook": {}, "instagram": {},
+	"lemmy": {}, "linkedin": {}, "mastodon": {}, "peertube": {},
+	"piefed": {}, "pinterest": {}, "pixelfed": {}, "telegram": {},
+	"threads": {}, "tiktok": {}, "x": {}, "youtube": {},
 }
 
 // allowedDBDrivers and allowedStorageDrivers keep driver identification
@@ -172,6 +173,19 @@ const (
 // and immediately before sending, so a disabled-then-enabled queue cannot
 // smuggle unvalidated payloads.
 func ValidateReport(report Report) error {
+	if err := validateReportIdentity(report); err != nil {
+		return err
+	}
+	if err := validateReportBounds(report); err != nil {
+		return err
+	}
+	if err := validateReportFrames(report.Frames); err != nil {
+		return err
+	}
+	return validateReportTimes(report.FirstSeen, report.LastSeen)
+}
+
+func validateReportIdentity(report Report) error {
 	if !installationIDPattern.MatchString(report.InstallationID) {
 		return fmt.Errorf("diagnostics report requires a valid installation_id")
 	}
@@ -205,6 +219,10 @@ func ValidateReport(report Report) error {
 			return fmt.Errorf("diagnostics report has an unknown storage_driver")
 		}
 	}
+	return nil
+}
+
+func validateReportBounds(report Report) error {
 	if report.HTTPStatus < 0 || report.HTTPStatus > maxHTTPStatus {
 		return fmt.Errorf("diagnostics report has an invalid http_status")
 	}
@@ -217,18 +235,26 @@ func ValidateReport(report Report) error {
 	if report.OccurrenceCount < 0 || report.OccurrenceCount > maxOccurrences {
 		return fmt.Errorf("diagnostics report has an invalid occurrence_count")
 	}
-	if len(report.Frames) > maxFrames {
+	return nil
+}
+
+func validateReportFrames(frames []Frame) error {
+	if len(frames) > maxFrames {
 		return fmt.Errorf("diagnostics report has too many frames")
 	}
-	for _, frame := range report.Frames {
+	for _, frame := range frames {
 		if err := validateFrame(frame); err != nil {
 			return err
 		}
 	}
-	if report.FirstSeen.IsZero() || report.LastSeen.IsZero() {
+	return nil
+}
+
+func validateReportTimes(firstSeen, lastSeen time.Time) error {
+	if firstSeen.IsZero() || lastSeen.IsZero() {
 		return fmt.Errorf("diagnostics report requires first_seen and last_seen")
 	}
-	if report.LastSeen.Before(report.FirstSeen) {
+	if lastSeen.Before(firstSeen) {
 		return fmt.Errorf("diagnostics report has last_seen before first_seen")
 	}
 	return nil
@@ -266,17 +292,17 @@ func SanitizeReport(report *Report) {
 	report.Revision = truncateRunes(strings.TrimSpace(report.Revision), maxRevisionLen)
 	report.DBDriver = normalizeDriver(strings.TrimSpace(report.DBDriver), allowedDBDrivers)
 	report.StorageDriver = normalizeDriver(strings.TrimSpace(report.StorageDriver), allowedStorageDrivers)
-	report.HTTPStatus = clampInt(report.HTTPStatus, 0, maxHTTPStatus)
-	report.RetryCount = clampInt(report.RetryCount, 0, maxRetryCount)
-	report.AttemptCount = clampInt(report.AttemptCount, 0, maxAttemptCount)
-	report.OccurrenceCount = clampInt(report.OccurrenceCount, 0, maxOccurrences)
+	report.HTTPStatus = clampInt(report.HTTPStatus, maxHTTPStatus)
+	report.RetryCount = clampInt(report.RetryCount, maxRetryCount)
+	report.AttemptCount = clampInt(report.AttemptCount, maxAttemptCount)
+	report.OccurrenceCount = clampInt(report.OccurrenceCount, maxOccurrences)
 	if len(report.Frames) > maxFrames {
 		report.Frames = report.Frames[:maxFrames]
 	}
 	for i := range report.Frames {
 		report.Frames[i].Module = normalizeModule(report.Frames[i].Module)
 		report.Frames[i].Function = truncateRunes(strings.TrimSpace(report.Frames[i].Function), 160)
-		report.Frames[i].Line = clampInt(report.Frames[i].Line, 0, 1<<30)
+		report.Frames[i].Line = clampInt(report.Frames[i].Line, 1<<30)
 	}
 	if report.FirstSeen.IsZero() {
 		report.FirstSeen = report.LastSeen
@@ -308,65 +334,63 @@ func normalizeOperation(value string) string {
 // module so a self-hoster's domain or username can never leave the instance.
 // What remains is a module path plus file base name.
 func normalizeModule(value string) string {
-	value = strings.TrimSpace(value)
-	lowered := strings.ToLower(value)
-	if strings.Contains(lowered, "://") {
-		if idx := strings.Index(value, "://"); idx >= 0 {
-			rest := value[idx+3:]
-			if slash := strings.Index(rest, "/"); slash >= 0 {
-				value = rest[slash+1:]
-			} else {
-				value = ""
-			}
-		}
+	value = stripModuleOrigin(strings.TrimSpace(value))
+	segments := sanitizeModuleSegments(strings.Split(strings.ReplaceAll(value, "\\", "/"), "/"))
+	return boundModuleTail(strings.Join(segments, "/"))
+}
+
+func stripModuleOrigin(value string) string {
+	idx := strings.Index(value, "://")
+	if idx < 0 {
+		return value
 	}
-	// Reduce to the trailing module path. Leading user directories,
-	// drive letters, and temp roots are dropped explicitly, then only the
-	// last few segments survive. A self-hoster's username, domain, or build
-	// root can never survive this, while the package path, file, and line
-	// stay actionable.
-	value = strings.ReplaceAll(value, "\\", "/")
-	segments := strings.Split(value, "/")
-	for i, segment := range segments {
-		// Drop module version suffixes, then any segment that still
-		// looks like an email or credential-bearing value.
-		segment = moduleVersionSuffix.ReplaceAllString(segment, "")
-		if strings.Contains(segment, "@") {
-			segments[i] = ""
-			continue
-		}
-		segments[i] = segment
+	rest := value[idx+3:]
+	if slash := strings.Index(rest, "/"); slash >= 0 {
+		return rest[slash+1:]
 	}
-	var kept []string
+	return ""
+}
+
+func sanitizeModuleSegments(segments []string) []string {
+	kept := make([]string, 0, len(segments))
 	skipNext := false
 	for i, segment := range segments {
 		if skipNext {
 			skipNext = false
 			continue
 		}
-		lower := strings.ToLower(segment)
-		if i == 0 && (segment == "" || (len(segment) == 2 && segment[1] == ':')) {
+		segment = moduleVersionSuffix.ReplaceAllString(segment, "")
+		if strings.Contains(segment, "@") || segment == "" || (i == 0 && len(segment) == 2 && segment[1] == ':') {
 			continue
 		}
-		if lower == "home" || lower == "users" || lower == "private" ||
-			lower == "var" || lower == "tmp" || lower == "opt" {
+		if isSensitiveModuleRoot(segment) {
 			skipNext = true
-			continue
-		}
-		if segment == "" {
 			continue
 		}
 		kept = append(kept, segment)
 	}
 	if len(kept) > 4 {
-		kept = kept[len(kept)-4:]
+		return kept[len(kept)-4:]
 	}
-	value = strings.Join(kept, "/")
-	if len(value) > 240 {
-		value = value[len(value)-240:]
-		if slash := strings.Index(value, "/"); slash >= 0 {
-			value = value[slash+1:]
-		}
+	return kept
+}
+
+func isSensitiveModuleRoot(segment string) bool {
+	switch strings.ToLower(segment) {
+	case "home", "users", "private", "var", "tmp", "opt":
+		return true
+	default:
+		return false
+	}
+}
+
+func boundModuleTail(value string) string {
+	if len(value) <= 240 {
+		return value
+	}
+	value = value[len(value)-240:]
+	if slash := strings.Index(value, "/"); slash >= 0 {
+		return value[slash+1:]
 	}
 	return value
 }
@@ -399,9 +423,9 @@ func containsSensitiveString(value string) bool {
 	return false
 }
 
-func clampInt(value, low, high int) int {
-	if value < low {
-		return low
+func clampInt(value, high int) int {
+	if value < 0 {
+		return 0
 	}
 	if value > high {
 		return high

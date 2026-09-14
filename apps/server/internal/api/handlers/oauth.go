@@ -616,10 +616,6 @@ func (h *OAuthHandler) getCompatProvider(ctx context.Context, provider, serverNa
 	return nil, "", err
 }
 
-func (h *OAuthHandler) getDynamicMastodonProvider(ctx context.Context, instanceURL string) (platform.Adapter, string, error) {
-	return h.getDynamicCompatProvider(ctx, mastodonProvider, instanceURL)
-}
-
 func (h *OAuthHandler) getDynamicCompatProvider(ctx context.Context, provider, instanceURL string) (platform.Adapter, string, error) {
 	if h.mastodonApps == nil {
 		return nil, "", fmt.Errorf("dynamic %s instance registration is not configured", provider)
@@ -1862,7 +1858,7 @@ func (h *OAuthHandler) savePeerTubeLogin(
 	userID, provider, workspaceID, instanceURL, executionIntent string,
 	adapter platform.Adapter,
 	tokenResp *platform.TokenResult,
-	profile *platform.UserProfile,
+	_ *platform.UserProfile,
 	requestedChannel string,
 ) (*FediverseLoginOutput, error) {
 	selector, ok := adapter.(platform.AccountSelectionAdapter)

@@ -254,6 +254,39 @@ func compatVerifyCredentials(ctx context.Context, instanceURL, accessToken strin
 	return *profile, nil
 }
 
+func compatUserProfile(profile compatProfile, software FediverseSoftware) *UserProfile {
+	result := &UserProfile{
+		ID:          profile.ID,
+		Username:    firstNonEmptyString(profile.Acct, profile.Username),
+		DisplayName: profile.DisplayName,
+		AvatarURL:   firstNonEmptyString(profile.AvatarStatic, profile.Avatar),
+	}
+	if software != FediverseSoftwareUnknown {
+		result.CapabilityState = map[string]string{"fediverse_software": string(software)}
+	}
+	return result
+}
+
+func compatPublishingCapabilities(ctx context.Context, instanceURL, accessToken, provider, revisionPrefix string, focalPoint bool) (AccountCapabilityResult, error) {
+	result, err := compatInstanceCapabilities(ctx, instanceURL, accessToken, provider)
+	if err != nil {
+		return AccountCapabilityResult{}, err
+	}
+	version := strings.TrimPrefix(result.Revision, "compat-v1:")
+	version = strings.TrimPrefix(version, "compat:")
+	if version == "" || version == result.Revision {
+		version = "unknown"
+	}
+	result.Revision = revisionPrefix + ":" + version
+	if result.AvailableFeatures == nil {
+		result.AvailableFeatures = map[string]bool{}
+	}
+	result.AvailableFeatures["quote_url"] = false
+	result.AvailableFeatures["interaction_policy"] = false
+	result.AvailableFeatures["focal_point"] = focalPoint
+	return result, nil
+}
+
 func compatUploadMedia(ctx context.Context, instanceURL, accessToken, mimeType string, reader io.Reader) (string, error) {
 	ext := ".bin"
 	if exts, err := mime.ExtensionsByType(mimeType); err == nil && len(exts) > 0 {
@@ -290,7 +323,13 @@ func compatUploadMedia(ctx context.Context, instanceURL, accessToken, mimeType s
 
 func compatWaitForMediaProcessing(ctx context.Context, instanceURL, accessToken, mediaID string) (string, error) {
 	for i := 0; i < 30; i++ {
-		time.Sleep(2 * time.Second)
+		timer := time.NewTimer(2 * time.Second)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return "", fmt.Errorf("fediverse media processing: %w", ctx.Err())
+		case <-timer.C:
+		}
 		respBody, err := DoJSON(ctx, "GET", instanceURL+"/api/v1/media/"+mediaID, nil, map[string]string{
 			headerAuthorization: bearerPrefix + accessToken,
 		})

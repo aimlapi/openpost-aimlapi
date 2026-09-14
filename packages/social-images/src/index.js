@@ -31,6 +31,10 @@ function socialImageUrl(entry) {
 const platformNames = [
   ["x", "X"],
   ["mastodon", "Mastodon"],
+  ["pixelfed", "Pixelfed"],
+  ["peertube", "PeerTube"],
+  ["lemmy", "Lemmy"],
+  ["piefed", "PieFed"],
   ["bluesky", "Bluesky"],
   ["linkedin", "LinkedIn"],
   ["threads", "Threads"],

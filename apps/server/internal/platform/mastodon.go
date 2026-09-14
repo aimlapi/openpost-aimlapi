@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"net/url"
 	"strings"
 	"time"
 )
@@ -86,32 +85,11 @@ func (m *MastodonAdapter) GetProfile(ctx context.Context, accessToken string) (*
 	if err != nil {
 		return nil, err
 	}
-	return &UserProfile{
-		ID:          profile.ID,
-		Username:    profile.Acct,
-		DisplayName: profile.DisplayName,
-		AvatarURL:   firstNonEmptyString(profile.AvatarStatic, profile.Avatar),
-	}, nil
+	return compatUserProfile(profile, FediverseSoftwareUnknown), nil
 }
 
 func (m *MastodonAdapter) ResolveAccountPublishingCapabilities(ctx context.Context, accessToken string, _ AccountCapabilityInput) (AccountCapabilityResult, error) {
-	result, err := compatInstanceCapabilities(ctx, m.compat.instanceURL, accessToken, "Mastodon")
-	if err != nil {
-		return AccountCapabilityResult{}, err
-	}
-	version := strings.TrimPrefix(result.Revision, "compat-v1:")
-	version = strings.TrimPrefix(version, "compat:")
-	if version == "" || version == result.Revision {
-		version = "unknown"
-	}
-	result.Revision = "mastodon:" + version
-	if result.AvailableFeatures == nil {
-		result.AvailableFeatures = map[string]bool{}
-	}
-	result.AvailableFeatures["quote_url"] = false
-	result.AvailableFeatures["interaction_policy"] = false
-	result.AvailableFeatures["focal_point"] = true
-	return result, nil
+	return compatPublishingCapabilities(ctx, m.compat.instanceURL, accessToken, "Mastodon", "mastodon", true)
 }
 
 func (m *MastodonAdapter) UploadMedia(ctx context.Context, accessToken, _ string, mimeType string, reader io.Reader) (string, error) {
@@ -139,18 +117,4 @@ func (m *MastodonAdapter) Repost(ctx context.Context, accessToken, _ string, req
 
 func (m *MastodonAdapter) Unrepost(ctx context.Context, accessToken, _ string, req UnrepostRequest) error {
 	return compatUnrepost(ctx, m.compat.instanceURL, accessToken, req, "mastodon")
-}
-
-// buildMastodonStatusForm, validMastodonVisibility, and mastodonPollOptions
-// remain as the provider-named surface over the shared compat builders.
-func buildMastodonStatusForm(req *PublishRequest) (url.Values, error) {
-	return buildCompatStatusForm(req)
-}
-
-func validMastodonVisibility(value string) bool {
-	return validCompatVisibility(value)
-}
-
-func mastodonPollOptions(settings map[string]interface{}) []string {
-	return compatPollOptions(settings)
 }

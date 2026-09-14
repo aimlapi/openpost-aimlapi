@@ -225,23 +225,40 @@ func validateProviderAppConfig(app platform.AppConfig) error {
 	if !isManagedProviderApp(app.Provider) || (app.Provider == "discord" && app.ConnectionMode != platform.ConnectionModeBot) {
 		return ValidationError{Message: fmt.Sprintf("unsupported provider app: %s", app.Provider)}
 	}
-	if app.Provider != "mastodon" && app.Provider != "pixelfed" && app.Provider != "peertube" && app.Provider != "lemmy" && app.Provider != "piefed" && app.InstanceURL != "" {
+	if !isFederatedProviderApp(app.Provider) && app.InstanceURL != "" {
 		return ValidationError{Message: "instance_url is only supported for federated provider apps"}
 	}
-	switch app.Provider {
-	case "pinterest", "telegram", "discord", "pixelfed", "peertube", "lemmy", "piefed":
+	if providerUsesSharedAppValidation(app.Provider) {
 		if err := platform.ValidateAppConfig(app); err != nil {
 			return ValidationError{Message: err.Error()}
 		}
-	default:
-		if app.ClientID == "" {
-			return ValidationError{Message: "client_id is required"}
-		}
-		if app.Provider == "mastodon" && app.InstanceURL == "" {
-			return ValidationError{Message: "instance_url is required for mastodon provider apps"}
-		}
+		return nil
+	}
+	if app.ClientID == "" {
+		return ValidationError{Message: "client_id is required"}
+	}
+	if app.Provider == "mastodon" && app.InstanceURL == "" {
+		return ValidationError{Message: "instance_url is required for mastodon provider apps"}
 	}
 	return nil
+}
+
+func isFederatedProviderApp(provider string) bool {
+	switch provider {
+	case "mastodon", "pixelfed", "peertube", "lemmy", "piefed":
+		return true
+	default:
+		return false
+	}
+}
+
+func providerUsesSharedAppValidation(provider string) bool {
+	switch provider {
+	case "pinterest", "telegram", "discord", "pixelfed", "peertube", "lemmy", "piefed":
+		return true
+	default:
+		return false
+	}
 }
 
 // isManagedProviderApp excludes user-owned Bluesky credentials and Discord

@@ -12,7 +12,6 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
-	"time"
 )
 
 // lemmyAPIVersionBoundary is the newest Lemmy line OpenPost publishes
@@ -61,46 +60,6 @@ func (l *LemmyAdapter) RefreshToken(_ context.Context, _ RefreshTokenInput) (*To
 
 func lemmyAuthHeaders(jwt string) map[string]string {
 	return map[string]string{headerAuthorization: bearerPrefix + jwt}
-}
-
-func lemmyGET[T any](ctx context.Context, instanceURL, path string, query url.Values, jwt, label string) (T, error) {
-	var zero T
-	endpoint := strings.TrimRight(instanceURL, "/") + path
-	if len(query) > 0 {
-		endpoint += "?" + query.Encode()
-	}
-	headers := map[string]string{}
-	if strings.TrimSpace(jwt) != "" {
-		headers = lemmyAuthHeaders(jwt)
-	}
-	body, err := DoRequest(ctx, http.MethodGet, endpoint, nil, headers)
-	if err != nil {
-		return zero, fmt.Errorf("%s: %w", label, err)
-	}
-	var result T
-	if err := json.Unmarshal(body, &result); err != nil {
-		return zero, fmt.Errorf("decoding %s: %w", label, err)
-	}
-	return result, nil
-}
-
-func lemmyPOST[T any](ctx context.Context, instanceURL, path string, payload any, jwt, label string) (T, error) {
-	var zero T
-	data, err := json.Marshal(payload)
-	if err != nil {
-		return zero, fmt.Errorf("encoding %s: %w", label, err)
-	}
-	headers := lemmyAuthHeaders(jwt)
-	headers[headerContentType] = contentTypeJSON
-	body, err := DoRequest(ctx, http.MethodPost, strings.TrimRight(instanceURL, "/")+path, strings.NewReader(string(data)), headers)
-	if err != nil {
-		return zero, fmt.Errorf("%s: %w", label, err)
-	}
-	var result T
-	if err := json.Unmarshal(body, &result); err != nil {
-		return zero, fmt.Errorf("decoding %s: %w", label, err)
-	}
-	return result, nil
 }
 
 type lemmyLoginResponse struct {
@@ -160,7 +119,7 @@ func (l *LemmyAdapter) Login(ctx context.Context, username, password string) (*T
 	if username == "" || strings.TrimSpace(password) == "" {
 		return nil, nil, fmt.Errorf("lemmy login requires a username and password")
 	}
-	login, err := lemmyPOST[lemmyLoginResponse](ctx, l.instanceURL, "/api/v3/user/login", map[string]string{
+	login, err := communityJSONPost[lemmyLoginResponse](ctx, l.instanceURL, "/api/v3/user/login", map[string]string{
 		"username_or_email": username,
 		"password":          password,
 	}, "", "lemmy login")
@@ -179,7 +138,7 @@ func (l *LemmyAdapter) Login(ctx context.Context, username, password string) (*T
 }
 
 func (l *LemmyAdapter) fetchSite(ctx context.Context, jwt string) (lemmySiteResponse, error) {
-	return lemmyGET[lemmySiteResponse](ctx, l.instanceURL, "/api/v3/site", nil, jwt, "lemmy site")
+	return communityJSONGet[lemmySiteResponse](ctx, l.instanceURL, "/api/v3/site", nil, jwt, "lemmy site")
 }
 
 func (l *LemmyAdapter) GetProfile(ctx context.Context, accessToken string) (*UserProfile, error) {
@@ -247,26 +206,7 @@ func lemmyCommunityIdentity(view lemmyCommunityView) CommunityIdentity {
 // connected instance, so remote communities stay addressable without an
 // account on their origin server.
 func (l *LemmyAdapter) resolveCommunity(ctx context.Context, jwt, ref string) (CommunityIdentity, error) {
-	name, host, ok := ParseCommunityRef(ref)
-	if !ok {
-		return CommunityIdentity{}, fmt.Errorf("lemmy community %q is not a valid community address", ref)
-	}
-	queryAddress := ref
-	if host != "" {
-		queryAddress = CommunityDisplayRef(name, host)
-	} else if !strings.Contains(ref, "://") {
-		queryAddress = "!" + name
-	}
-	resolved, err := lemmyGET[struct {
-		Community *lemmyCommunityView `json:"community"`
-	}](ctx, l.instanceURL, "/api/v3/resolve_object", url.Values{"q": {queryAddress}}, jwt, "lemmy community resolution")
-	if err != nil {
-		return CommunityIdentity{}, err
-	}
-	if resolved.Community == nil {
-		return CommunityIdentity{}, fmt.Errorf("lemmy community %q was not found on this instance", ref)
-	}
-	return lemmyCommunityIdentity(*resolved.Community), nil
+	return resolveCommunity(ctx, providerLemmy, l.instanceURL, "/api/v3/resolve_object", jwt, ref, "lemmy community resolution", lemmyCommunityIdentity)
 }
 
 // SearchPublishingOptions searches communities on the connected instance for
@@ -282,7 +222,7 @@ func (l *LemmyAdapter) SearchPublishingOptions(ctx context.Context, accessToken 
 		"type_": {"Communities"},
 		"limit": {strconv.Itoa(limit)},
 	}
-	response, err := lemmyGET[struct {
+	response, err := communityJSONGet[struct {
 		Communities []lemmyCommunityView `json:"communities"`
 	}](ctx, l.instanceURL, "/api/v3/search", params, accessToken, "lemmy community search")
 	if err != nil {
@@ -339,8 +279,7 @@ type lemmyPostView struct {
 	} `json:"counts"`
 }
 
-func (l *LemmyAdapter) Publish(ctx context.Context, accessToken, accountID string, req *PublishRequest) (PublishResult, error) {
-	_ = accountID
+func (l *LemmyAdapter) Publish(ctx context.Context, accessToken, _ string, req *PublishRequest) (PublishResult, error) {
 	communityRef := settingString(req.Settings, CommunitySettingCommunity)
 	title := communityTitle(req.Title, req.Settings)
 	if err := ValidateCommunityPost("lemmy", communityRef, title); err != nil {
@@ -371,7 +310,7 @@ func (l *LemmyAdapter) Publish(ctx context.Context, accessToken, accountID strin
 	if body := communityBody(req.Content, req.Settings); body != "" {
 		payload["body"] = body
 	}
-	if link := firstNonEmptyString(settingString(req.Settings, CommunitySettingURL), lemmyFirstMediaURL(req)); link != "" {
+	if link := firstNonEmptyString(settingString(req.Settings, CommunitySettingURL), firstCommunityMediaURL(req)); link != "" {
 		payload["url"] = link
 		if altText := settingString(req.Settings, "alt_text"); altText != "" {
 			payload["alt_text"] = altText
@@ -383,7 +322,7 @@ func (l *LemmyAdapter) Publish(ctx context.Context, accessToken, accountID strin
 	if languageID := settingInt(req.Settings, CommunitySettingLanguageID); languageID > 0 {
 		payload["language_id"] = languageID
 	}
-	response, err := lemmyPOST[struct {
+	response, err := communityJSONPost[struct {
 		PostView lemmyPostView `json:"post_view"`
 	}](ctx, l.instanceURL, "/api/v3/post", payload, accessToken, "lemmy post creation")
 	if err != nil {
@@ -398,18 +337,6 @@ func (l *LemmyAdapter) Publish(ctx context.Context, accessToken, accountID strin
 		return result, err
 	}
 	return result, nil
-}
-
-func lemmyFirstMediaURL(req *PublishRequest) string {
-	if req == nil || len(req.PlatformMediaIDs) == 0 {
-		return ""
-	}
-	for _, id := range req.PlatformMediaIDs {
-		if strings.HasPrefix(strings.TrimSpace(id), "http") {
-			return strings.TrimSpace(id)
-		}
-	}
-	return ""
 }
 
 // UploadMedia uploads an image for link posts and returns its URL as the
@@ -482,7 +409,7 @@ func (l *LemmyAdapter) ListComments(ctx context.Context, accessToken, accountID,
 	if err != nil || postID <= 0 {
 		return nil, fmt.Errorf("lemmy comment listing requires a post id")
 	}
-	response, err := lemmyGET[struct {
+	response, err := communityJSONGet[struct {
 		Comments []lemmyCommentView `json:"comments"`
 	}](ctx, l.instanceURL, "/api/v3/comment/list", url.Values{
 		"post_id": {strconv.FormatInt(postID, 10)},
@@ -500,10 +427,10 @@ func (l *LemmyAdapter) ListComments(ctx context.Context, accessToken, accountID,
 		}
 		parentID := lemmyParentCommentID(comment.Path)
 		if parentID != "" {
-			parentID = lemmyCommentRef(postID, parentID)
+			parentID = communityCommentRef(providerLemmy, postID, parentID)
 		}
 		comments = append(comments, Comment{
-			ID:       lemmyCommentRef(postID, strconv.FormatInt(comment.ID, 10)),
+			ID:       communityCommentRef(providerLemmy, postID, strconv.FormatInt(comment.ID, 10)),
 			ParentID: parentID, ConversationID: strconv.FormatInt(postID, 10),
 			AuthorID:        strconv.FormatInt(view.Creator.ID, 10),
 			AuthorName:      lemmyPersonDisplayName(view.Creator),
@@ -536,42 +463,13 @@ func lemmyParentCommentID(path string) string {
 	return segments[len(segments)-2]
 }
 
-func lemmyCommentRef(postID int64, commentID string) string {
-	return "lemmy:" + strconv.FormatInt(postID, 10) + ":" + commentID
-}
-
-func splitLemmyCommentRef(ref string) (postID int64, commentID int64, err error) {
-	parts := strings.Split(strings.TrimSpace(ref), ":")
-	if len(parts) != 3 || parts[0] != "lemmy" {
-		return 0, 0, fmt.Errorf("lemmy reply reference is invalid")
-	}
-	postID, err = strconv.ParseInt(parts[1], 10, 64)
-	if err != nil || postID <= 0 {
-		return 0, 0, fmt.Errorf("lemmy reply reference is invalid")
-	}
-	commentID, err = strconv.ParseInt(parts[2], 10, 64)
-	if err != nil || commentID <= 0 {
-		return 0, 0, fmt.Errorf("lemmy reply reference is invalid")
-	}
-	return postID, commentID, nil
-}
-
 func (l *LemmyAdapter) ReplyToComment(ctx context.Context, accessToken, _ string, commentID, message string) (string, error) {
-	postID, parentID, err := splitLemmyCommentRef(commentID)
-	if err != nil {
-		return "", err
-	}
-	response, err := lemmyPOST[struct {
+	type replyResponse struct {
 		CommentView lemmyCommentView `json:"comment_view"`
-	}](ctx, l.instanceURL, "/api/v3/comment", map[string]any{
-		"content":   strings.TrimSpace(message),
-		"post_id":   postID,
-		"parent_id": parentID,
-	}, accessToken, "lemmy reply creation")
-	if err != nil {
-		return "", err
 	}
-	return lemmyCommentRef(postID, strconv.FormatInt(response.CommentView.Comment.ID, 10)), nil
+	return replyToCommunityComment(ctx, providerLemmy, l.instanceURL, "/api/v3/comment", "content", accessToken, commentID, message, "lemmy reply creation", func(response replyResponse) int64 {
+		return response.CommentView.Comment.ID
+	})
 }
 
 func (l *LemmyAdapter) HideComment(_ context.Context, _, _, _ string) error {
@@ -579,11 +477,11 @@ func (l *LemmyAdapter) HideComment(_ context.Context, _, _, _ string) error {
 }
 
 func (l *LemmyAdapter) DeleteComment(ctx context.Context, accessToken, _ string, commentID string) error {
-	_, targetID, err := splitLemmyCommentRef(commentID)
+	_, targetID, err := splitCommunityCommentRef(providerLemmy, commentID)
 	if err != nil {
 		return err
 	}
-	_, err = lemmyPOST[struct{}](ctx, l.instanceURL, "/api/v3/comment/delete", map[string]any{
+	_, err = communityJSONPost[struct{}](ctx, l.instanceURL, "/api/v3/comment/delete", map[string]any{
 		"comment_id": targetID,
 		"deleted":    true,
 	}, accessToken, "lemmy reply deletion")
@@ -591,11 +489,11 @@ func (l *LemmyAdapter) DeleteComment(ctx context.Context, accessToken, _ string,
 }
 
 func (l *LemmyAdapter) LikeComment(ctx context.Context, accessToken, _ string, commentID string) error {
-	_, targetID, err := splitLemmyCommentRef(commentID)
+	_, targetID, err := splitCommunityCommentRef(providerLemmy, commentID)
 	if err != nil {
 		return err
 	}
-	_, err = lemmyPOST[struct{}](ctx, l.instanceURL, "/api/v3/comment/like", map[string]any{
+	_, err = communityJSONPost[struct{}](ctx, l.instanceURL, "/api/v3/comment/like", map[string]any{
 		"comment_id": targetID,
 		"score":      1,
 	}, accessToken, "lemmy reply like")
@@ -603,11 +501,11 @@ func (l *LemmyAdapter) LikeComment(ctx context.Context, accessToken, _ string, c
 }
 
 func (l *LemmyAdapter) UnlikeComment(ctx context.Context, accessToken, _ string, commentID string) error {
-	_, targetID, err := splitLemmyCommentRef(commentID)
+	_, targetID, err := splitCommunityCommentRef(providerLemmy, commentID)
 	if err != nil {
 		return err
 	}
-	_, err = lemmyPOST[struct{}](ctx, l.instanceURL, "/api/v3/comment/like", map[string]any{
+	_, err = communityJSONPost[struct{}](ctx, l.instanceURL, "/api/v3/comment/like", map[string]any{
 		"comment_id": targetID,
 		"score":      0,
 	}, accessToken, "lemmy reply unlike")
@@ -629,7 +527,7 @@ func (l *LemmyAdapter) FetchAccountAnalytics(ctx context.Context, accessToken st
 		if strings.TrimSpace(input.AccountID) != "" && strings.TrimSpace(input.AccountID) != personID {
 			return nil, fmt.Errorf("lemmy account analytics identity mismatch")
 		}
-		person, err := lemmyGET[struct {
+		person, err := communityJSONGet[struct {
 			PersonView struct {
 				Counts *struct {
 					PostCount    *int64 `json:"post_count"`
@@ -654,7 +552,7 @@ func (l *LemmyAdapter) FetchContentAnalytics(ctx context.Context, accessToken st
 		if err != nil || postID <= 0 {
 			continue
 		}
-		response, err := lemmyGET[struct {
+		response, err := communityJSONGet[struct {
 			PostView lemmyPostView `json:"post_view"`
 		}](ctx, l.instanceURL, "/api/v3/post", url.Values{"id": {strconv.FormatInt(postID, 10)}}, accessToken, "lemmy content analytics")
 		if err != nil {
@@ -690,7 +588,7 @@ func (l *LemmyAdapter) DiscoverAccountContent(ctx context.Context, accessToken s
 	if cursor := strings.TrimSpace(input.Cursor); cursor != "" {
 		params.Set("page_cursor", cursor)
 	}
-	response, err := lemmyGET[struct {
+	response, err := communityJSONGet[struct {
 		Posts    []lemmyPostView `json:"posts"`
 		NextPage *string         `json:"next_page"`
 	}](ctx, l.instanceURL, "/api/v3/post/list", params, accessToken, "lemmy account content")
@@ -703,38 +601,14 @@ func (l *LemmyAdapter) DiscoverAccountContent(ctx context.Context, accessToken s
 	}}
 	for _, view := range response.Posts {
 		post := view.Post
-		publishedAt, err := time.Parse(time.RFC3339Nano, strings.TrimSpace(post.Published))
-		if err != nil || publishedAt.IsZero() {
+		item, ok := normalizeCommunityAccountContent(
+			providerLemmy, l.instanceURL, post.ID, lemmyAccountContentProfile(post), post.Name,
+			post.Body, post.ActorID, post.Published, input.PublishedAfter,
+		)
+		if !ok {
 			continue
 		}
-		publishedAt = publishedAt.UTC()
-		if !input.PublishedAfter.IsZero() && publishedAt.Before(input.PublishedAfter) {
-			continue
-		}
-		actorID := strings.TrimSpace(post.ActorID)
-		if actorID == "" {
-			continue
-		}
-		item := AccountContentItem{
-			ProviderContentID: strings.TrimRight(l.instanceURL, "/") + "/post/" + strconv.FormatInt(post.ID, 10),
-			ContentProfile:    lemmyAccountContentProfile(post),
-			Title:             post.Name,
-			ExternalURL:       actorID,
-			PublishedAt:       publishedAt,
-			Origin:            AccountContentOriginExternal,
-			OriginConfidence:  AccountContentOriginConfidenceExact,
-		}
-		if post.Body != nil {
-			item.Text = strings.TrimSpace(*post.Body)
-		}
-		normalized, err := NormalizeAccountContentItem(providerLemmy, item)
-		if err != nil {
-			continue
-		}
-		page.Items = append(page.Items, normalized)
-		if page.BackfillWatermark.IsZero() || publishedAt.Before(page.BackfillWatermark) {
-			page.BackfillWatermark = publishedAt
-		}
+		appendCommunityAccountContent(&page, item)
 	}
 	if response.NextPage != nil && strings.TrimSpace(*response.NextPage) != "" {
 		page.NextCursor = strings.TrimSpace(*response.NextPage)

@@ -111,7 +111,7 @@ func TestWorkerDiagnosticsExpectedFailuresUseStructuredCodes(t *testing.T) {
 	require.Equal(t, diagnostics.CodeProviderRateLimited, code)
 	require.True(t, expected)
 
-	worker.reportWorkerDiagnostic(t.Context(), &models.Job{ID: "j1", Type: jobregistry.TypePublishPost}, rateLimited)
+	worker.reportWorkerDiagnostic(&models.Job{ID: "j1", Type: jobregistry.TypePublishPost}, rateLimited)
 	reporter.Flush()
 	reports := sink.all()
 	require.Len(t, reports, 1)
@@ -138,7 +138,7 @@ func TestWorkerDiagnosticsIgnoresValidationAndCancellation(t *testing.T) {
 	reporter := sink.reporter(t)
 	worker := NewWorker(db, "worker-diag-ignore", time.Second, nil, nil, stubStorage{})
 	worker.SetDiagnosticsReporter(reporter)
-	worker.reportWorkerDiagnostic(t.Context(), &models.Job{ID: "j2", Type: jobregistry.TypePublishPost}, context.Canceled)
+	worker.reportWorkerDiagnostic(&models.Job{ID: "j2", Type: jobregistry.TypePublishPost}, context.Canceled)
 	reporter.Flush()
 	require.Empty(t, sink.all())
 }

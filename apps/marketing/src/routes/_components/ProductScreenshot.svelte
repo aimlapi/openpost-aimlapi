@@ -14,6 +14,9 @@
 		src,
 		lightSrc,
 		darkSrc,
+		lightSrcset,
+		darkSrcset,
+		sizes,
 		alt,
 		label,
 		priority = false
@@ -21,12 +24,16 @@
 		src?: string;
 		lightSrc?: string;
 		darkSrc?: string;
+		lightSrcset?: string;
+		darkSrcset?: string;
+		sizes?: string;
 		alt: string;
 		label: string;
 		priority?: boolean;
 	} = $props();
 	const resolvedLightSrc = $derived(lightSrc ?? src ?? '');
 	const resolvedDarkSrc = $derived(darkSrc ?? src ?? '');
+	const resolvedDarkSrcset = $derived(darkSrcset ?? resolvedDarkSrc);
 	const darkMedia = $derived(
 		mode.current === undefined
 			? '(prefers-color-scheme: dark)'
@@ -105,10 +112,12 @@
 	}}
 >
 	<picture>
-		<source media={darkMedia} srcset={resolvedDarkSrc} />
+		<source media={darkMedia} srcset={resolvedDarkSrcset} {sizes} />
 		<img
 			bind:this={image}
 			src={resolvedLightSrc}
+			srcset={lightSrcset}
+			{sizes}
 			{alt}
 			width="2880"
 			height="1920"

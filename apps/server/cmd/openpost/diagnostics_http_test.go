@@ -65,7 +65,7 @@ func TestDiagnosticsObserverCoversHumaStyle500s(t *testing.T) {
 	})
 
 	response := httptest.NewRecorder()
-	e.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/api/v1/publications", nil))
+	e.ServeHTTP(response, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/v1/publications", nil))
 	require.Equal(t, http.StatusInternalServerError, response.Code)
 
 	reporter.Flush()
@@ -90,7 +90,7 @@ func TestDiagnosticsObserverDedupesAgainstErrorHandler(t *testing.T) {
 	})
 
 	response := httptest.NewRecorder()
-	e.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/things/secret-id?token=secret", nil))
+	e.ServeHTTP(response, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/things/secret-id?token=secret", nil))
 	require.Equal(t, http.StatusInternalServerError, response.Code)
 
 	reporter.Flush()
@@ -109,13 +109,13 @@ func TestDiagnosticsObserverIgnoresClientErrors(t *testing.T) {
 	e.GET("/ok", func(c echo.Context) error {
 		return c.String(http.StatusOK, "fine")
 	})
-	e.GET("/missing", func(c echo.Context) error {
+	e.GET("/missing", func(_ echo.Context) error {
 		return echo.ErrNotFound
 	})
 
 	for _, path := range []string{"/ok", "/missing", "/no-route"} {
 		response := httptest.NewRecorder()
-		e.ServeHTTP(response, httptest.NewRequest(http.MethodGet, path, nil))
+		e.ServeHTTP(response, httptest.NewRequestWithContext(t.Context(), http.MethodGet, path, nil))
 	}
 	reporter.Flush()
 	require.Empty(t, harness.all())

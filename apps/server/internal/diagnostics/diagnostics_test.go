@@ -44,6 +44,22 @@ func TestValidateReportRejectsUnknownErrorCode(t *testing.T) {
 	}
 }
 
+func TestValidateReportAcceptsCanonicalProviders(t *testing.T) {
+	providers := []string{
+		"bluesky", "discord", "facebook", "instagram", "lemmy", "linkedin", "mastodon", "peertube",
+		"piefed", "pinterest", "pixelfed", "telegram", "threads", "tiktok", "x", "youtube",
+	}
+	for _, provider := range providers {
+		t.Run(provider, func(t *testing.T) {
+			report := validReport()
+			report.Provider = provider
+			if err := ValidateReport(report); err != nil {
+				t.Fatalf("expected canonical provider to be accepted: %v", err)
+			}
+		})
+	}
+}
+
 func TestValidateReportRejectsUnknownProvider(t *testing.T) {
 	report := validReport()
 	report.Provider = "geocities"
@@ -176,10 +192,8 @@ func TestDedupeWindowSummaryCountsOccurrences(t *testing.T) {
 	current := time.Now().UTC()
 	dedupe.now = func() time.Time { return current }
 
-	if _, _ = dedupe.Observe(validReport()); true {
-	}
-	if _, _ = dedupe.Observe(validReport()); true {
-	}
+	_, _ = dedupe.Observe(validReport())
+	_, _ = dedupe.Observe(validReport())
 	current = current.Add(dedupeWindow + time.Second)
 	decision, summary := dedupe.Observe(validReport())
 	if decision != DedupeWindowSummary {
@@ -214,7 +228,7 @@ func TestReporterEnvKillSwitchWins(t *testing.T) {
 
 func TestReporterDoesNotSendWithoutDecision(t *testing.T) {
 	var calls atomic.Int32
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		calls.Add(1)
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -279,7 +293,7 @@ func TestReporterDeliversFirstOccurrence(t *testing.T) {
 }
 
 func TestReporterDisablingClearsPending(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer server.Close()

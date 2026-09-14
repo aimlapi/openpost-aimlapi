@@ -1,5 +1,26 @@
 export type AssetSurface = "frontend" | "docs" | "marketing";
 
+// Canonical provider slugs whose public artwork is shipped to docs or marketing.
+// The provider-facts gate keeps this source-owned list aligned with the backend catalogue.
+export const publishedProviderAssetSlugs = [
+  "bluesky",
+  "discord",
+  "pinterest",
+  "telegram",
+  "x",
+  "mastodon",
+  "pixelfed",
+  "peertube",
+  "lemmy",
+  "piefed",
+  "linkedin",
+  "threads",
+  "facebook",
+  "instagram",
+  "tiktok",
+  "youtube",
+] as const;
+
 export const assetSurfaceManifest = {
   frontend: [
     "brand/icon.svg",
@@ -58,6 +79,14 @@ export const assetSurfaceManifest = {
     "screenshots/connect-bluesky-dark.webp",
     "screenshots/connect-mastodon-light.webp",
     "screenshots/connect-mastodon-dark.webp",
+    "screenshots/connect-pixelfed-light.webp",
+    "screenshots/connect-pixelfed-dark.webp",
+    "screenshots/connect-peertube-light.webp",
+    "screenshots/connect-peertube-dark.webp",
+    "screenshots/connect-lemmy-light.webp",
+    "screenshots/connect-lemmy-dark.webp",
+    "screenshots/connect-piefed-light.webp",
+    "screenshots/connect-piefed-dark.webp",
     "screenshots/connect-discord-light.webp",
     "screenshots/connect-discord-dark.webp",
     "screenshots/connect-telegram-light.webp",
@@ -91,6 +120,10 @@ export const assetSurfaceManifest = {
     "brand/features/memes.svg",
     "screenshots/main-light.webp",
     "screenshots/main-dark.webp",
+    "screenshots/main-light-768.webp",
+    "screenshots/main-dark-768.webp",
+    "screenshots/main-light-1536.webp",
+    "screenshots/main-dark-1536.webp",
     "screenshots/media-light.webp",
     "screenshots/media-dark.webp",
     "screenshots/accounts-light.webp",

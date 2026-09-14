@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func newFakePieFed(t *testing.T) *httptest.Server {
+func newFakePieFed(_ *testing.T) *httptest.Server {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/alpha/user/login", func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(`{"jwt":"piefed-jwt"}`))

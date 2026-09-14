@@ -15,9 +15,10 @@ func TestParseCommunityRef(t *testing.T) {
 	require.Equal(t, "selfhosted", name)
 	require.Equal(t, "lemmy.world", host)
 
-	name, host, ok = ParseCommunityRef("selfhosted@lemmy.world")
+	name, parsedHost, ok := ParseCommunityRef("selfhosted@lemmy.world")
 	require.True(t, ok)
 	require.Equal(t, "selfhosted", name)
+	require.Equal(t, "lemmy.world", parsedHost)
 
 	name, host, ok = ParseCommunityRef("https://lemmy.world/c/selfhosted")
 	require.True(t, ok)
@@ -28,6 +29,27 @@ func TestParseCommunityRef(t *testing.T) {
 	require.False(t, ok)
 	_, _, ok = ParseCommunityRef("")
 	require.False(t, ok)
+}
+
+func TestCommunityCommentReferenceRoundTrip(t *testing.T) {
+	for _, provider := range []string{providerLemmy, providerPieFed} {
+		ref := communityCommentRef(provider, 42, "7")
+		postID, commentID, err := splitCommunityCommentRef(provider, ref)
+		require.NoError(t, err)
+		require.EqualValues(t, 42, postID)
+		require.EqualValues(t, 7, commentID)
+		require.Error(t, func() error {
+			_, _, splitErr := splitCommunityCommentRef(provider, "other:42:7")
+			return splitErr
+		}())
+	}
+}
+
+func TestFirstCommunityMediaURL(t *testing.T) {
+	require.Empty(t, firstCommunityMediaURL(nil))
+	require.Equal(t, "https://cdn.example/image.jpg", firstCommunityMediaURL(&PublishRequest{
+		PlatformMediaIDs: []string{"provider-id", " https://cdn.example/image.jpg "},
+	}))
 }
 
 func TestCommunityTargetKeyRoundTrip(t *testing.T) {
@@ -50,10 +72,10 @@ func TestValidateCommunityPost(t *testing.T) {
 	require.ErrorContains(t, ValidateCommunityPost("lemmy", "!selfhosted@lemmy.world", "  "), "require a title")
 }
 
-func newFakeLemmy(t *testing.T) (*httptest.Server, *string) {
+func newFakeLemmy(_ *testing.T) (*httptest.Server, *string) {
 	version := "0.19.11"
 	mux := http.NewServeMux()
-	mux.HandleFunc("/api/v3/user/login", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/api/v3/user/login", func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(`{"jwt":"lemmy-jwt","registration_created":false,"verify_email_sent":false}`))
 	})
 	mux.HandleFunc("/api/v3/site", func(w http.ResponseWriter, _ *http.Request) {

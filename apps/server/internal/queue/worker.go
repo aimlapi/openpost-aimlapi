@@ -249,7 +249,7 @@ func (w *BackgroundWorker) executeJobGuarded(ctx context.Context, job *models.Jo
 // credentials, rate limits, temporary provider outages) use structured
 // codes and aggregate as counts; validation errors, 404s, and intentional
 // cancellations are ignored.
-func (w *BackgroundWorker) reportWorkerDiagnostic(ctx context.Context, job *models.Job, processErr error) {
+func (w *BackgroundWorker) reportWorkerDiagnostic(job *models.Job, processErr error) {
 	if w.diagnostics == nil || processErr == nil {
 		return
 	}
@@ -289,36 +289,12 @@ func classifyWorkerDiagnostic(processErr error, jobType string) (string, bool) {
 		return diagnostics.CodeWorkerPanic, false
 	}
 	if directed := (*publisher.RetryableError)(nil); errors.As(processErr, &directed) {
-		switch directed.Failure.Kind {
-		case publisher.FailureAuthExpired, publisher.FailureReconnectRequired:
-			return diagnostics.CodeProviderAuthExpired, true
-		case publisher.FailureRateLimited:
-			return diagnostics.CodeProviderRateLimited, true
-		case publisher.FailureNetwork, publisher.FailureProviderServer:
-			return diagnostics.CodeProviderOutage, true
-		case publisher.FailureValidation, publisher.FailurePermission,
-			publisher.FailureBillingRequired, publisher.FailureDuplicateContent:
-			return "", false
-		case publisher.FailureProviderProcessing:
-			// Provider-side pending/processing polls are routine; only
-			// terminal rejections are unexpected.
-			if !directed.Failure.Retryable {
-				return diagnostics.CodePublishFailed, false
-			}
-			return "", false
+		if code, expected, handled := diagnosticForFailure(directed.Failure); handled {
+			return code, expected
 		}
 	}
-	failure := publisher.ClassifyFailure(processErr)
-	switch failure.Kind {
-	case publisher.FailureAuthExpired, publisher.FailureReconnectRequired:
-		return diagnostics.CodeProviderAuthExpired, true
-	case publisher.FailureRateLimited:
-		return diagnostics.CodeProviderRateLimited, true
-	case publisher.FailureNetwork, publisher.FailureProviderServer:
-		return diagnostics.CodeProviderOutage, true
-	case publisher.FailureValidation, publisher.FailurePermission,
-		publisher.FailureBillingRequired, publisher.FailureDuplicateContent:
-		return "", false
+	if code, expected, handled := diagnosticForFailure(publisher.ClassifyFailure(processErr)); handled {
+		return code, expected
 	}
 	lower := strings.ToLower(processErr.Error())
 	if strings.Contains(lower, "not found") || strings.Contains(lower, "404") ||
@@ -327,6 +303,27 @@ func classifyWorkerDiagnostic(processErr error, jobType string) (string, bool) {
 		return "", false
 	}
 	return workerCodeForJobType(jobType), false
+}
+
+func diagnosticForFailure(failure publisher.Failure) (string, bool, bool) {
+	switch failure.Kind {
+	case publisher.FailureAuthExpired, publisher.FailureReconnectRequired:
+		return diagnostics.CodeProviderAuthExpired, true, true
+	case publisher.FailureRateLimited:
+		return diagnostics.CodeProviderRateLimited, true, true
+	case publisher.FailureNetwork, publisher.FailureProviderServer:
+		return diagnostics.CodeProviderOutage, true, true
+	case publisher.FailureValidation, publisher.FailurePermission,
+		publisher.FailureBillingRequired, publisher.FailureDuplicateContent:
+		return "", false, true
+	case publisher.FailureProviderProcessing:
+		if failure.Retryable {
+			return "", false, true
+		}
+		return diagnostics.CodePublishFailed, false, true
+	default:
+		return "", false, false
+	}
 }
 
 // workerCodeForJobType selects the unexpected-failure code by job family.
@@ -695,7 +692,7 @@ func (w *BackgroundWorker) finishFailedJob(ctx context.Context, job *models.Job,
 	// Report unexpected failures at the operation boundary, independently
 	// of whether the terminal state below persists. Database failures must
 	// not silence their own diagnosis.
-	w.reportWorkerDiagnostic(ctx, job, processErr)
+	w.reportWorkerDiagnostic(job, processErr)
 	failure := w.classifyJobFailure(ctx, job, processErr)
 	if !failure.preserveAttempts {
 		job.Attempts++

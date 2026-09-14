@@ -379,47 +379,24 @@ func Load() *Config {
 		PaddleAgencyMonthlyPriceID:  getEnvDefault("OPENPOST_PADDLE_AGENCY_MONTHLY_PRICE_ID", ""),
 		PaddleAgencyAnnualPriceID:   getEnvDefault("OPENPOST_PADDLE_AGENCY_ANNUAL_PRICE_ID", ""),
 	}
-	cfg.setEncryptionKeyringLoadError(encryptionKeyIDErr)
+	finalizeLoadedConfig(cfg, encryptionKeyIDErr)
+	return cfg
+}
 
+func finalizeLoadedConfig(cfg *Config, encryptionKeyIDErr error) {
+	cfg.setEncryptionKeyringLoadError(encryptionKeyIDErr)
 	if cfg.PublicURL == "" {
 		cfg.PublicURL = cfg.FrontendURL
 	}
 	cfg.MediaURL = resolveMediaURL(cfg.MediaURL, cfg.PublicURL)
-	if cfg.EmailFrom == "" {
-		cfg.EmailFrom = strings.TrimSpace(cfg.SMTPFrom)
-	}
-	if cfg.EmailProvider == "" {
-		switch {
-		case strings.TrimSpace(cfg.ResendAPIKey) != "":
-			cfg.EmailProvider = "resend"
-		case strings.TrimSpace(cfg.CloudflareEmailAccountID) != "" || strings.TrimSpace(cfg.CloudflareEmailAPIToken) != "":
-			cfg.EmailProvider = "cloudflare"
-		case strings.TrimSpace(cfg.SMTPHost) != "":
-			cfg.EmailProvider = "smtp"
-		}
-	}
+	resolveEmailDefaults(cfg)
 	if parsed, err := url.Parse(cfg.PublicURL); err == nil && parsed.Hostname() != "" {
 		cfg.WebAuthnRPID = parsed.Hostname()
 	} else {
 		cfg.WebAuthnRPID = "localhost"
 	}
-
-	if raw := getEnvDefault("MASTODON_SERVERS", ""); raw != "" {
-		var servers []MastodonServerConfig
-		if err := json.Unmarshal([]byte(raw), &servers); err != nil {
-			log.Printf("WARNING: failed to parse MASTODON_SERVERS JSON: %v", err)
-		} else {
-			cfg.MastodonServers = servers
-		}
-	}
-	if raw := getEnvDefault("PIXELFED_SERVERS", ""); raw != "" {
-		var servers []MastodonServerConfig
-		if err := json.Unmarshal([]byte(raw), &servers); err != nil {
-			log.Printf("WARNING: failed to parse PIXELFED_SERVERS JSON: %v", err)
-		} else {
-			cfg.PixelfedServers = servers
-		}
-	}
+	loadLegacyMastodonServers("MASTODON_SERVERS", &cfg.MastodonServers)
+	loadLegacyMastodonServers("PIXELFED_SERVERS", &cfg.PixelfedServers)
 	cfg.ProviderApps = providerAppsFromLegacyConfig(cfg)
 	if raw := getEnvDefault("OPENPOST_PROVIDER_APPS", ""); raw != "" {
 		var apps []platform.AppConfig
@@ -434,17 +411,43 @@ func Load() *Config {
 	mediaSigningKey, mediaSigningKeyErr := getEncryptionKeyringEnvDefault("OPENPOST_MEDIA_SIGNING_KEY", cfg.EncryptionKey)
 	cfg.MediaSigningKey = mediaSigningKey
 	cfg.setEncryptionKeyringLoadError(mediaSigningKeyErr)
-
 	cfg.CORSOrigins = buildCORSOrigins(
 		cfg.Edition,
 		cfg.FrontendURL,
 		getEnvWithFallbacks("OPENPOST_EXTRA_CORS_ORIGINS", "", "OPENPOST_CORS_EXTRA_ORIGINS"),
 	)
-
 	warnOnPlaceholderURL(cfg)
 	warnOnIgnoredPaddleVars()
+}
 
-	return cfg
+func resolveEmailDefaults(cfg *Config) {
+	if cfg.EmailFrom == "" {
+		cfg.EmailFrom = strings.TrimSpace(cfg.SMTPFrom)
+	}
+	if cfg.EmailProvider != "" {
+		return
+	}
+	switch {
+	case strings.TrimSpace(cfg.ResendAPIKey) != "":
+		cfg.EmailProvider = "resend"
+	case strings.TrimSpace(cfg.CloudflareEmailAccountID) != "" || strings.TrimSpace(cfg.CloudflareEmailAPIToken) != "":
+		cfg.EmailProvider = "cloudflare"
+	case strings.TrimSpace(cfg.SMTPHost) != "":
+		cfg.EmailProvider = "smtp"
+	}
+}
+
+func loadLegacyMastodonServers(envName string, destination *[]MastodonServerConfig) {
+	raw := getEnvDefault(envName, "")
+	if raw == "" {
+		return
+	}
+	var servers []MastodonServerConfig
+	if err := json.Unmarshal([]byte(raw), &servers); err != nil {
+		log.Printf("WARNING: failed to parse %s JSON: %v", envName, err)
+		return
+	}
+	*destination = servers
 }
 
 func postHogBrowserDefaults(edition, apiHost string) (string, string) {

@@ -9596,6 +9596,11 @@
 						"minimum": 0,
 						"type": "integer"
 					},
+					"db_driver": {
+						"description": "Normalized database driver",
+						"maxLength": 16,
+						"type": "string"
+					},
 					"error_code": {
 						"description": "Normalized error code from the diagnostics catalog",
 						"maxLength": 64,
@@ -9655,13 +9660,35 @@
 						"minimum": 0,
 						"type": "integer"
 					},
+					"revision": {
+						"description": "OpenPost source revision reported by the sending instance",
+						"maxLength": 128,
+						"type": "string"
+					},
+					"storage_driver": {
+						"description": "Normalized media storage driver",
+						"maxLength": 16,
+						"type": "string"
+					},
 					"surface": {
 						"description": "Surface where the failure was observed",
 						"enum": ["browser", "backend", "worker"],
 						"type": "string"
+					},
+					"version": {
+						"description": "OpenPost release reported by the sending instance",
+						"maxLength": 64,
+						"type": "string"
 					}
 				},
-				"required": ["installation_id", "surface", "operation", "error_code"],
+				"required": [
+					"installation_id",
+					"version",
+					"revision",
+					"surface",
+					"operation",
+					"error_code"
+				],
 				"type": "object"
 			},
 			"IngestDiagnosticsOutputBody": {

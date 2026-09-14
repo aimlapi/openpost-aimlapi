@@ -382,23 +382,6 @@ func atoiOrZero(raw string) int {
 	return value
 }
 
-func peertubeTitle(req *PublishRequest) string {
-	if title := strings.TrimSpace(req.Title); title != "" {
-		return title
-	}
-	if title := settingString(req.Settings, "title"); title != "" {
-		return title
-	}
-	return strings.TrimSpace(req.Content)
-}
-
-func peertubeDescription(req *PublishRequest) string {
-	if description := strings.TrimSpace(req.Description); description != "" {
-		return description
-	}
-	return settingString(req.Settings, "description")
-}
-
 func peertubePrivacy(settings map[string]interface{}) (int, error) {
 	switch normalized := strings.ToLower(settingString(settings, "privacy")); normalized {
 	case "", "public":
@@ -518,9 +501,6 @@ func (p *PeerTubeAdapter) reconcileUploadedVideo(ctx context.Context, accessToke
 			RetrySafety:       PublishRetryNever,
 		}, fmt.Errorf("peertube transcoding failed for video %s", uuid)
 	}
-	if err := applyPeerTubeFinalMetadata(ctx, p, accessToken, uuid, video); err != nil {
-		return PublishResult{}, err
-	}
 	return PublishResult{
 		SubmissionState:   PublishSubmissionPending,
 		ProviderState:     "transcoding",
@@ -528,13 +508,6 @@ func (p *PeerTubeAdapter) reconcileUploadedVideo(ctx context.Context, accessToke
 		RetrySafety:       PublishRetryReconcileOnly,
 		ReconcileAfter:    time.Minute,
 	}, nil
-}
-
-// applyPeerTubeFinalMetadata is a no-op hook kept so the transcoding
-// reconciliation path has one place to enforce post-upload metadata if a
-// future PeerTube version stops accepting metadata at upload time.
-func applyPeerTubeFinalMetadata(_ context.Context, _ *PeerTubeAdapter, _, _ string, _ peertubeVideo) error {
-	return nil
 }
 
 func (p *PeerTubeAdapter) Publish(ctx context.Context, accessToken, accountID string, req *PublishRequest) (PublishResult, error) {
@@ -609,7 +582,7 @@ func (p *PeerTubeAdapter) EngagementSupport() EngagementSupport {
 	return EngagementSupport{Enabled: true, CanReply: true, CanDelete: true}
 }
 
-func (p *PeerTubeAdapter) ListComments(ctx context.Context, accessToken, accountID, externalID string) ([]Comment, error) {
+func (p *PeerTubeAdapter) ListComments(ctx context.Context, accessToken, _ string, externalID string) ([]Comment, error) {
 	videoID := strings.TrimSpace(externalID)
 	if videoID == "" {
 		return nil, fmt.Errorf("peertube comment listing requires a video id")
@@ -631,8 +604,8 @@ func (p *PeerTubeAdapter) ListComments(ctx context.Context, accessToken, account
 		return nil, fmt.Errorf("decoding peertube comments: %w", err)
 	}
 	comments := make([]Comment, 0)
-	var walk func(node peertubeCommentNode, parentRef string)
-	walk = func(node peertubeCommentNode, parentRef string) {
+	var walk func(node *peertubeCommentNode, parentRef string)
+	walk = func(node *peertubeCommentNode, parentRef string) {
 		ref := peertubeCommentRef(videoID, node.Comment.ID)
 		if !node.Comment.IsDeleted {
 			author := "@" + strings.TrimSpace(node.Comment.Account.Name)
@@ -649,12 +622,12 @@ func (p *PeerTubeAdapter) ListComments(ctx context.Context, accessToken, account
 				CanReply: true, CanDelete: true,
 			})
 		}
-		for _, child := range node.Children {
-			walk(child, ref)
+		for i := range node.Children {
+			walk(&node.Children[i], ref)
 		}
 	}
-	for _, thread := range result.Data {
-		walk(thread, "")
+	for i := range result.Data {
+		walk(&result.Data[i], "")
 	}
 	return comments, nil
 }
@@ -771,6 +744,14 @@ func (p *PeerTubeAdapter) AccountContentDiscoverySupport(input AnalyticsAccountC
 	return AccountContentDiscoverySupport{Supported: true, MaxPageSize: 25}
 }
 
+type peertubeChannelVideo struct {
+	UUID        string `json:"uuid"`
+	ShortUUID   string `json:"shortUUID"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	PublishedAt string `json:"publishedAt"`
+}
+
 func (p *PeerTubeAdapter) DiscoverAccountContent(ctx context.Context, accessToken string, input AccountContentDiscoveryRequest) (AccountContentPage, error) {
 	channel := strings.TrimSpace(input.AccountID)
 	if channel == "" {
@@ -781,13 +762,6 @@ func (p *PeerTubeAdapter) DiscoverAccountContent(ctx context.Context, accessToke
 		if parsed, err := strconv.Atoi(cursor); err == nil && parsed > 0 {
 			start = parsed
 		}
-	}
-	type peertubeChannelVideo struct {
-		UUID        string `json:"uuid"`
-		ShortUUID   string `json:"shortUUID"`
-		Name        string `json:"name"`
-		Description string `json:"description"`
-		PublishedAt string `json:"publishedAt"`
 	}
 	var result struct {
 		Total int64                  `json:"total"`
@@ -808,35 +782,40 @@ func (p *PeerTubeAdapter) DiscoverAccountContent(ctx context.Context, accessToke
 		Description: "Only videos visible through the authenticated PeerTube instance are included.",
 	}}
 	for _, video := range result.Data {
-		publishedAt, err := time.Parse(time.RFC3339Nano, strings.TrimSpace(video.PublishedAt))
-		if err != nil || publishedAt.IsZero() {
+		item, ok := p.normalizeAccountContentVideo(video, input.PublishedAfter)
+		if !ok {
 			continue
 		}
-		publishedAt = publishedAt.UTC()
-		if !input.PublishedAfter.IsZero() && publishedAt.Before(input.PublishedAfter) {
-			continue
-		}
-		item := AccountContentItem{
-			ProviderContentID: p.instanceURL + "/videos/watch/" + firstNonEmptyString(video.UUID, video.ShortUUID),
-			ContentProfile:    "long_video",
-			Title:             video.Name,
-			Text:              video.Description,
-			ExternalURL:       p.instanceURL + "/w/" + firstNonEmptyString(video.ShortUUID, video.UUID),
-			PublishedAt:       publishedAt,
-			Origin:            AccountContentOriginExternal,
-			OriginConfidence:  AccountContentOriginConfidenceExact,
-		}
-		normalized, err := NormalizeAccountContentItem(providerPeerTube, item)
-		if err != nil {
-			continue
-		}
-		page.Items = append(page.Items, normalized)
-		if page.BackfillWatermark.IsZero() || publishedAt.Before(page.BackfillWatermark) {
-			page.BackfillWatermark = publishedAt
+		page.Items = append(page.Items, item)
+		if page.BackfillWatermark.IsZero() || item.PublishedAt.Before(page.BackfillWatermark) {
+			page.BackfillWatermark = item.PublishedAt
 		}
 	}
 	if next := int64(start + len(page.Items)); next < result.Total {
 		page.NextCursor = strconv.FormatInt(next, 10)
 	}
 	return page, nil
+}
+
+func (p *PeerTubeAdapter) normalizeAccountContentVideo(video peertubeChannelVideo, publishedAfter time.Time) (AccountContentItem, bool) {
+	publishedAt, err := time.Parse(time.RFC3339Nano, strings.TrimSpace(video.PublishedAt))
+	if err != nil || publishedAt.IsZero() {
+		return AccountContentItem{}, false
+	}
+	publishedAt = publishedAt.UTC()
+	if !publishedAfter.IsZero() && publishedAt.Before(publishedAfter) {
+		return AccountContentItem{}, false
+	}
+	item := AccountContentItem{
+		ProviderContentID: p.instanceURL + "/videos/watch/" + firstNonEmptyString(video.UUID, video.ShortUUID),
+		ContentProfile:    "long_video",
+		Title:             video.Name,
+		Text:              video.Description,
+		ExternalURL:       p.instanceURL + "/w/" + firstNonEmptyString(video.ShortUUID, video.UUID),
+		PublishedAt:       publishedAt,
+		Origin:            AccountContentOriginExternal,
+		OriginConfidence:  AccountContentOriginConfidenceExact,
+	}
+	normalized, err := NormalizeAccountContentItem(providerPeerTube, item)
+	return normalized, err == nil
 }

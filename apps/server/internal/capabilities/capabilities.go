@@ -857,43 +857,30 @@ func sameDefaultSetting(left, right SettingDefinition) bool {
 	return reflect.DeepEqual(left, right)
 }
 
+var providerDisplayNames = map[string]string{
+	ProviderX:         "X",
+	ProviderLinkedIn:  "LinkedIn",
+	ProviderTikTok:    "TikTok",
+	ProviderYouTube:   "YouTube",
+	ProviderFacebook:  "Facebook",
+	ProviderInstagram: "Instagram",
+	ProviderMastodon:  "Mastodon",
+	ProviderPixelfed:  "Pixelfed",
+	ProviderPeerTube:  "PeerTube",
+	ProviderLemmy:     "Lemmy",
+	ProviderPieFed:    "PieFed",
+	ProviderPinterest: "Pinterest",
+	ProviderTelegram:  "Telegram",
+	ProviderBluesky:   "Bluesky",
+	ProviderThreads:   "Threads",
+	ProviderDiscord:   "Discord",
+}
+
 func providerDisplayName(provider string) string {
-	switch provider {
-	case ProviderX:
-		return "X"
-	case ProviderLinkedIn:
-		return "LinkedIn"
-	case ProviderTikTok:
-		return "TikTok"
-	case ProviderYouTube:
-		return "YouTube"
-	case ProviderFacebook:
-		return "Facebook"
-	case ProviderInstagram:
-		return "Instagram"
-	case ProviderMastodon:
-		return "Mastodon"
-	case ProviderPixelfed:
-		return "Pixelfed"
-	case ProviderPeerTube:
-		return "PeerTube"
-	case ProviderLemmy:
-		return "Lemmy"
-	case ProviderPieFed:
-		return "PieFed"
-	case ProviderPinterest:
-		return "Pinterest"
-	case ProviderTelegram:
-		return "Telegram"
-	case ProviderBluesky:
-		return "Bluesky"
-	case ProviderThreads:
-		return "Threads"
-	case ProviderDiscord:
-		return "Discord"
-	default:
-		return provider
+	if name := providerDisplayNames[provider]; name != "" {
+		return name
 	}
+	return provider
 }
 
 func selectDestinationCapability(catalog []Capability, provider string, input ResolveInput, shape, preset string) *Capability {

@@ -12,7 +12,6 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
-	"time"
 )
 
 // PieFedAdapter publishes to PieFed communities through the account's home
@@ -59,46 +58,6 @@ func piefedAuthHeaders(jwt string) map[string]string {
 	return map[string]string{headerAuthorization: bearerPrefix + jwt}
 }
 
-func piefedGET[T any](ctx context.Context, instanceURL, path string, query url.Values, jwt, label string) (T, error) {
-	var zero T
-	endpoint := strings.TrimRight(instanceURL, "/") + path
-	if len(query) > 0 {
-		endpoint += "?" + query.Encode()
-	}
-	headers := map[string]string{}
-	if strings.TrimSpace(jwt) != "" {
-		headers = piefedAuthHeaders(jwt)
-	}
-	body, err := DoRequest(ctx, http.MethodGet, endpoint, nil, headers)
-	if err != nil {
-		return zero, fmt.Errorf("%s: %w", label, err)
-	}
-	var result T
-	if err := json.Unmarshal(body, &result); err != nil {
-		return zero, fmt.Errorf("decoding %s: %w", label, err)
-	}
-	return result, nil
-}
-
-func piefedPOST[T any](ctx context.Context, instanceURL, path string, payload any, jwt, label string) (T, error) {
-	var zero T
-	data, err := json.Marshal(payload)
-	if err != nil {
-		return zero, fmt.Errorf("encoding %s: %w", label, err)
-	}
-	headers := piefedAuthHeaders(jwt)
-	headers[headerContentType] = contentTypeJSON
-	body, err := DoRequest(ctx, http.MethodPost, strings.TrimRight(instanceURL, "/")+path, bytes.NewReader(data), headers)
-	if err != nil {
-		return zero, fmt.Errorf("%s: %w", label, err)
-	}
-	var result T
-	if err := json.Unmarshal(body, &result); err != nil {
-		return zero, fmt.Errorf("decoding %s: %w", label, err)
-	}
-	return result, nil
-}
-
 type piefedPerson struct {
 	ID       int64   `json:"id"`
 	UserName string  `json:"user_name"`
@@ -130,7 +89,7 @@ func (p *PieFedAdapter) Login(ctx context.Context, username, password string) (*
 	if username == "" || strings.TrimSpace(password) == "" {
 		return nil, nil, fmt.Errorf("piefed login requires a username and password")
 	}
-	login, err := piefedPOST[struct {
+	login, err := communityJSONPost[struct {
 		JWT string `json:"jwt"`
 	}](ctx, p.instanceURL, "/api/alpha/user/login", map[string]string{
 		"username": username,
@@ -151,7 +110,7 @@ func (p *PieFedAdapter) Login(ctx context.Context, username, password string) (*
 }
 
 func (p *PieFedAdapter) fetchSite(ctx context.Context, jwt string) (piefedSiteResponse, error) {
-	return piefedGET[piefedSiteResponse](ctx, p.instanceURL, "/api/alpha/site", nil, jwt, "piefed site")
+	return communityJSONGet[piefedSiteResponse](ctx, p.instanceURL, "/api/alpha/site", nil, jwt, "piefed site")
 }
 
 func (p *PieFedAdapter) GetProfile(ctx context.Context, accessToken string) (*UserProfile, error) {
@@ -226,26 +185,7 @@ func piefedCommunityIdentity(view piefedCommunityView) CommunityIdentity {
 // resolveCommunity resolves a user-supplied community reference through the
 // connected instance.
 func (p *PieFedAdapter) resolveCommunity(ctx context.Context, jwt, ref string) (CommunityIdentity, error) {
-	name, host, ok := ParseCommunityRef(ref)
-	if !ok {
-		return CommunityIdentity{}, fmt.Errorf("piefed community %q is not a valid community address", ref)
-	}
-	queryAddress := ref
-	if host != "" {
-		queryAddress = CommunityDisplayRef(name, host)
-	} else if !strings.Contains(ref, "://") {
-		queryAddress = "!" + name
-	}
-	resolved, err := piefedGET[struct {
-		Community *piefedCommunityView `json:"community"`
-	}](ctx, p.instanceURL, "/api/alpha/resolve_object", url.Values{"q": {queryAddress}}, jwt, "piefed community resolution")
-	if err != nil {
-		return CommunityIdentity{}, err
-	}
-	if resolved.Community == nil {
-		return CommunityIdentity{}, fmt.Errorf("piefed community %q was not found on this instance", ref)
-	}
-	return piefedCommunityIdentity(*resolved.Community), nil
+	return resolveCommunity(ctx, providerPieFed, p.instanceURL, "/api/alpha/resolve_object", jwt, ref, "piefed community resolution", piefedCommunityIdentity)
 }
 
 // SearchPublishingOptions searches communities on the connected instance for
@@ -256,7 +196,7 @@ func (p *PieFedAdapter) SearchPublishingOptions(ctx context.Context, accessToken
 	if limit <= 0 || limit > 25 {
 		limit = 10
 	}
-	response, err := piefedGET[struct {
+	response, err := communityJSONGet[struct {
 		Communities []piefedCommunityView `json:"communities"`
 	}](ctx, p.instanceURL, "/api/alpha/community/list", url.Values{
 		"search": {query},
@@ -307,8 +247,7 @@ type piefedPost struct {
 	Published string  `json:"published"`
 }
 
-func (p *PieFedAdapter) Publish(ctx context.Context, accessToken, accountID string, req *PublishRequest) (PublishResult, error) {
-	_ = accountID
+func (p *PieFedAdapter) Publish(ctx context.Context, accessToken, _ string, req *PublishRequest) (PublishResult, error) {
 	communityRef := settingString(req.Settings, CommunitySettingCommunity)
 	title := communityTitle(req.Title, req.Settings)
 	if err := ValidateCommunityPost("piefed", communityRef, title); err != nil {
@@ -336,7 +275,7 @@ func (p *PieFedAdapter) Publish(ctx context.Context, accessToken, accountID stri
 	if body := communityBody(req.Content, req.Settings); body != "" {
 		payload["body"] = body
 	}
-	if link := firstNonEmptyString(settingString(req.Settings, CommunitySettingURL), piefedFirstMediaURL(req)); link != "" {
+	if link := firstNonEmptyString(settingString(req.Settings, CommunitySettingURL), firstCommunityMediaURL(req)); link != "" {
 		payload["url"] = link
 	}
 	if settingBool(req.Settings, CommunitySettingNSFW) {
@@ -345,7 +284,7 @@ func (p *PieFedAdapter) Publish(ctx context.Context, accessToken, accountID stri
 	if languageID := settingInt(req.Settings, CommunitySettingLanguageID); languageID > 0 {
 		payload["language_id"] = languageID
 	}
-	response, err := piefedPOST[struct {
+	response, err := communityJSONPost[struct {
 		PostView struct {
 			Post piefedPost `json:"post"`
 		} `json:"post_view"`
@@ -362,18 +301,6 @@ func (p *PieFedAdapter) Publish(ctx context.Context, accessToken, accountID stri
 		return result, err
 	}
 	return result, nil
-}
-
-func piefedFirstMediaURL(req *PublishRequest) string {
-	if req == nil || len(req.PlatformMediaIDs) == 0 {
-		return ""
-	}
-	for _, id := range req.PlatformMediaIDs {
-		if strings.HasPrefix(strings.TrimSpace(id), "http") {
-			return strings.TrimSpace(id)
-		}
-	}
-	return ""
 }
 
 // UploadMedia uploads an image for link posts and returns its URL as the
@@ -448,7 +375,7 @@ func (p *PieFedAdapter) ListComments(ctx context.Context, accessToken, accountID
 	if err != nil || postID <= 0 {
 		return nil, fmt.Errorf("piefed comment listing requires a post id")
 	}
-	response, err := piefedGET[struct {
+	response, err := communityJSONGet[struct {
 		Comments []piefedCommentView `json:"comments"`
 	}](ctx, p.instanceURL, "/api/alpha/post/replies", url.Values{
 		"post_id": {strconv.FormatInt(postID, 10)},
@@ -465,11 +392,11 @@ func (p *PieFedAdapter) ListComments(ctx context.Context, accessToken, accountID
 		parentID := ""
 		if comment.Path != nil {
 			if parent := lemmyParentCommentID(*comment.Path); parent != "" {
-				parentID = piefedCommentRef(postID, parent)
+				parentID = communityCommentRef(providerPieFed, postID, parent)
 			}
 		}
 		comments = append(comments, Comment{
-			ID:       piefedCommentRef(postID, strconv.FormatInt(comment.ID, 10)),
+			ID:       communityCommentRef(providerPieFed, postID, strconv.FormatInt(comment.ID, 10)),
 			ParentID: parentID, ConversationID: strconv.FormatInt(postID, 10),
 			AuthorID:     strconv.FormatInt(view.Creator.ID, 10),
 			AuthorName:   piefedPersonDisplayName(view.Creator),
@@ -485,42 +412,13 @@ func (p *PieFedAdapter) ListComments(ctx context.Context, accessToken, accountID
 	return comments, nil
 }
 
-func piefedCommentRef(postID int64, commentID string) string {
-	return "piefed:" + strconv.FormatInt(postID, 10) + ":" + commentID
-}
-
-func splitPieFedCommentRef(ref string) (postID int64, commentID int64, err error) {
-	parts := strings.Split(strings.TrimSpace(ref), ":")
-	if len(parts) != 3 || parts[0] != "piefed" {
-		return 0, 0, fmt.Errorf("piefed reply reference is invalid")
-	}
-	postID, err = strconv.ParseInt(parts[1], 10, 64)
-	if err != nil || postID <= 0 {
-		return 0, 0, fmt.Errorf("piefed reply reference is invalid")
-	}
-	commentID, err = strconv.ParseInt(parts[2], 10, 64)
-	if err != nil || commentID <= 0 {
-		return 0, 0, fmt.Errorf("piefed reply reference is invalid")
-	}
-	return postID, commentID, nil
-}
-
 func (p *PieFedAdapter) ReplyToComment(ctx context.Context, accessToken, _ string, commentID, message string) (string, error) {
-	postID, parentID, err := splitPieFedCommentRef(commentID)
-	if err != nil {
-		return "", err
-	}
-	response, err := piefedPOST[struct {
+	type replyResponse struct {
 		CommentView piefedCommentView `json:"comment_view"`
-	}](ctx, p.instanceURL, "/api/alpha/comment", map[string]any{
-		"body":      strings.TrimSpace(message),
-		"post_id":   postID,
-		"parent_id": parentID,
-	}, accessToken, "piefed reply creation")
-	if err != nil {
-		return "", err
 	}
-	return piefedCommentRef(postID, strconv.FormatInt(response.CommentView.Comment.ID, 10)), nil
+	return replyToCommunityComment(ctx, providerPieFed, p.instanceURL, "/api/alpha/comment", "body", accessToken, commentID, message, "piefed reply creation", func(response replyResponse) int64 {
+		return response.CommentView.Comment.ID
+	})
 }
 
 func (p *PieFedAdapter) HideComment(_ context.Context, _, _, _ string) error {
@@ -528,22 +426,22 @@ func (p *PieFedAdapter) HideComment(_ context.Context, _, _, _ string) error {
 }
 
 func (p *PieFedAdapter) DeleteComment(ctx context.Context, accessToken, _ string, commentID string) error {
-	_, targetID, err := splitPieFedCommentRef(commentID)
+	_, targetID, err := splitCommunityCommentRef(providerPieFed, commentID)
 	if err != nil {
 		return err
 	}
-	_, err = piefedPOST[struct{}](ctx, p.instanceURL, "/api/alpha/comment/delete", map[string]any{
+	_, err = communityJSONPost[struct{}](ctx, p.instanceURL, "/api/alpha/comment/delete", map[string]any{
 		"comment_id": targetID,
 	}, accessToken, "piefed reply deletion")
 	return err
 }
 
 func (p *PieFedAdapter) LikeComment(ctx context.Context, accessToken, _ string, commentID string) error {
-	_, targetID, err := splitPieFedCommentRef(commentID)
+	_, targetID, err := splitCommunityCommentRef(providerPieFed, commentID)
 	if err != nil {
 		return err
 	}
-	_, err = piefedPOST[struct{}](ctx, p.instanceURL, "/api/alpha/comment/like", map[string]any{
+	_, err = communityJSONPost[struct{}](ctx, p.instanceURL, "/api/alpha/comment/like", map[string]any{
 		"comment_id": targetID,
 		"score":      1,
 	}, accessToken, "piefed reply like")
@@ -551,11 +449,11 @@ func (p *PieFedAdapter) LikeComment(ctx context.Context, accessToken, _ string, 
 }
 
 func (p *PieFedAdapter) UnlikeComment(ctx context.Context, accessToken, _ string, commentID string) error {
-	_, targetID, err := splitPieFedCommentRef(commentID)
+	_, targetID, err := splitCommunityCommentRef(providerPieFed, commentID)
 	if err != nil {
 		return err
 	}
-	_, err = piefedPOST[struct{}](ctx, p.instanceURL, "/api/alpha/comment/like", map[string]any{
+	_, err = communityJSONPost[struct{}](ctx, p.instanceURL, "/api/alpha/comment/like", map[string]any{
 		"comment_id": targetID,
 		"score":      0,
 	}, accessToken, "piefed reply unlike")
@@ -588,7 +486,7 @@ func (p *PieFedAdapter) FetchContentAnalytics(ctx context.Context, accessToken s
 		if err != nil || postID <= 0 {
 			continue
 		}
-		response, err := piefedGET[struct {
+		response, err := communityJSONGet[struct {
 			PostView struct {
 				Counts *struct {
 					Comments *int64 `json:"comments"`
@@ -627,7 +525,7 @@ func (p *PieFedAdapter) DiscoverAccountContent(ctx context.Context, accessToken 
 	if cursor := strings.TrimSpace(input.Cursor); cursor != "" {
 		params.Set("page", cursor)
 	}
-	response, err := piefedGET[struct {
+	response, err := communityJSONGet[struct {
 		Posts []struct {
 			Post piefedPost `json:"post"`
 		} `json:"posts"`
@@ -642,39 +540,14 @@ func (p *PieFedAdapter) DiscoverAccountContent(ctx context.Context, accessToken 
 	}}
 	for _, view := range response.Posts {
 		post := view.Post
-		publishedAt, err := time.Parse(time.RFC3339Nano, strings.TrimSpace(post.Published))
-		if err != nil || publishedAt.IsZero() {
+		item, ok := normalizeCommunityAccountContent(
+			providerPieFed, p.instanceURL, post.ID, piefedAccountContentProfile(post), post.Title,
+			post.Body, post.ActorID, post.Published, input.PublishedAfter,
+		)
+		if !ok {
 			continue
 		}
-		_ = publishedAt
-		actorID := strings.TrimSpace(post.ActorID)
-		if actorID == "" {
-			continue
-		}
-		published := publishedAt.UTC()
-		if !input.PublishedAfter.IsZero() && published.Before(input.PublishedAfter) {
-			continue
-		}
-		item := AccountContentItem{
-			ProviderContentID: strings.TrimRight(p.instanceURL, "/") + "/post/" + strconv.FormatInt(post.ID, 10),
-			ContentProfile:    piefedAccountContentProfile(post),
-			Title:             post.Title,
-			ExternalURL:       actorID,
-			PublishedAt:       published,
-			Origin:            AccountContentOriginExternal,
-			OriginConfidence:  AccountContentOriginConfidenceExact,
-		}
-		if post.Body != nil {
-			item.Text = strings.TrimSpace(*post.Body)
-		}
-		normalized, err := NormalizeAccountContentItem(providerPieFed, item)
-		if err != nil {
-			continue
-		}
-		page.Items = append(page.Items, normalized)
-		if page.BackfillWatermark.IsZero() || published.Before(page.BackfillWatermark) {
-			page.BackfillWatermark = published
-		}
+		appendCommunityAccountContent(&page, item)
 	}
 	if response.NextPage != nil && strings.TrimSpace(*response.NextPage) != "" {
 		page.NextCursor = strings.TrimSpace(*response.NextPage)

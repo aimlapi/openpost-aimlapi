@@ -17,12 +17,12 @@ import (
 // bounded memory, short timeouts, backoff, and no reliance on the
 // application database.
 const (
-	defaultQueueSize     = 256
-	defaultSendsPerHour  = 120
-	defaultSendTimeout   = 5 * time.Second
-	defaultStartupSendTO = 2 * time.Second
-	maxReportBodyBytes   = 64 << 10
-	summaryTickInterval  = time.Minute
+	defaultQueueSize          = 256
+	defaultSendsPerHour       = 120
+	defaultSendTimeout        = 5 * time.Second
+	defaultStartupSendTimeout = 2 * time.Second
+	maxReportBodyBytes        = 64 << 10
+	summaryTickInterval       = time.Minute
 )
 
 // Config is the complete diagnostics contract. Reporting is enabled by
@@ -262,7 +262,7 @@ func (r *Reporter) ReportStartupFailureSync(operation, errorCode string) {
 	if err := ValidateReport(report); err != nil {
 		return
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), defaultStartupSendTO)
+	ctx, cancel := context.WithTimeout(context.Background(), defaultStartupSendTimeout)
 	defer cancel()
 	_ = postReport(ctx, r.client, strings.TrimRight(config.ReceiverURL, "/"), report)
 }
@@ -272,38 +272,7 @@ func (r *Reporter) ReportStartupFailureSync(operation, errorCode string) {
 // tests can assert delivery deterministically and shutdown can make a
 // best-effort attempt; leftovers are dropped rather than retried.
 func (r *Reporter) Flush() {
-	deadline := r.now().Add(10 * time.Second)
-	for {
-		r.mu.Lock()
-		if !r.decided || len(r.queue) == 0 {
-			r.mu.Unlock()
-			return
-		}
-		now := r.now().UTC()
-		if now.Sub(r.windowStart) >= time.Hour {
-			r.windowStart = now.Truncate(time.Hour)
-			r.sendCount = 0
-		}
-		limit := r.config.SendsPerHour
-		if limit <= 0 {
-			limit = defaultSendsPerHour
-		}
-		if r.sendCount >= limit || now.After(deadline) {
-			r.mu.Unlock()
-			return
-		}
-		next := r.queue[0]
-		r.queue = r.queue[1:]
-		r.sendCount++
-		receiver := strings.TrimRight(r.config.ReceiverURL, "/")
-		r.mu.Unlock()
-		ctx, cancel := context.WithTimeout(context.Background(), defaultSendTimeout)
-		err := postReport(ctx, r.client, receiver, next)
-		cancel()
-		if err != nil {
-			log.Printf("diagnostics delivery failed: %v", err)
-		}
-	}
+	r.sendPending(r.now().Add(10*time.Second), false)
 }
 
 // Close stops the background sender and drops pending reports.
@@ -366,44 +335,60 @@ func (r *Reporter) enqueueSummaries() {
 }
 
 func (r *Reporter) flush() {
+	r.sendPending(time.Time{}, true)
+}
+
+func (r *Reporter) sendPending(deadline time.Time, backoff bool) {
 	for {
-		r.mu.Lock()
-		if !r.decided || len(r.queue) == 0 {
-			r.mu.Unlock()
+		next, receiver, ok := r.dequeueForSend(deadline)
+		if !ok {
 			return
 		}
-		now := r.now().UTC()
-		if now.Sub(r.windowStart) >= time.Hour {
-			r.windowStart = now.Truncate(time.Hour)
-			r.sendCount = 0
-		}
-		limit := r.config.SendsPerHour
-		if limit <= 0 {
-			limit = defaultSendsPerHour
-		}
-		if r.sendCount >= limit {
-			r.mu.Unlock()
-			return
-		}
-		next := r.queue[0]
-		r.queue = r.queue[1:]
-		r.sendCount++
-		receiver := strings.TrimRight(r.config.ReceiverURL, "/")
-		r.mu.Unlock()
 		ctx, cancel := context.WithTimeout(context.Background(), defaultSendTimeout)
 		err := postReport(ctx, r.client, receiver, next)
 		cancel()
-		if err != nil {
-			log.Printf("diagnostics delivery failed: %v", err)
-			// Back off before the next attempt; the report is dropped
-			// rather than retried so a failing receiver cannot grow
-			// memory or delay shutdown.
-			select {
-			case <-r.stop:
-				return
-			case <-time.After(time.Second):
-			}
+		if err == nil {
+			continue
 		}
+		log.Printf("diagnostics delivery failed: %v", err)
+		if backoff && !r.waitForRetryBackoff() {
+			return
+		}
+	}
+}
+
+func (r *Reporter) dequeueForSend(deadline time.Time) (Report, string, bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if !r.decided || len(r.queue) == 0 {
+		return Report{}, "", false
+	}
+	now := r.now().UTC()
+	if now.Sub(r.windowStart) >= time.Hour {
+		r.windowStart = now.Truncate(time.Hour)
+		r.sendCount = 0
+	}
+	limit := r.config.SendsPerHour
+	if limit <= 0 {
+		limit = defaultSendsPerHour
+	}
+	if r.sendCount >= limit || (!deadline.IsZero() && now.After(deadline)) {
+		return Report{}, "", false
+	}
+	next := r.queue[0]
+	r.queue = r.queue[1:]
+	r.sendCount++
+	return next, strings.TrimRight(r.config.ReceiverURL, "/"), true
+}
+
+func (r *Reporter) waitForRetryBackoff() bool {
+	timer := time.NewTimer(time.Second)
+	defer timer.Stop()
+	select {
+	case <-r.stop:
+		return false
+	case <-timer.C:
+		return true
 	}
 }
 

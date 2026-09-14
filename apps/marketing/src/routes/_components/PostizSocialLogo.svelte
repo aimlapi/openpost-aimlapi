@@ -14,4 +14,5 @@
 	{alt}
 	loading="lazy"
 	decoding="async"
+	fetchpriority="low"
 />

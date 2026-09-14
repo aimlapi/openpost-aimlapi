@@ -137,7 +137,7 @@ func main() {
 	defer closeDiagnostics(diagnosticsReporter)
 	if command.checkConfig {
 		if err := cfg.ValidateRuntime(); err != nil {
-			log.Fatal(err)
+			fatalWithDiagnostics(diagnosticsReporter, err)
 		}
 		config.Init()
 		if err := json.NewEncoder(os.Stdout).Encode(map[string]string{
@@ -146,20 +146,20 @@ func main() {
 			"database_driver": cfg.DatabaseDriver,
 			"storage_driver":  cfg.StorageDriver,
 		}); err != nil {
-			log.Fatal(err)
+			fatalWithDiagnostics(diagnosticsReporter, err)
 		}
 		return
 	}
 	config.Init()
 	if err := cfg.ValidateEncryptionKeyring(); err != nil {
-		log.Fatal(err)
+		fatalWithDiagnostics(diagnosticsReporter, err)
 	}
 	if command.rotateEncryptionKey && cfg.EncryptionKeyID == "" {
-		log.Fatal("rotate-encryption-key requires an explicit OPENPOST_ENCRYPTION_KEY_ID")
+		fatalWithDiagnostics(diagnosticsReporter, "rotate-encryption-key requires an explicit OPENPOST_ENCRYPTION_KEY_ID")
 	}
 	if command.role == processRoleMigrate || command.role == processRoleMaintenance {
 		if err := cfg.ValidateRuntime(); err != nil {
-			log.Fatal(err)
+			fatalWithDiagnostics(diagnosticsReporter, err)
 		}
 	}
 
@@ -170,7 +170,7 @@ func main() {
 	)
 	if err != nil {
 		diagnosticsReporter.ReportStartupFailureSync("db_init", diagnostics.CodeStartupFailed)
-		log.Fatal(err)
+		fatalWithDiagnostics(diagnosticsReporter, err)
 	}
 	closeDatabase := func() {
 		if closeErr := db.Close(); closeErr != nil {
@@ -180,17 +180,17 @@ func main() {
 	if command.role.autoMigrates() {
 		if err := database.CreateSchemaLocked(context.Background(), db, cfg.DatabaseDriver, cfg.DatabaseDSN()); err != nil {
 			diagnosticsReporter.ReportStartupFailureSync("db_migrate", diagnostics.CodeStartupFailed)
-			log.Fatalf("database schema initialization failed: %v", err)
+			fatalfWithDiagnostics(diagnosticsReporter, "database schema initialization failed: %v", err)
 		}
 	} else if err := database.RequireCurrentSchema(context.Background(), db); err != nil {
-		log.Fatal(err)
+		fatalWithDiagnostics(diagnosticsReporter, err)
 	}
 	if command.role == processRoleMigrate {
 		if err := json.NewEncoder(os.Stdout).Encode(map[string]string{
 			"status":          "migrated",
 			"database_driver": cfg.DatabaseDriver,
 		}); err != nil {
-			log.Fatal(err)
+			fatalWithDiagnostics(diagnosticsReporter, err)
 		}
 		closeDatabase()
 		return
@@ -200,14 +200,14 @@ func main() {
 		result, grantErr := grantInstanceAdmin(context.Background(), db, command.grantAdminEmail)
 		if grantErr != nil {
 			closeDatabase()
-			log.Fatal(grantErr)
+			fatalWithDiagnostics(diagnosticsReporter, grantErr)
 		}
 		if err := json.NewEncoder(os.Stdout).Encode(struct {
 			Status string `json:"status"`
 			grantAdminResult
 		}{Status: "granted", grantAdminResult: result}); err != nil {
 			closeDatabase()
-			log.Fatal(err)
+			fatalWithDiagnostics(diagnosticsReporter, err)
 		}
 		closeDatabase()
 		return
@@ -224,7 +224,7 @@ func main() {
 		)
 		if err != nil {
 			closeDatabase()
-			log.Fatalf("invalid encryption keyring configuration: %v", err)
+			fatalfWithDiagnostics(diagnosticsReporter, "invalid encryption keyring configuration: %v", err)
 		}
 	}
 	if command.rotateEncryptionKey {
@@ -233,14 +233,14 @@ func main() {
 		cancelRotation()
 		if rotationErr != nil {
 			closeDatabase()
-			log.Fatalf("encryption key rotation failed: %v", rotationErr)
+			fatalfWithDiagnostics(diagnosticsReporter, "encryption key rotation failed: %v", rotationErr)
 		}
 		if err := json.NewEncoder(os.Stdout).Encode(struct {
 			Status string `json:"status"`
 			encryptionrotation.Result
 		}{Status: "rotated", Result: result}); err != nil {
 			closeDatabase()
-			log.Fatal(err)
+			fatalWithDiagnostics(diagnosticsReporter, err)
 		}
 		closeDatabase()
 		return
@@ -248,11 +248,11 @@ func main() {
 	instanceSettingsService := instancesettings.NewService(db, tokenEncryptor, cfg)
 	aiPromptService := aiprompts.NewService(db, tokenEncryptor)
 	if err := instanceSettingsService.ApplyStored(context.Background(), cfg); err != nil {
-		log.Fatalf("failed to load administrator-managed instance settings: %v", err)
+		fatalfWithDiagnostics(diagnosticsReporter, "failed to load administrator-managed instance settings: %v", err)
 	}
 	instanceSettingsService.CaptureRuntime(cfg)
 	if err := cfg.ValidateRuntime(); err != nil {
-		log.Fatal(err)
+		fatalWithDiagnostics(diagnosticsReporter, err)
 	}
 	telemetryRecorder, err := telemetry.New(telemetry.Config{
 		Enabled:         cfg.TelemetryEnabled,
@@ -266,7 +266,7 @@ func main() {
 		Revision:        runningBuildRevision(),
 	})
 	if err != nil {
-		log.Fatal(err)
+		fatalWithDiagnostics(diagnosticsReporter, err)
 	}
 	readiness := apiroutes.NewReadiness()
 	e := echo.New()
@@ -390,7 +390,7 @@ func main() {
 		Origins: []string{cfg.PublicURL},
 	})
 	if err != nil {
-		log.Fatal(err)
+		fatalWithDiagnostics(diagnosticsReporter, err)
 	}
 	var authMailSender passwordmail.Sender
 	switch cfg.EmailProvider {
@@ -417,7 +417,7 @@ func main() {
 		})
 	}
 	if err != nil {
-		log.Fatalf("authentication email configuration is invalid: %v", err)
+		fatalfWithDiagnostics(diagnosticsReporter, "authentication email configuration is invalid: %v", err)
 	}
 	emailVerificationService := emailverification.NewService(db, emailverification.Config{
 		Secret:                cfg.JWTSecret,
@@ -445,14 +445,14 @@ func main() {
 	platform.RegisterAllMediaValidators()
 	dynamicMastodonApps, err := mastodonAppService.ListActiveAppConfigs(context.Background())
 	if err != nil {
-		log.Fatalf("failed to load dynamic mastodon app registry from database: %v", err)
+		fatalfWithDiagnostics(diagnosticsReporter, "failed to load dynamic mastodon app registry from database: %v", err)
 	}
 	if len(dynamicMastodonApps) > 0 {
 		log.Printf("Loaded %d dynamic mastodon app config(s) from database", len(dynamicMastodonApps))
 	}
 	dbProviderApps, err := providerapps.NewService(db, tokenEncryptor).ListActiveAppConfigs(context.Background())
 	if err != nil {
-		log.Fatalf("failed to load provider app registry from database: %v", err)
+		fatalfWithDiagnostics(diagnosticsReporter, "failed to load provider app registry from database: %v", err)
 	}
 	if len(dbProviderApps) > 0 {
 		log.Printf("Loaded %d provider app config(s) from database", len(dbProviderApps))
@@ -475,7 +475,7 @@ func main() {
 			app.WebhookSecret,
 		)
 		if err := botIngressService.RegisterProcessor("telegram", telegramConnectionService); err != nil {
-			log.Fatal("failed to register Telegram ingress processor")
+			fatalWithDiagnostics(diagnosticsReporter, "failed to register Telegram ingress processor")
 		}
 		// The same credential-safe boundary owns Telegram publishing. The
 		// instance bot token never enters a Workspace SocialAccount or job.
@@ -498,7 +498,7 @@ func main() {
 		providerreadiness.OperatorRuntimeApps(cfg.ProviderApps, providerEnvironment),
 	)
 	if err != nil {
-		log.Fatalf("failed to build provider readiness configuration: %v", err)
+		fatalfWithDiagnostics(diagnosticsReporter, "failed to build provider readiness configuration: %v", err)
 	}
 	providerReadinessService := providerreadiness.NewService(
 		providerreadiness.NewRepository(db),
@@ -522,7 +522,7 @@ func main() {
 			if errors.Is(err, telegramservice.ErrProviderUnavailable) {
 				log.Printf("Telegram webhook registration skipped: provider readiness is unavailable")
 			} else {
-				log.Fatal("failed to configure Telegram webhook")
+				fatalWithDiagnostics(diagnosticsReporter, "failed to configure Telegram webhook")
 			}
 		} else {
 			cancelConfigure()
@@ -533,11 +533,11 @@ func main() {
 		EnableLinkedInOrganizations:  cfg.EnableLinkedInOrganizations,
 	})
 	if err != nil {
-		log.Fatalf("failed to build provider app registry: %v", err)
+		fatalfWithDiagnostics(diagnosticsReporter, "failed to build provider app registry: %v", err)
 	}
 	blueskyPDSEntries, err := blueskyPDSRegistryEntries(context.Background(), db, providers)
 	if err != nil {
-		log.Fatalf("failed to load bluesky PDS registry from database: %v", err)
+		fatalfWithDiagnostics(diagnosticsReporter, "failed to load bluesky PDS registry from database: %v", err)
 	}
 	for _, entry := range blueskyPDSEntries {
 		providers[entry.Key] = entry.Adapter
@@ -545,7 +545,7 @@ func main() {
 	providerEntries = append(providerEntries, blueskyPDSEntries...)
 	fediverseInstanceEntries, err := fediverseInstanceRegistryEntries(context.Background(), db, providers)
 	if err != nil {
-		log.Fatalf("failed to load fediverse instance registry from database: %v", err)
+		fatalfWithDiagnostics(diagnosticsReporter, "failed to load fediverse instance registry from database: %v", err)
 	}
 	for _, entry := range fediverseInstanceEntries {
 		providers[entry.Key] = entry.Adapter
@@ -553,15 +553,15 @@ func main() {
 	providerEntries = append(providerEntries, fediverseInstanceEntries...)
 	connectorConfig, err := connectors.LoadConfig(cfg.ConnectorsFile)
 	if err != nil {
-		log.Fatalf("failed to load connector configuration: %v", err)
+		fatalfWithDiagnostics(diagnosticsReporter, "failed to load connector configuration: %v", err)
 	}
 	connectorRegistry, err := connectors.NewRegistry(context.Background(), connectorConfig, connectors.RegistryOptions{})
 	if err != nil {
-		log.Fatalf("failed to initialize connector registry: %v", err)
+		fatalfWithDiagnostics(diagnosticsReporter, "failed to initialize connector registry: %v", err)
 	}
 	connectorStore := connectors.NewStore(db)
 	if err := connectorStore.SyncRegistry(context.Background(), connectorRegistry); err != nil {
-		log.Fatalf("failed to synchronize connector registry: %v", err)
+		fatalfWithDiagnostics(diagnosticsReporter, "failed to synchronize connector registry: %v", err)
 	}
 	for _, entry := range connectorRegistry.All() {
 		log.Printf("Loaded connector installation %s: %s", entry.InstallationID, entry.Status)
@@ -574,11 +574,11 @@ func main() {
 				cfg.XPostCreateCostMicrousd,
 				cfg.XPostCreateWithURLCostMicrousd,
 			)); err != nil {
-				log.Fatalf("hosted X provider cost configuration is invalid: %v", err)
+				fatalfWithDiagnostics(diagnosticsReporter, "hosted X provider cost configuration is invalid: %v", err)
 			}
 			now := time.Now().UTC()
 			if err := usageService.ReconcileProviderCosts(context.Background(), now); err != nil {
-				log.Fatalf("failed to reconcile current provider cost counters: %v", err)
+				fatalfWithDiagnostics(diagnosticsReporter, "failed to reconcile current provider cost counters: %v", err)
 			}
 			if cfg.ProviderUsageRetentionDays > 0 {
 				cutoff := now.AddDate(0, 0, -cfg.ProviderUsageRetentionDays)
@@ -642,7 +642,7 @@ func main() {
 	for _, source := range cfg.AnalyticsSources {
 		adapter, err := analyticsservice.NewExternalAnalyticsAdapter(source.Platform, source.BaseURL, source.BearerToken)
 		if err != nil {
-			log.Fatalf("failed to initialize external analytics source for %s: %v", source.Platform, err)
+			fatalfWithDiagnostics(diagnosticsReporter, "failed to initialize external analytics source for %s: %v", source.Platform, err)
 		}
 		analyticsService.SetExternalSource(source.Platform, adapter)
 		log.Printf("Registered external analytics source: %s", source.Platform)
@@ -663,7 +663,7 @@ func main() {
 		},
 	})
 	if err != nil {
-		log.Fatalf("failed to initialize media storage: %v", err)
+		fatalfWithDiagnostics(diagnosticsReporter, "failed to initialize media storage: %v", err)
 	}
 	publishSvc.SetStorage(storage)
 	publicMediaVerifier := publicurl.NewMediaVerifier(cfg.MediaURL, storage, mediaSigner)
@@ -680,11 +680,11 @@ func main() {
 		imageConfig, contentConfig := openRouterConfigs(cfg)
 		imageGenerator, err = ai.NewOpenRouter(imageConfig)
 		if err != nil {
-			log.Fatalf("failed to initialize OpenRouter image generator: %v", err)
+			fatalfWithDiagnostics(diagnosticsReporter, "failed to initialize OpenRouter image generator: %v", err)
 		}
 		contentGenerator, err = ai.NewOpenRouter(contentConfig)
 		if err != nil {
-			log.Fatalf("failed to initialize OpenRouter text generator: %v", err)
+			fatalfWithDiagnostics(diagnosticsReporter, "failed to initialize OpenRouter text generator: %v", err)
 		}
 	}
 
@@ -693,7 +693,7 @@ func main() {
 	if imageGenerator != nil {
 		imageCaptioner, err = imagecaption.New(imageGenerator, cfg.ImageCaptionModel)
 		if err != nil {
-			log.Fatalf("failed to initialize automatic image captioning: %v", err)
+			fatalfWithDiagnostics(diagnosticsReporter, "failed to initialize automatic image captioning: %v", err)
 		}
 		log.Printf(
 			"Automatic image captioning enabled with model %s provider %s zero_data_retention=%t",
@@ -705,7 +705,7 @@ func main() {
 	if contentGenerator != nil {
 		postBuilder, err = postgeneration.New(contentGenerator, cfg.TextGenerationModel, aiPromptService)
 		if err != nil {
-			log.Fatalf("failed to initialize AI post builder: %v", err)
+			fatalfWithDiagnostics(diagnosticsReporter, "failed to initialize AI post builder: %v", err)
 		}
 		log.Printf(
 			"AI post builder enabled with model %s provider %s zero_data_retention=%t",
@@ -722,11 +722,11 @@ func main() {
 	if contentGenerator != nil {
 		publicSourceLoader, err = sourcecontext.New(sourcecontext.Config{})
 		if err != nil {
-			log.Fatalf("failed to initialize public source loader: %v", err)
+			fatalfWithDiagnostics(diagnosticsReporter, "failed to initialize public source loader: %v", err)
 		}
 		publicationBuilderService, err = publicationbuilder.New(contentGenerator, publicationbuilder.Config{Model: cfg.TextGenerationModel})
 		if err != nil {
-			log.Fatalf("failed to initialize publication builder: %v", err)
+			fatalfWithDiagnostics(diagnosticsReporter, "failed to initialize publication builder: %v", err)
 		}
 		publicationBuilderApplication, err = publicationbuilder.NewApplication(
 			db,
@@ -738,14 +738,14 @@ func main() {
 			},
 		)
 		if err != nil {
-			log.Fatalf("failed to initialize durable publication builder: %v", err)
+			fatalfWithDiagnostics(diagnosticsReporter, "failed to initialize durable publication builder: %v", err)
 		}
 		publicationDiscoveryService, err = publicationdiscovery.New(contentGenerator, publicationdiscovery.Config{
 			Model:        cfg.TextGenerationModel,
 			SourceLoader: publicSourceLoader,
 		})
 		if err != nil {
-			log.Fatalf("failed to initialize publication discovery: %v", err)
+			fatalfWithDiagnostics(diagnosticsReporter, "failed to initialize publication discovery: %v", err)
 		}
 	}
 
@@ -754,12 +754,12 @@ func main() {
 	if cfg.MemeGeneratorEnabled {
 		memeProvider, err = memes.NewBuiltinProvider()
 		if err != nil {
-			log.Fatalf("failed to initialize built-in meme catalog: %v", err)
+			fatalfWithDiagnostics(diagnosticsReporter, "failed to initialize built-in meme catalog: %v", err)
 		}
 		if contentGenerator != nil {
 			memeSuggester, err = memegeneration.New(contentGenerator, cfg.MemeGenerationModel)
 			if err != nil {
-				log.Fatalf("failed to initialize AI meme suggestions: %v", err)
+				fatalfWithDiagnostics(diagnosticsReporter, "failed to initialize AI meme suggestions: %v", err)
 			}
 			log.Printf("AI meme suggestions enabled with model %s", cfg.MemeGenerationModel)
 		}
@@ -769,11 +769,11 @@ func main() {
 	var feedbackDestination feedback.Destination
 	if cfg.FeedbackEnabled {
 		if strings.TrimSpace(cfg.FeedbackRecipient) == "" {
-			log.Fatal("OPENPOST_FEEDBACK_RECIPIENT is required when feedback is enabled")
+			fatalWithDiagnostics(diagnosticsReporter, "OPENPOST_FEEDBACK_RECIPIENT is required when feedback is enabled")
 		}
 		feedbackDestination, err = feedback.NewDiscordDestination(cfg.FeedbackDestinationURL)
 		if err != nil {
-			log.Fatalf("feedback destination configuration is invalid: %v", err)
+			fatalfWithDiagnostics(diagnosticsReporter, "feedback destination configuration is invalid: %v", err)
 		}
 	}
 	feedbackService := feedback.NewService(db, feedback.Config{
@@ -804,22 +804,22 @@ func main() {
 		worker.SetTelemetry(telemetryRecorder)
 		worker.SetDiagnosticsReporter(diagnosticsReporter)
 		if err := videoProcessingService.EnqueuePendingAnalysis(context.Background()); err != nil {
-			log.Fatalf("failed to schedule pending video analysis: %v", err)
+			fatalfWithDiagnostics(diagnosticsReporter, "failed to schedule pending video analysis: %v", err)
 		}
 		if err := analyticsService.ScheduleSweep(context.Background(), time.Now().UTC()); err != nil {
-			log.Fatalf("failed to schedule analytics collection: %v", err)
+			fatalfWithDiagnostics(diagnosticsReporter, "failed to schedule analytics collection: %v", err)
 		}
 		if err := engagementService.ScheduleSweep(context.Background(), time.Now().UTC()); err != nil {
-			log.Fatalf("failed to schedule engagement collection: %v", err)
+			fatalfWithDiagnostics(diagnosticsReporter, "failed to schedule engagement collection: %v", err)
 		}
 		if err := messagingService.ScheduleSweep(context.Background(), time.Now().UTC()); err != nil {
-			log.Fatalf("failed to schedule messaging collection: %v", err)
+			fatalfWithDiagnostics(diagnosticsReporter, "failed to schedule messaging collection: %v", err)
 		}
 		if err := repostService.ScheduleSweep(context.Background(), time.Now().UTC()); err != nil {
-			log.Fatalf("failed to schedule repost automation: %v", err)
+			fatalfWithDiagnostics(diagnosticsReporter, "failed to schedule repost automation: %v", err)
 		}
 		if err := accountPreflightService.Schedule(context.Background(), time.Now().UTC()); err != nil {
-			log.Fatalf("failed to schedule upcoming account checks: %v", err)
+			fatalfWithDiagnostics(diagnosticsReporter, "failed to schedule upcoming account checks: %v", err)
 		}
 	}
 
@@ -839,7 +839,7 @@ func main() {
 	invitationDeliveryService := workspaceteam.NewService(db, entitlementService, notificationService)
 	handlers.NewEmailDeliveryWebhookHandler(invitationDeliveryService, cfg.EmailDeliveryWebhookSecret).RegisterRoutes(e)
 	if err := registerE2EDeliveryProjection(e, db, authenticator, cfg.AppE2EDeliveryProjection); err != nil {
-		log.Fatalf("failed to configure E2E delivery projection: %v", err)
+		fatalfWithDiagnostics(diagnosticsReporter, "failed to configure E2E delivery projection: %v", err)
 	}
 	defer closeDatabase()
 
@@ -1099,6 +1099,16 @@ func closeDiagnostics(reporter *diagnostics.Reporter) {
 	if err := reporter.Close(); err != nil {
 		log.Printf("diagnostics shutdown failed: %v", err)
 	}
+}
+
+func fatalWithDiagnostics(reporter *diagnostics.Reporter, values ...any) {
+	closeDiagnostics(reporter)
+	log.Fatal(values...)
+}
+
+func fatalfWithDiagnostics(reporter *diagnostics.Reporter, format string, values ...any) {
+	closeDiagnostics(reporter)
+	log.Fatalf(format, values...)
 }
 
 // newDiagnosticsIngester builds the public cross-instance receiver. It is

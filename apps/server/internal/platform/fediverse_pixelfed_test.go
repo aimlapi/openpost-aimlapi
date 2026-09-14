@@ -7,9 +7,19 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
+
+func TestCompatWaitForMediaProcessingHonorsCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	started := time.Now()
+	_, err := compatWaitForMediaProcessing(ctx, "http://127.0.0.1:1", "token", "media-id")
+	require.ErrorIs(t, err, context.Canceled)
+	require.Less(t, time.Since(started), 500*time.Millisecond)
+}
 
 func TestParseFediverseSoftware(t *testing.T) {
 	cases := map[string]FediverseSoftware{

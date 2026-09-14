@@ -9421,6 +9421,8 @@ export interface components {
              * @description Attempt count, when relevant
              */
             attempt_count?: number;
+            /** @description Normalized database driver */
+            db_driver?: string;
             /** @description Normalized error code from the diagnostics catalog */
             error_code: string;
             /** @description RFC3339 first observation, when known */
@@ -9450,11 +9452,17 @@ export interface components {
              * @description Retry count, when relevant
              */
             retry_count?: number;
+            /** @description OpenPost source revision reported by the sending instance */
+            revision: string;
+            /** @description Normalized media storage driver */
+            storage_driver?: string;
             /**
              * @description Surface where the failure was observed
              * @enum {string}
              */
             surface: "browser" | "backend" | "worker";
+            /** @description OpenPost release reported by the sending instance */
+            version: string;
         };
         IngestDiagnosticsOutputBody: {
             /**

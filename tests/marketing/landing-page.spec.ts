@@ -2,6 +2,15 @@ import { expect, test } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { dismissTelemetryConsent } from "./helpers.js";
 
+test("landing keeps hydration hints off the first-paint request", async ({ request }) => {
+  const response = await request.get("/");
+  expect(response.ok()).toBe(true);
+  const html = await response.text();
+  expect(html).not.toContain('rel="modulepreload"');
+  expect(html).toContain("main-light-768.webp 768w");
+  expect(html).toContain("main-dark-768.webp 768w");
+});
+
 test("landing product preview follows the visitor's selection", async ({ page }) => {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
@@ -28,7 +37,9 @@ test("landing product preview follows the visitor's selection", async ({ page })
     );
     await expect
       .poll(() =>
-        image.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth >= 2880),
+        image.evaluate(
+          (img: HTMLImageElement) => img.complete && img.naturalWidth >= img.clientWidth,
+        ),
       )
       .toBe(true);
   }
@@ -266,7 +277,7 @@ for (const width of [1440, 390, 320]) {
         await image.scrollIntoViewIfNeeded();
         await expect
           .poll(() => image.evaluate((element: HTMLImageElement) => element.currentSrc))
-          .toMatch(new RegExp(`-${colorScheme}\\.webp$`));
+          .toMatch(new RegExp(`-${colorScheme}(?:-(?:768|1536))?\\.webp$`));
       }
       expect(
         await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),

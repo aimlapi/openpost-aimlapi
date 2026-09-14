@@ -446,7 +446,8 @@ func exactDiscoveryRenditions(ctx context.Context, db bun.IDB, account models.So
 	query := db.NewSelect().Model(&renditions).
 		Column("id", "external_id").
 		Where("social_account_id = ? AND platform = ?", account.ID, account.Platform)
-	if account.Platform != "mastodon" && account.Platform != "bluesky" && account.Platform != "pixelfed" && account.Platform != "peertube" && account.Platform != "lemmy" && account.Platform != "piefed" {
+	canonicalizeIDs := platform.IsInstanceScopedProvider(account.Platform) || account.Platform == "bluesky"
+	if !canonicalizeIDs {
 		query = query.Where("external_id IN (?)", bun.List(ids))
 	}
 	if err := query.Scan(ctx); err != nil && !errors.Is(err, sql.ErrNoRows) {
@@ -456,7 +457,7 @@ func exactDiscoveryRenditions(ctx context.Context, db bun.IDB, account models.So
 	for _, rendition := range renditions {
 		externalID := strings.TrimSpace(rendition.ExternalID)
 		identity := externalID
-		if account.Platform == "mastodon" || account.Platform == "bluesky" || account.Platform == "pixelfed" || account.Platform == "peertube" || account.Platform == "lemmy" || account.Platform == "piefed" {
+		if canonicalizeIDs {
 			var ok bool
 			identity, ok = platform.CanonicalSocialAccountContentID(account.Platform, account.InstanceURL, account.AccountID, externalID)
 			if !ok {
