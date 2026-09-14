@@ -59,6 +59,12 @@ const imperativeReadAllowlist = [
     reason: "one-shot runtime initialization applied to the telemetry module",
   },
   {
+    file: "apps/web/src/lib/diagnostics-report.ts",
+    endpoint: "/diagnostics/public-config",
+    count: 1,
+    reason: "one-shot privacy gate for uncaught-error reporting, not render-path server state",
+  },
+  {
     file: "apps/mobile/src/app/publications/[id]/edit.tsx",
     endpoint: "/posting-schedules/next-slot",
     count: 2,

@@ -1,5 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { spawnSync } from "node:child_process";
+import { copyFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
 
 import {
   checkBrowserStorageInventory,
@@ -7,6 +11,48 @@ import {
   extractBrowserStorageIdentifiers,
   findUndocumentedIdentifiers,
 } from "./check-browser-storage-inventory.mjs";
+
+test("the CLI checks the current source layout without an obsolete Pages functions directory", () => {
+  const root = mkdtempSync(path.join(tmpdir(), "openpost-storage-layout-"));
+  try {
+    for (const directory of [
+      "scripts",
+      "apps/web/src",
+      "apps/marketing/src",
+      "apps/docs/app",
+      "apps/docs/components",
+      "apps/docs/lib",
+      "apps/server/internal",
+      "packages/legal-policy/src",
+    ]) {
+      mkdirSync(path.join(root, directory), { recursive: true });
+    }
+    copyFileSync(
+      "scripts/check-browser-storage-inventory.mjs",
+      path.join(root, "scripts/check-browser-storage-inventory.mjs"),
+    );
+    writeFileSync(
+      path.join(root, "packages/legal-policy/src/privacy-inventory.json"),
+      JSON.stringify({ browser_storage: [] }),
+    );
+    for (const app of ["web", "marketing"])
+      writeFileSync(path.join(root, `apps/${app}/vite.config.ts`), "");
+    const run = () =>
+      spawnSync("bun", ["scripts/check-browser-storage-inventory.mjs"], {
+        cwd: root,
+        encoding: "utf8",
+      });
+    const clean = run();
+    assert.equal(clean.status, 0, clean.stdout + clean.stderr);
+    writeFileSync(
+      path.join(root, "apps/marketing/src/storage.ts"),
+      'localStorage.setItem("unlisted-key", "value");',
+    );
+    assert.equal(run().status, 1, "undocumented storage must still fail the check");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
 
 test("extracts exact and prefix identifiers from supported browser APIs", () => {
   const source = `

@@ -13,6 +13,11 @@ export default defineConfig({
 		projects: [
 			{
 				extends: './vite.config.ts',
+				optimizeDeps: {
+					// Keep wrapper components and their mount helpers on the same Svelte runtime.
+					exclude: ['@testing-library/svelte-core', 'vitest-browser-svelte'],
+					include: ['html-to-image']
+				},
 				resolve: {
 					// Browser tests assert computed font-family names, which resolve
 					// from declarations without font files. Stub the ~30 bundled

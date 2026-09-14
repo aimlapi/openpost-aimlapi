@@ -158,7 +158,7 @@
 				entries.push(provider);
 				continue;
 			}
-			const siblings = compatProvidersFor(provider.platform as 'mastodon' | 'pixelfed');
+			const siblings = compatProvidersFor(provider.platform);
 			const preferred = siblings.find(isCustomCompatProvider) ?? siblings[0];
 			if (provider === preferred) entries.push(provider);
 		}

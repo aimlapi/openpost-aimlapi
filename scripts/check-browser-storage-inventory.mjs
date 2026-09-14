@@ -7,7 +7,6 @@ const inventoryPath = join(repositoryRoot, "packages/legal-policy/src/privacy-in
 const sourceRoots = [
   "apps/web/src",
   "apps/marketing/src",
-  "apps/marketing/functions",
   "apps/docs/app",
   "apps/docs/components",
   "apps/docs/lib",
