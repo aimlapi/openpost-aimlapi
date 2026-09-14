@@ -2478,6 +2478,14 @@ func publisherProviderLabel(provider string) string {
 		return "Bluesky"
 	case "mastodon":
 		return "Mastodon"
+	case "pixelfed":
+		return "Pixelfed"
+	case "peertube":
+		return "PeerTube"
+	case "lemmy":
+		return "Lemmy"
+	case "piefed":
+		return "PieFed"
 	case "instagram":
 		return "Instagram"
 	case "facebook":

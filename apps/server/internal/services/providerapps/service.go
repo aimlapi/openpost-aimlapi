@@ -225,11 +225,11 @@ func validateProviderAppConfig(app platform.AppConfig) error {
 	if !isManagedProviderApp(app.Provider) || (app.Provider == "discord" && app.ConnectionMode != platform.ConnectionModeBot) {
 		return ValidationError{Message: fmt.Sprintf("unsupported provider app: %s", app.Provider)}
 	}
-	if app.Provider != "mastodon" && app.InstanceURL != "" {
-		return ValidationError{Message: "instance_url is only supported for mastodon provider apps"}
+	if app.Provider != "mastodon" && app.Provider != "pixelfed" && app.Provider != "peertube" && app.Provider != "lemmy" && app.Provider != "piefed" && app.InstanceURL != "" {
+		return ValidationError{Message: "instance_url is only supported for federated provider apps"}
 	}
 	switch app.Provider {
-	case "pinterest", "telegram", "discord":
+	case "pinterest", "telegram", "discord", "pixelfed", "peertube", "lemmy", "piefed":
 		if err := platform.ValidateAppConfig(app); err != nil {
 			return ValidationError{Message: err.Error()}
 		}
@@ -249,7 +249,7 @@ func validateProviderAppConfig(app platform.AppConfig) error {
 // instance-owned and may be stored in encrypted provider app rows.
 func isManagedProviderApp(provider string) bool {
 	switch provider {
-	case "x", "mastodon", "linkedin", "threads", "facebook", "instagram", "tiktok", "youtube", "pinterest", "telegram", "discord":
+	case "x", "mastodon", "pixelfed", "peertube", "lemmy", "piefed", "linkedin", "threads", "facebook", "instagram", "tiktok", "youtube", "pinterest", "telegram", "discord":
 		return true
 	default:
 		return false

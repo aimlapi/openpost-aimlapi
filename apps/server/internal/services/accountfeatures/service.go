@@ -652,9 +652,12 @@ func (s *Service) resolveAdapter(providerKey string) (platform.Adapter, bool) {
 	if ok {
 		return adapter, true
 	}
-	if strings.HasPrefix(providerKey, "mastodon") {
+	if prefix, _, ok := strings.Cut(providerKey, ":"); ok {
 		for k, v := range s.providers {
-			if strings.HasPrefix(k, "mastodon") {
+			if k == providerKey {
+				continue
+			}
+			if k == prefix || strings.HasPrefix(k, prefix+":") {
 				return v, true
 			}
 		}

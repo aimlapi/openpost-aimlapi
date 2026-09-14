@@ -488,7 +488,7 @@ func main() {
 			EnforceCertification:         enforceProviderCertification,
 			CurrentRevision:              runningBuildRevision(),
 			DisabledProviders:            cfg.DisabledProviders,
-			DynamicRegistrationProviders: []string{capabilities.ProviderMastodon},
+			DynamicRegistrationProviders: []string{capabilities.ProviderMastodon, capabilities.ProviderPixelfed},
 			DefaultControl:               defaultProviderControl,
 		},
 	)
@@ -523,6 +523,14 @@ func main() {
 		providers[entry.Key] = entry.Adapter
 	}
 	providerEntries = append(providerEntries, blueskyPDSEntries...)
+	fediverseInstanceEntries, err := fediverseInstanceRegistryEntries(context.Background(), db, providers)
+	if err != nil {
+		log.Fatalf("failed to load fediverse instance registry from database: %v", err)
+	}
+	for _, entry := range fediverseInstanceEntries {
+		providers[entry.Key] = entry.Adapter
+	}
+	providerEntries = append(providerEntries, fediverseInstanceEntries...)
 	connectorConfig, err := connectors.LoadConfig(cfg.ConnectorsFile)
 	if err != nil {
 		log.Fatalf("failed to load connector configuration: %v", err)
@@ -1112,6 +1120,53 @@ func runningBuildRevision() string {
 
 // Bluesky has no instance table like Mastodon's, so the connected accounts are
 // the record of which PDSes need an adapter after a restart.
+func fediverseInstanceRegistryEntries(ctx context.Context, db *bun.DB, providers map[string]platform.Adapter) ([]platform.RegistryEntry, error) {
+	// Credential-connected Fediverse instances (PeerTube, Lemmy, PieFed)
+	// need no stored OAuth client: the adapter is stateless besides the
+	// instance URL, so distinct connected instances re-register here at
+	// startup exactly like Bluesky PDS entries.
+	constructors := map[string]func(string) platform.Adapter{
+		capabilities.ProviderPeerTube: func(instanceURL string) platform.Adapter { return platform.NewPeerTubeAdapter(instanceURL) },
+		capabilities.ProviderLemmy:    func(instanceURL string) platform.Adapter { return platform.NewLemmyAdapter(instanceURL) },
+		capabilities.ProviderPieFed:   func(instanceURL string) platform.Adapter { return platform.NewPieFedAdapter(instanceURL) },
+	}
+	entries := make([]platform.RegistryEntry, 0)
+	seen := map[string]struct{}{}
+	for provider, construct := range constructors {
+		if _, ok := providers[provider]; !ok {
+			continue
+		}
+		var instanceURLs []string
+		if err := db.NewSelect().
+			ColumnExpr("DISTINCT instance_url").
+			TableExpr("social_accounts").
+			Where("platform = ?", provider).
+			Where("is_active = ?", true).
+			Where("instance_url IS NOT NULL AND instance_url <> ?", "").
+			Scan(ctx, &instanceURLs); err != nil {
+			return nil, err
+		}
+		for _, instanceURL := range instanceURLs {
+			key := platform.AccountProviderKey(provider, instanceURL, "")
+			if _, exists := providers[key]; exists {
+				continue
+			}
+			if _, duplicate := seen[key]; duplicate {
+				continue
+			}
+			seen[key] = struct{}{}
+			entries = append(entries, platform.RegistryEntry{
+				Key:         key,
+				Provider:    provider,
+				Name:        instanceURL,
+				InstanceURL: instanceURL,
+				Adapter:     construct(instanceURL),
+			})
+		}
+	}
+	return entries, nil
+}
+
 func blueskyPDSRegistryEntries(ctx context.Context, db *bun.DB, providers map[string]platform.Adapter) ([]platform.RegistryEntry, error) {
 	if _, ok := providers[capabilities.ProviderBluesky]; !ok {
 		return nil, nil

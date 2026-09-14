@@ -222,8 +222,5 @@ func accountMessagesEnabled(account models.SocialAccount) bool {
 
 func providerKey(account models.SocialAccount) string {
 	key := strings.ToLower(strings.TrimSpace(account.Platform))
-	if key == "mastodon" || key == "bluesky" {
-		return platform.AccountProviderKey(key, account.InstanceURL, "")
-	}
-	return key
+	return platform.AccountProviderKey(key, account.InstanceURL, "")
 }

@@ -15,6 +15,7 @@ import (
 
 	"github.com/openpost/backend/internal/capabilities"
 	"github.com/openpost/backend/internal/models"
+	"github.com/openpost/backend/internal/platform"
 	"github.com/openpost/backend/internal/providerpolicy"
 	"github.com/uptrace/bun"
 )
@@ -312,8 +313,8 @@ func loadSettingMediaItems(
 }
 
 func TargetKey(account models.SocialAccount) string {
-	if account.Platform == "mastodon" {
-		return "mastodon:" + account.InstanceURL
+	if platform.IsInstanceScopedProvider(account.Platform) {
+		return account.Platform + ":" + account.InstanceURL
 	}
 	return account.Platform
 }

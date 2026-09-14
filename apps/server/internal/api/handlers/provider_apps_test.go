@@ -267,7 +267,7 @@ func TestProviderAppAdminRejectsUnsupportedProvider(t *testing.T) {
 		"provider": "x", "client_id": "x-client", "instance_url": "https://example.social",
 	})
 	require.Equal(t, http.StatusBadRequest, resp.Code, resp.Body.String())
-	require.Contains(t, resp.Body.String(), "instance_url is only supported for mastodon")
+	require.Contains(t, resp.Body.String(), "instance_url is only supported for federated provider apps")
 }
 
 func TestProviderAppAdminDeletionIsIdempotent(t *testing.T) {

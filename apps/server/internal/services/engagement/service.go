@@ -1424,8 +1424,12 @@ func providerPostURL(rendition models.Rendition, account models.SocialAccount) s
 	switch rendition.Platform {
 	case "x":
 		return xPostURL(username, externalID)
-	case "mastodon":
+	case "mastodon", "pixelfed":
 		return mastodonPostURL(account.InstanceURL, username, externalID)
+	case "peertube":
+		return peertubeWatchURL(account.InstanceURL, externalID)
+	case "lemmy", "piefed":
+		return communityPostURL(account.InstanceURL, externalID)
 	case "bluesky":
 		return blueskyPostURL(externalID)
 	case "linkedin":
@@ -1443,6 +1447,24 @@ func xPostURL(username, externalID string) string {
 		return ""
 	}
 	return "https://x.com/" + url.PathEscape(username) + "/status/" + url.PathEscape(externalID)
+}
+
+func peertubeWatchURL(instanceURL, externalID string) string {
+	instanceURL = strings.TrimRight(strings.TrimSpace(instanceURL), "/")
+	externalID = strings.TrimSpace(externalID)
+	if !strings.HasPrefix(instanceURL, "https://") || externalID == "" {
+		return ""
+	}
+	return instanceURL + "/videos/watch/" + url.PathEscape(externalID)
+}
+
+func communityPostURL(instanceURL, externalID string) string {
+	instanceURL = strings.TrimRight(strings.TrimSpace(instanceURL), "/")
+	externalID = strings.TrimSpace(externalID)
+	if !strings.HasPrefix(instanceURL, "https://") || externalID == "" {
+		return ""
+	}
+	return instanceURL + "/post/" + url.PathEscape(externalID)
 }
 
 func mastodonPostURL(instanceURL, username, externalID string) string {
@@ -1499,7 +1521,7 @@ func (s *Service) resolveRenditionAccount(ctx context.Context, accountID string)
 		Where("is_active = ?", true).
 		Order("created_at DESC").
 		Limit(1)
-	if original.Platform == "mastodon" {
+	if platform.IsInstanceScopedProvider(original.Platform) {
 		query = query.Where("instance_url = ?", original.InstanceURL)
 	}
 	var replacement models.SocialAccount
@@ -1602,10 +1624,7 @@ func (s *Service) adapter(account models.SocialAccount) platform.EngagementAdapt
 }
 
 func engagementProviderKey(account models.SocialAccount) string {
-	if account.Platform == "mastodon" || account.Platform == "bluesky" {
-		return platform.AccountProviderKey(account.Platform, account.InstanceURL, "")
-	}
-	return account.Platform
+	return platform.AccountProviderKey(account.Platform, account.InstanceURL, "")
 }
 
 func xBudgetWindow(now time.Time) (time.Time, time.Time) {

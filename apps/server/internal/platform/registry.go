@@ -128,6 +128,26 @@ var appBuilders = map[string]appBuilder{
 	},
 }
 
+// NewInstanceAdapter builds a stateless instance-bound adapter for
+// credential-connected providers. OAuth providers need stored client
+// material and cannot use this path.
+func NewInstanceAdapter(provider, instanceURL string) (Adapter, bool) {
+	instanceURL = strings.TrimRight(strings.TrimSpace(instanceURL), "/")
+	if instanceURL == "" {
+		return nil, false
+	}
+	switch strings.ToLower(strings.TrimSpace(provider)) {
+	case providerPeerTube:
+		return NewPeerTubeAdapter(instanceURL), true
+	case providerLemmy:
+		return NewLemmyAdapter(instanceURL), true
+	case providerPieFed:
+		return NewPieFedAdapter(instanceURL), true
+	default:
+		return nil, false
+	}
+}
+
 func BuildAdapterRegistry(apps []AppConfig, opts RegistryOptions) (map[string]Adapter, []RegistryEntry, error) {
 	adapters := make(map[string]Adapter)
 	entries := make([]RegistryEntry, 0, len(apps))
@@ -208,6 +228,12 @@ func AccountProviderKey(provider, instanceURL, capabilityStateJSON string) strin
 	provider = strings.ToLower(strings.TrimSpace(provider))
 	if provider == providerMastodon || provider == providerPixelfed {
 		return provider + ":" + strings.TrimRight(strings.TrimSpace(instanceURL), "/")
+	}
+	if provider == providerPeerTube || provider == providerLemmy || provider == providerPieFed {
+		if instance := strings.TrimRight(strings.TrimSpace(instanceURL), "/"); instance != "" {
+			return provider + ":" + instance
+		}
+		return provider
 	}
 	if provider == providerBluesky {
 		if instance := CanonicalBlueskyPDSURL(instanceURL); instance != "" && instance != BlueskyDefaultPDSURL {

@@ -272,10 +272,7 @@ func (l *LemmyAdapter) resolveCommunity(ctx context.Context, jwt, ref string) (C
 // SearchPublishingOptions searches communities on the connected instance for
 // the composer destination picker. Values are canonical actor IDs.
 func (l *LemmyAdapter) SearchPublishingOptions(ctx context.Context, accessToken string, input PublishingOptionsInput) (PublishingOptionsPage, error) {
-	query := strings.TrimSpace(input.Context["query"])
-	if query == "" {
-		query = strings.TrimSpace(input.Search)
-	}
+	query := strings.TrimSpace(firstNonEmptyString(input.Search, input.Context["value"], input.Context["query"]))
 	limit := input.Limit
 	if limit <= 0 || limit > 25 {
 		limit = 10
@@ -719,7 +716,7 @@ func (l *LemmyAdapter) DiscoverAccountContent(ctx context.Context, accessToken s
 			continue
 		}
 		item := AccountContentItem{
-			ProviderContentID: actorID,
+			ProviderContentID: strings.TrimRight(l.instanceURL, "/") + "/post/" + strconv.FormatInt(post.ID, 10),
 			ContentProfile:    lemmyAccountContentProfile(post),
 			Title:             post.Name,
 			ExternalURL:       actorID,

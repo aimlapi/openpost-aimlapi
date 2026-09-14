@@ -957,6 +957,7 @@ type MastodonInstance struct {
 	bun.BaseModel `bun:"table:mastodon_instances"`
 
 	ID                 string    `bun:",pk" json:"id"`
+	Provider           string    `bun:",notnull,default:'mastodon'" json:"provider"`
 	InstanceURL        string    `bun:",unique,notnull" json:"instance_url"`
 	Host               string    `bun:",notnull" json:"host"`
 	ClientID           string    `bun:",notnull" json:"client_id"`

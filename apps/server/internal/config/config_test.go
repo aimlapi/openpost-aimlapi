@@ -326,16 +326,19 @@ func TestLoadSupportsHostedAndSelfHostedProviderBotContracts(t *testing.T) {
 
 	cfg := Load()
 
-	require.Len(t, cfg.ProviderApps, 5)
+	require.Len(t, cfg.ProviderApps, 8)
 	require.Equal(t, "webhook", cfg.ProviderApps[1].ConnectionMode)
-	require.Equal(t, "pinterest", cfg.ProviderApps[2].Provider)
-	require.Equal(t, "https://app.openpo.st/api/v1/accounts/pinterest/callback", cfg.ProviderApps[2].RedirectURI)
-	require.Equal(t, "telegram", cfg.ProviderApps[3].Provider)
-	require.Equal(t, "openpost_bot", cfg.ProviderApps[3].BotUsername)
-	require.Empty(t, cfg.ProviderApps[3].RedirectURI)
-	require.Equal(t, "discord", cfg.ProviderApps[4].Provider)
-	require.Equal(t, "bot", cfg.ProviderApps[4].ConnectionMode)
-	require.Equal(t, "https://app.openpo.st/api/v1/accounts/discord/callback", cfg.ProviderApps[4].RedirectURI)
+	require.Equal(t, "peertube", cfg.ProviderApps[2].Provider)
+	require.Equal(t, "lemmy", cfg.ProviderApps[3].Provider)
+	require.Equal(t, "piefed", cfg.ProviderApps[4].Provider)
+	require.Equal(t, "pinterest", cfg.ProviderApps[5].Provider)
+	require.Equal(t, "https://app.openpo.st/api/v1/accounts/pinterest/callback", cfg.ProviderApps[5].RedirectURI)
+	require.Equal(t, "telegram", cfg.ProviderApps[6].Provider)
+	require.Equal(t, "openpost_bot", cfg.ProviderApps[6].BotUsername)
+	require.Empty(t, cfg.ProviderApps[6].RedirectURI)
+	require.Equal(t, "discord", cfg.ProviderApps[7].Provider)
+	require.Equal(t, "bot", cfg.ProviderApps[7].ConnectionMode)
+	require.Equal(t, "https://app.openpo.st/api/v1/accounts/discord/callback", cfg.ProviderApps[7].RedirectURI)
 }
 
 func TestLoadCloudCORSOriginsExcludeLocalDevelopmentDefaults(t *testing.T) {

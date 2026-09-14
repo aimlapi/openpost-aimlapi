@@ -64,25 +64,42 @@ func NewService(db *bun.DB, encryptor *crypto.TokenEncryptor, opts Options) *Ser
 	}
 }
 
-func (s *Service) AdapterForInstance(ctx context.Context, rawInstanceURL string) (platform.Adapter, string, error) {
+// AdapterForInstance returns the OAuth adapter for one Fediverse instance,
+// dynamically registering the instance app when needed. Provider selects
+// the adapter identity ("mastodon" or "pixelfed"); both speak the same
+// registration endpoint, and the row records which software was detected.
+func (s *Service) AdapterForInstance(ctx context.Context, provider, rawInstanceURL string) (platform.Adapter, string, error) {
+	provider = normalizeInstanceProvider(provider)
 	instanceURL, host, err := s.normalizeInstanceURL(ctx, rawInstanceURL)
 	if err != nil {
 		return nil, "", err
 	}
 
-	instance, err := s.loadOrRegister(ctx, instanceURL, host)
+	instance, err := s.loadOrRegister(ctx, provider, instanceURL, host)
 	if err != nil {
 		return nil, "", err
 	}
 	if !instance.BlockedAt.IsZero() {
-		return nil, "", fmt.Errorf("mastodon instance is blocked: %s", instance.BlockReason)
+		return nil, "", fmt.Errorf("%s instance is blocked: %s", provider, instance.BlockReason)
 	}
 	secret, err := s.encryptor.Decrypt(instance.ClientSecretEnc)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to decrypt mastodon app secret: %w", err)
 	}
 
+	if provider == "pixelfed" {
+		return platform.NewPixelfedAdapter(instance.ClientID, secret, instance.RedirectURI, instance.InstanceURL), instance.InstanceURL, nil
+	}
 	return platform.NewMastodonAdapter(instance.ClientID, secret, instance.RedirectURI, instance.InstanceURL), instance.InstanceURL, nil
+}
+
+// normalizeInstanceProvider keeps the dynamic registry honest: only software
+// with a Mastodon-compatible app registration endpoint may enter it.
+func normalizeInstanceProvider(provider string) string {
+	if strings.TrimSpace(strings.ToLower(provider)) == "pixelfed" {
+		return "pixelfed"
+	}
+	return "mastodon"
 }
 
 func (s *Service) ListActiveAppConfigs(ctx context.Context) ([]platform.AppConfig, error) {
@@ -102,8 +119,12 @@ func (s *Service) ListActiveAppConfigs(ctx context.Context) ([]platform.AppConfi
 		if err != nil {
 			return nil, fmt.Errorf("failed to decrypt mastodon instance %s: %w", instance.ID, err)
 		}
+		provider := strings.TrimSpace(strings.ToLower(instance.Provider))
+		if provider != "pixelfed" {
+			provider = "mastodon"
+		}
 		configs = append(configs, platform.NormalizeAppConfig(platform.AppConfig{
-			Provider:     "mastodon",
+			Provider:     provider,
 			Name:         instance.Host,
 			ClientID:     instance.ClientID,
 			ClientSecret: secret,
@@ -114,17 +135,22 @@ func (s *Service) ListActiveAppConfigs(ctx context.Context) ([]platform.AppConfi
 	return configs, nil
 }
 
-func (s *Service) loadOrRegister(ctx context.Context, instanceURL, host string) (models.MastodonInstance, error) {
+func (s *Service) loadOrRegister(ctx context.Context, provider, instanceURL, host string) (models.MastodonInstance, error) {
 	var instance models.MastodonInstance
 	err := s.db.NewSelect().
 		Model(&instance).
 		Where("instance_url = ?", instanceURL).
 		Scan(ctx)
 	if err == nil {
-		if !instance.BlockedAt.IsZero() || instance.RedirectURI == s.redirectURI {
-			return instance, nil
+		if instance.RedirectURI != s.redirectURI {
+			instance.Provider = provider
+			return s.reregisterApp(ctx, instance)
 		}
-		return s.reregisterApp(ctx, instance)
+		if instance.Provider != provider {
+			instance.Provider = provider
+			return s.updateInstanceProvider(ctx, instance)
+		}
+		return instance, nil
 	}
 	if err != sql.ErrNoRows {
 		return instance, fmt.Errorf("failed to load mastodon instance: %w", err)
@@ -142,6 +168,7 @@ func (s *Service) loadOrRegister(ctx context.Context, instanceURL, host string) 
 	now := time.Now().UTC()
 	instance = models.MastodonInstance{
 		ID:                 uuid.NewString(),
+		Provider:           provider,
 		InstanceURL:        instanceURL,
 		Host:               host,
 		ClientID:           app.ClientID,
@@ -166,6 +193,21 @@ func (s *Service) loadOrRegister(ctx context.Context, instanceURL, host string) 
 	return instance, nil
 }
 
+func (s *Service) updateInstanceProvider(ctx context.Context, instance models.MastodonInstance) (models.MastodonInstance, error) {
+	now := time.Now().UTC()
+	_, err := s.db.NewUpdate().
+		Model((*models.MastodonInstance)(nil)).
+		Set("provider = ?", instance.Provider).
+		Set("updated_at = ?", now).
+		Where("id = ?", instance.ID).
+		Exec(ctx)
+	if err != nil {
+		return instance, fmt.Errorf("failed to save fediverse instance provider: %w", err)
+	}
+	instance.UpdatedAt = now
+	return instance, nil
+}
+
 func (s *Service) reregisterApp(ctx context.Context, instance models.MastodonInstance) (models.MastodonInstance, error) {
 	app, err := s.registerApp(ctx, instance.InstanceURL)
 	if err != nil {
@@ -182,6 +224,7 @@ func (s *Service) reregisterApp(ctx context.Context, instance models.MastodonIns
 		Set("client_id = ?", app.ClientID).
 		Set("client_secret_encrypted = ?", secretEnc).
 		Set("redirect_uri = ?", s.redirectURI).
+		Set("provider = ?", instance.Provider).
 		Set("registration_status = ?", registrationStatusActive).
 		Set("last_verified_at = ?", now).
 		Set("updated_at = ?", now).

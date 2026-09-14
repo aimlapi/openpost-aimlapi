@@ -25,7 +25,7 @@ func TestInstanceAdministratorCanEditAndRestorePostGenerationPrompts(t *testing.
 	require.Equal(t, http.StatusOK, listed.Code, listed.Body.String())
 	var catalogue AIPromptsResponse
 	require.NoError(t, json.Unmarshal(listed.Body.Bytes(), &catalogue))
-	require.Len(t, catalogue.Prompts, 10)
+	require.Len(t, catalogue.Prompts, 14)
 	require.NotEmpty(t, catalogue.FixedOutputContract)
 
 	custom := "Write a compact technical update with no launch language."

@@ -123,6 +123,7 @@ type Config struct {
 
 	MastodonRedirectURI string
 	MastodonServers     []MastodonServerConfig
+	PixelfedServers     []MastodonServerConfig
 
 	LinkedInClientID             string
 	LinkedInClientSecret         string
@@ -389,6 +390,14 @@ func Load() *Config {
 			cfg.MastodonServers = servers
 		}
 	}
+	if raw := getEnvDefault("PIXELFED_SERVERS", ""); raw != "" {
+		var servers []MastodonServerConfig
+		if err := json.Unmarshal([]byte(raw), &servers); err != nil {
+			log.Printf("WARNING: failed to parse PIXELFED_SERVERS JSON: %v", err)
+		} else {
+			cfg.PixelfedServers = servers
+		}
+	}
 	cfg.ProviderApps = providerAppsFromLegacyConfig(cfg)
 	if raw := getEnvDefault("OPENPOST_PROVIDER_APPS", ""); raw != "" {
 		var apps []platform.AppConfig
@@ -447,7 +456,7 @@ func resolveMediaURL(mediaURL, publicURL string) string {
 }
 
 func providerAppsFromLegacyConfig(cfg *Config) []platform.AppConfig {
-	apps := []platform.AppConfig{{Provider: "bluesky"}, {Provider: "discord"}}
+	apps := []platform.AppConfig{{Provider: "bluesky"}, {Provider: "discord"}, {Provider: "peertube"}, {Provider: "lemmy"}, {Provider: "piefed"}}
 	if cfg.TwitterClientID != "" {
 		apps = append(apps, platform.AppConfig{
 			Provider:     "x",
@@ -459,6 +468,16 @@ func providerAppsFromLegacyConfig(cfg *Config) []platform.AppConfig {
 	for _, server := range cfg.MastodonServers {
 		apps = append(apps, platform.AppConfig{
 			Provider:     "mastodon",
+			Name:         server.Name,
+			ClientID:     server.ClientID,
+			ClientSecret: server.ClientSecret,
+			RedirectURI:  cfg.MastodonRedirectURI,
+			InstanceURL:  server.InstanceURL,
+		})
+	}
+	for _, server := range cfg.PixelfedServers {
+		apps = append(apps, platform.AppConfig{
+			Provider:     "pixelfed",
 			Name:         server.Name,
 			ClientID:     server.ClientID,
 			ClientSecret: server.ClientSecret,
@@ -504,6 +523,7 @@ func providerRedirectURI(cfg *Config, provider string) string {
 		"facebook":  oauthRedirectFromFrontend("", "", cfg.FrontendURL, "/api/v1/accounts/facebook/callback"),
 		"instagram": oauthRedirectFromFrontend("", "", cfg.FrontendURL, "/api/v1/accounts/instagram/callback"),
 		"mastodon":  cfg.MastodonRedirectURI,
+		"pixelfed":  cfg.MastodonRedirectURI,
 		"pinterest": oauthRedirectFromFrontend("", "", cfg.FrontendURL, "/api/v1/accounts/pinterest/callback"),
 		"linkedin":  cfg.LinkedInRedirectURI,
 		"threads":   cfg.ThreadsRedirectURI,

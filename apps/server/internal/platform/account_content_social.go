@@ -20,6 +20,18 @@ func CanonicalSocialAccountContentID(provider, serverURL, accountID, externalID 
 			return "", false
 		}
 		return base + "/api/v1/statuses/" + url.PathEscape(statusID), true
+	case providerPeerTube:
+		uuid := strings.TrimSpace(externalID)
+		if uuid == "" || strings.ContainsAny(uuid, "/?#") {
+			return "", false
+		}
+		return base + "/videos/watch/" + url.PathEscape(uuid), true
+	case providerLemmy, providerPieFed:
+		postID := strings.TrimSpace(externalID)
+		if postID == "" || strings.ContainsAny(postID, "/?#") {
+			return "", false
+		}
+		return base + "/post/" + url.PathEscape(postID), true
 	case providerBluesky:
 		uri := blueskyPublishedURI(externalID)
 		repo, collection, recordKey, ok := parseBlueskyPostURI(uri)

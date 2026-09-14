@@ -251,10 +251,7 @@ func (p *PieFedAdapter) resolveCommunity(ctx context.Context, jwt, ref string) (
 // SearchPublishingOptions searches communities on the connected instance for
 // the composer destination picker. Values are canonical actor IDs.
 func (p *PieFedAdapter) SearchPublishingOptions(ctx context.Context, accessToken string, input PublishingOptionsInput) (PublishingOptionsPage, error) {
-	query := strings.TrimSpace(input.Context["query"])
-	if query == "" {
-		query = strings.TrimSpace(input.Search)
-	}
+	query := strings.TrimSpace(firstNonEmptyString(input.Search, input.Context["value"], input.Context["query"]))
 	limit := input.Limit
 	if limit <= 0 || limit > 25 {
 		limit = 10
@@ -659,7 +656,7 @@ func (p *PieFedAdapter) DiscoverAccountContent(ctx context.Context, accessToken 
 			continue
 		}
 		item := AccountContentItem{
-			ProviderContentID: actorID,
+			ProviderContentID: strings.TrimRight(p.instanceURL, "/") + "/post/" + strconv.FormatInt(post.ID, 10),
 			ContentProfile:    piefedAccountContentProfile(post),
 			Title:             post.Title,
 			ExternalURL:       actorID,

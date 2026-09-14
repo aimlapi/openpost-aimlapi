@@ -37,6 +37,39 @@ import (
 )
 
 const mastodonProvider = "mastodon"
+const pixelfedProvider = "pixelfed"
+
+// isCompatOAuthProvider reports providers that connect through the dynamic
+// Fediverse instance OAuth flow (per-instance app registration plus
+// authorization code exchange).
+func isCompatOAuthProvider(provider string) bool {
+	return provider == mastodonProvider || provider == pixelfedProvider
+}
+
+// normalizeFediverseInstanceURL trims a user-supplied instance URL for
+// credential-based Fediverse connects. OAuth instance URLs keep flowing
+// through the dynamic app service, which owns their validation.
+func normalizeFediverseInstanceURL(raw string) (string, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return "", fmt.Errorf("instance_url is required")
+	}
+	if !strings.Contains(trimmed, "://") {
+		trimmed = "https://" + trimmed
+	}
+	parsed, err := url.Parse(trimmed)
+	if err != nil || parsed.Hostname() == "" {
+		return "", fmt.Errorf("instance_url must be a valid URL")
+	}
+	if parsed.Scheme != "https" && parsed.Scheme != "http" {
+		return "", fmt.Errorf("instance_url must use http or https")
+	}
+	parsed.User = nil
+	parsed.Path = ""
+	parsed.RawQuery = ""
+	parsed.Fragment = ""
+	return strings.TrimRight(parsed.String(), "/"), nil
+}
 
 const pendingAccountSelectionTTL = 20 * time.Minute
 
@@ -337,6 +370,7 @@ type AccountResponse struct {
 	MessagesEnabled        bool       `json:"messages_enabled" deprecated:"true" doc:"Deprecated compatibility shim. Use GET /account-features for messaging enabled state."`
 	GrantDestinationCount  int        `json:"grant_destination_count" doc:"Number of active destinations using this provider authorization"`
 	SharedGrant            bool       `json:"shared_grant" doc:"Whether revoking this authorization disconnects other destinations"`
+	FediverseSoftware      string     `json:"fediverse_software,omitempty" doc:"Detected Fediverse server software (mastodon, pixelfed, peertube, lemmy, piefed, or a compatible implementation)"`
 }
 
 type ListAccountsOutput struct {
@@ -455,6 +489,37 @@ var providerCatalog = []ProviderInfo{
 		Capabilities: coreProviderCapabilities,
 	},
 	{
+		Platform:     pixelfedProvider,
+		DisplayName:  "Pixelfed",
+		AuthMode:     "oauth_oob",
+		Description:  "Per-instance OAuth connection for photo publishing, including custom instances.",
+		Capabilities: []string{"Photo posts", "Albums", "Scheduling", "Platform variants", "MCP workflows"},
+	},
+	{
+		Platform:        "peertube",
+		DisplayName:     "PeerTube",
+		AuthMode:        "app_password",
+		ConnectionModes: []string{"app_password"},
+		Description:     "Instance username and password with channel selection for video publishing.",
+		Capabilities:    []string{"Video uploads", "Channels", "Scheduling", "Platform variants", "MCP workflows"},
+	},
+	{
+		Platform:        "lemmy",
+		DisplayName:     "Lemmy",
+		AuthMode:        "app_password",
+		ConnectionModes: []string{"app_password"},
+		Description:     "Instance username and password for community discussions and links.",
+		Capabilities:    []string{"Community posts", "Comments", "Scheduling", "Platform variants", "MCP workflows"},
+	},
+	{
+		Platform:        "piefed",
+		DisplayName:     "PieFed",
+		AuthMode:        "app_password",
+		ConnectionModes: []string{"app_password"},
+		Description:     "Instance username and password for community discussions and links.",
+		Capabilities:    []string{"Community posts", "Comments", "Scheduling", "Platform variants", "MCP workflows"},
+	},
+	{
 		Platform:     "linkedin",
 		DisplayName:  "LinkedIn",
 		AuthMode:     "oauth",
@@ -499,14 +564,14 @@ var providerCatalog = []ProviderInfo{
 }
 
 func (h *OAuthHandler) getProvider(platform, serverName string) (platform.Adapter, error) {
-	if platform == mastodonProvider {
+	if isCompatOAuthProvider(platform) {
 		if serverName == "" {
-			return nil, fmt.Errorf("server_name required for mastodon")
+			return nil, fmt.Errorf("server_name required for %s", platform)
 		}
-		key := "mastodon:" + serverName
+		key := platform + ":" + serverName
 		adapter, ok := h.provider(key)
 		if !ok {
-			return nil, fmt.Errorf("unknown mastodon server: %s", serverName)
+			return nil, fmt.Errorf("unknown %s server: %s", platform, serverName)
 		}
 		return adapter, nil
 	}
@@ -523,17 +588,21 @@ func (h *OAuthHandler) getProvider(platform, serverName string) (platform.Adapte
 }
 
 func (h *OAuthHandler) getMastodonProvider(ctx context.Context, serverName, instanceURL string) (platform.Adapter, string, error) {
+	return h.getCompatProvider(ctx, mastodonProvider, serverName, instanceURL)
+}
+
+func (h *OAuthHandler) getCompatProvider(ctx context.Context, provider, serverName, instanceURL string) (platform.Adapter, string, error) {
 	if strings.TrimSpace(instanceURL) != "" {
-		return h.getDynamicMastodonProvider(ctx, instanceURL)
+		return h.getDynamicCompatProvider(ctx, provider, instanceURL)
 	}
-	adapter, err := h.getProvider(mastodonProvider, serverName)
+	adapter, err := h.getProvider(provider, serverName)
 	if err == nil {
 		return adapter, mastodonInstanceURL(adapter), nil
 	}
 	if strings.Contains(serverName, "://") {
 		requestedInstanceURL := strings.TrimRight(strings.TrimSpace(serverName), "/")
 		for key, candidate := range h.providerSnapshot() {
-			if !strings.HasPrefix(key, mastodonProvider+":") {
+			if !strings.HasPrefix(key, provider+":") {
 				continue
 			}
 			if configuredInstanceURL := strings.TrimRight(mastodonInstanceURL(candidate), "/"); configuredInstanceURL == requestedInstanceURL {
@@ -542,24 +611,28 @@ func (h *OAuthHandler) getMastodonProvider(ctx context.Context, serverName, inst
 		}
 	}
 	if h.mastodonApps != nil && strings.Contains(serverName, "://") {
-		return h.getDynamicMastodonProvider(ctx, serverName)
+		return h.getDynamicCompatProvider(ctx, provider, serverName)
 	}
 	return nil, "", err
 }
 
 func (h *OAuthHandler) getDynamicMastodonProvider(ctx context.Context, instanceURL string) (platform.Adapter, string, error) {
+	return h.getDynamicCompatProvider(ctx, mastodonProvider, instanceURL)
+}
+
+func (h *OAuthHandler) getDynamicCompatProvider(ctx context.Context, provider, instanceURL string) (platform.Adapter, string, error) {
 	if h.mastodonApps == nil {
-		return nil, "", fmt.Errorf("dynamic mastodon instance registration is not configured")
+		return nil, "", fmt.Errorf("dynamic %s instance registration is not configured", provider)
 	}
-	adapter, canonicalURL, err := h.mastodonApps.AdapterForInstance(ctx, instanceURL)
+	adapter, canonicalURL, err := h.mastodonApps.AdapterForInstance(ctx, provider, instanceURL)
 	if err != nil {
 		return nil, "", err
 	}
-	h.registerProvider("mastodon:"+canonicalURL, adapter)
+	h.registerProvider(provider+":"+canonicalURL, adapter)
 	if h.readiness != nil {
 		configs, listErr := h.mastodonApps.ListActiveAppConfigs(ctx)
 		if listErr != nil {
-			return nil, "", fmt.Errorf("load dynamic mastodon readiness configuration: %w", listErr)
+			return nil, "", fmt.Errorf("load dynamic %s readiness configuration: %w", provider, listErr)
 		}
 		for _, config := range configs {
 			if strings.TrimRight(config.InstanceURL, "/") != canonicalURL {
@@ -570,7 +643,7 @@ func (h *OAuthHandler) getDynamicMastodonProvider(ctx context.Context, instanceU
 				Source:              providerreadiness.ConfigurationSourceDynamic,
 				ProviderEnvironment: h.readiness.ProviderEnvironment(),
 			}); registerErr != nil {
-				return nil, "", fmt.Errorf("register dynamic mastodon readiness configuration: %w", registerErr)
+				return nil, "", fmt.Errorf("register dynamic %s readiness configuration: %w", provider, registerErr)
 			}
 			break
 		}
@@ -610,6 +683,29 @@ func selectedAccountInstanceURL(provider string, values ...string) string {
 		return ""
 	}
 	return firstNonEmpty(values...)
+}
+
+// fediverseCapabilityState records the detected server software alongside a
+// connected Fediverse account so the account picker can name the software
+// the user actually uses. Detection is connect-time only and never gates
+// publishing, which always validates against advertised configuration.
+func (h *OAuthHandler) fediverseCapabilityState(ctx context.Context, platformName, instanceURL string, profile *platform.UserProfile) map[string]string {
+	state := map[string]string{}
+	if profile != nil {
+		for key, value := range profile.CapabilityState {
+			state[key] = value
+		}
+	}
+	if platformName != mastodonProvider && platformName != pixelfedProvider {
+		return state
+	}
+	if strings.TrimSpace(state["fediverse_software"]) != "" || strings.TrimSpace(instanceURL) == "" {
+		return state
+	}
+	if software := platform.DetectFediverseSoftware(ctx, instanceURL); software != platform.FediverseSoftwareUnknown {
+		state["fediverse_software"] = string(software)
+	}
+	return state
 }
 
 func (h *OAuthHandler) ListProviders(api huma.API) {
@@ -702,9 +798,9 @@ func applyProviderAvailabilityReadiness(
 func providerAvailability(providers map[string]platform.Adapter, dynamicMastodonConfigured bool) []ProviderInfo {
 	infos := make([]ProviderInfo, 0, len(providerCatalog))
 	for _, item := range providerCatalog {
-		if item.Platform == mastodonProvider {
-			mastodonProviders := mastodonProviderAvailability(providers, dynamicMastodonConfigured)
-			infos = append(infos, mastodonProviders...)
+		if isCompatOAuthProvider(item.Platform) {
+			compatProviders := compatProviderAvailability(providers, item.Platform, dynamicMastodonConfigured)
+			infos = append(infos, compatProviders...)
 			continue
 		}
 		item = providerInfoWithStatus(providers, item)
@@ -735,34 +831,42 @@ func providerInfoWithStatus(providers map[string]platform.Adapter, item Provider
 	return item
 }
 
-func mastodonProviderAvailability(providers map[string]platform.Adapter, dynamicMastodonConfigured bool) []ProviderInfo {
-	servers := configuredMastodonServers(providers)
+func compatProviderDisplayName(provider string) string {
+	if provider == pixelfedProvider {
+		return "Pixelfed"
+	}
+	return "Mastodon"
+}
+
+func compatProviderAvailability(providers map[string]platform.Adapter, provider string, dynamicMastodonConfigured bool) []ProviderInfo {
+	displayName := compatProviderDisplayName(provider)
+	servers := configuredCompatServers(providers, provider)
 	if len(servers) == 0 {
 		if dynamicMastodonConfigured {
-			return []ProviderInfo{dynamicMastodonInfo()}
+			return []ProviderInfo{dynamicCompatInfo(provider)}
 		}
 		return []ProviderInfo{{
-			Platform:    mastodonProvider,
-			DisplayName: "Mastodon",
+			Platform:    provider,
+			DisplayName: displayName,
 			AuthMode:    "oauth_oob",
 			Configured:  false,
 			Status:      providerStatusNeedsConfiguration,
-			Description: "Configure Mastodon servers or dynamic instance registration before connecting.",
+			Description: "Configure " + displayName + " servers or dynamic instance registration before connecting.",
 		}}
 	}
 
 	infos := make([]ProviderInfo, 0, len(servers)+1)
 	if dynamicMastodonConfigured {
-		infos = append(infos, dynamicMastodonInfo())
+		infos = append(infos, dynamicCompatInfo(provider))
 	}
 	for _, server := range servers {
 		infos = append(infos, ProviderInfo{
-			Platform:     mastodonProvider,
-			DisplayName:  "Mastodon",
+			Platform:     provider,
+			DisplayName:  displayName,
 			AuthMode:     "oauth_oob",
 			Configured:   true,
 			Status:       providerStatusAvailable,
-			Description:  "Connect this configured Mastodon instance.",
+			Description:  "Connect this configured " + displayName + " instance.",
 			Capabilities: coreProviderCapabilities,
 			Name:         server.Name,
 			InstanceURL:  server.InstanceURL,
@@ -771,35 +875,36 @@ func mastodonProviderAvailability(providers map[string]platform.Adapter, dynamic
 	return infos
 }
 
-func dynamicMastodonInfo() ProviderInfo {
+func dynamicCompatInfo(provider string) ProviderInfo {
+	displayName := compatProviderDisplayName(provider)
 	return ProviderInfo{
-		Platform:     mastodonProvider,
-		DisplayName:  "Mastodon",
+		Platform:     provider,
+		DisplayName:  displayName,
 		AuthMode:     "oauth_oob",
 		Configured:   true,
 		Status:       providerStatusAvailable,
-		Description:  "Connect any public Mastodon instance.",
+		Description:  "Connect any public " + displayName + " instance.",
 		Capabilities: coreProviderCapabilities,
 		Name:         "Custom instance",
 	}
 }
 
 func (h *OAuthHandler) configuredMastodonServers() []MastodonServerInfo {
-	return configuredMastodonServers(h.providerSnapshot())
+	return configuredCompatServers(h.providerSnapshot(), mastodonProvider)
 }
 
-func configuredMastodonServers(providers map[string]platform.Adapter) []MastodonServerInfo {
+func configuredCompatServers(providers map[string]platform.Adapter, provider string) []MastodonServerInfo {
 	var servers []MastodonServerInfo
 	seen := make(map[string]struct{})
 	for key, adapter := range providers {
-		if !strings.HasPrefix(key, "mastodon:") {
+		if !strings.HasPrefix(key, provider+":") {
 			continue
 		}
 		instanceURL := mastodonInstanceURL(adapter)
 		if instanceURL == "" {
 			continue
 		}
-		name := strings.TrimPrefix(key, "mastodon:")
+		name := strings.TrimPrefix(key, provider+":")
 		if name == instanceURL {
 			continue
 		}
@@ -826,6 +931,23 @@ func (h *OAuthHandler) ListMastodonServers(api huma.API) {
 	}, func(_ context.Context, _ *struct{}) (*ListMastodonServersOutput, error) {
 		return &ListMastodonServersOutput{Body: h.configuredMastodonServers()}, nil
 	})
+}
+
+func (h *OAuthHandler) ListPixelfedServers(api huma.API) {
+	huma.Register(api, huma.Operation{
+		OperationID: "list-pixelfed-servers",
+		Method:      http.MethodGet,
+		Path:        "/accounts/pixelfed/servers",
+		Summary:     "List configured Pixelfed servers",
+		Tags:        []string{tagAccounts},
+		Middlewares: huma.Middlewares{middleware.AuthMiddleware(api, h.auth)},
+	}, func(_ context.Context, _ *struct{}) (*ListPixelfedServersOutput, error) {
+		return &ListPixelfedServersOutput{Body: configuredCompatServers(h.providerSnapshot(), pixelfedProvider)}, nil
+	})
+}
+
+type ListPixelfedServersOutput struct {
+	Body []MastodonServerInfo
 }
 
 func (h *OAuthHandler) ensureCanStartAccountConnection(ctx context.Context, workspaceID, userID string) error {
@@ -950,11 +1072,11 @@ func (h *OAuthHandler) authURLProvider(
 	ctx context.Context,
 	input *GetAuthURLInput,
 ) (platform.Adapter, string, error) {
-	if input.Platform == mastodonProvider {
+	if isCompatOAuthProvider(input.Platform) {
 		if input.ServerName == "" && input.InstanceURL == "" {
-			return nil, "", huma.Error400BadRequest("server_name or instance_url required for mastodon")
+			return nil, "", huma.Error400BadRequest(fmt.Sprintf("server_name or instance_url required for %s", input.Platform))
 		}
-		adapter, instanceURL, err := h.getMastodonProvider(ctx, input.ServerName, input.InstanceURL)
+		adapter, instanceURL, err := h.getCompatProvider(ctx, input.Platform, input.ServerName, input.InstanceURL)
 		if err != nil {
 			return nil, "", huma.Error400BadRequest(err.Error())
 		}
@@ -1088,7 +1210,7 @@ func (h *OAuthHandler) Callback(api huma.API) {
 			workspaceID = statePayload.WorkspaceID
 			executionIntent = statePayload.ExecutionIntent
 			switch input.Platform {
-			case mastodonProvider:
+			case mastodonProvider, pixelfedProvider:
 				input.ServerName = statePayload.ServerName
 				instanceRef = statePayload.ServerName
 			case "discord":
@@ -1108,8 +1230,8 @@ func (h *OAuthHandler) Callback(api huma.API) {
 
 		if input.Platform != "x" {
 			var err error
-			if input.Platform == mastodonProvider {
-				adapter, _, err = h.getMastodonProvider(ctx, input.ServerName, "")
+			if isCompatOAuthProvider(input.Platform) {
+				adapter, _, err = h.getCompatProvider(ctx, input.Platform, input.ServerName, "")
 				if err != nil {
 					return h.redirectWithError(err.Error(), workspaceID)
 				}
@@ -1153,8 +1275,8 @@ func (h *OAuthHandler) Callback(api huma.API) {
 
 		profile, err := adapter.GetProfile(ctx, tokenResp.AccessToken)
 		if err != nil {
-			if input.Platform == mastodonProvider {
-				profile = &platform.UserProfile{ID: "mastodon-user", Username: ""}
+			if isCompatOAuthProvider(input.Platform) {
+				profile = &platform.UserProfile{ID: input.Platform + "-user", Username: ""}
 			} else {
 				return h.redirectWithError(fmt.Sprintf("failed to get profile: %s", err.Error()), workspaceID)
 			}
@@ -1366,7 +1488,7 @@ func (h *OAuthHandler) saveAccountAndRedirect(
 		AccountAvatarURL: profile.AvatarURL,
 		InstanceURL:      instanceURL,
 		Token:            tokenResp,
-		CapabilityState:  profile.CapabilityState,
+		CapabilityState:  h.fediverseCapabilityState(ctx, platformName, instanceURL, profile),
 		Grant:            authorizationGrantInput(adapter, accountID),
 	})
 	if err != nil {
@@ -1630,6 +1752,220 @@ func (h *OAuthHandler) BlueskyLogin(api huma.API) {
 	})
 }
 
+type FediverseLoginInput struct {
+	Body struct {
+		WorkspaceID string `json:"workspace_id" doc:"Workspace ID"`
+		InstanceURL string `json:"instance_url" doc:"Fediverse instance URL"`
+		Username    string `json:"username" doc:"Instance username"`
+		Password    string `json:"password" doc:"Instance password (exchanged once, never stored)"`
+		Channel     string `json:"channel,omitempty" doc:"PeerTube channel to connect (required when the account owns several)"`
+		Intent      string `json:"intent,omitempty" enum:"production,certification_test" doc:"Typed execution intent; certification_test requires an unscoped instance administrator"`
+	}
+}
+
+type FediverseLoginOutput struct {
+	Body FediverseLoginResponse
+}
+
+type FediverseLoginResponse struct {
+	AccountConnectionResponse
+	SelectionRequired bool                              `json:"selection_required,omitempty" doc:"True when the caller must complete channel selection"`
+	ConnectionID      string                            `json:"connection_id,omitempty" doc:"Pending selection ID for the channel picker"`
+	Options           []platform.AccountSelectionOption `json:"options,omitempty" doc:"Selectable channels when selection is required"`
+}
+
+// fediverseLogin connects a credential-based Fediverse account (PeerTube,
+// Lemmy, PieFed) following the Bluesky app-password shape: the password is
+// exchanged once for tokens and never stored.
+func (h *OAuthHandler) fediverseLogin(ctx context.Context, provider string, body FediverseLoginInput) (*FediverseLoginOutput, error) {
+	userID := middleware.GetUserID(ctx)
+	intent, err := h.connectionIntent(ctx, body.Body.Intent)
+	if err != nil {
+		return nil, err
+	}
+	if err := h.ensureCanStartAccountConnection(ctx, body.Body.WorkspaceID, userID); err != nil {
+		return nil, err
+	}
+	instanceURL, err := normalizeFediverseInstanceURL(body.Body.InstanceURL)
+	if err != nil {
+		return nil, huma.Error400BadRequest(err.Error())
+	}
+	if err := h.requireProviderConnection(ctx, provider, instanceURL, intent); err != nil {
+		return nil, err
+	}
+
+	adapter, ok := platform.NewInstanceAdapter(provider, instanceURL)
+	if !ok {
+		return nil, huma.Error400BadRequest(fmt.Sprintf("%s does not support instance credentials", provider))
+	}
+	h.registerProvider(platform.AccountProviderKey(provider, instanceURL, ""), adapter)
+
+	tokenResp, profile, err := fediverseInstanceLogin(ctx, adapter, strings.TrimSpace(body.Body.Username), body.Body.Password)
+	if err != nil {
+		log.Printf("[FediverseLogin] Login failed: provider=%s instance=%s error=%v", provider, instanceURL, err)
+		return nil, huma.Error500InternalServerError(provider + " login failed")
+	}
+	if err := h.requireProviderConnectionCompletion(ctx, provider, instanceURL, string(intent), userID); err != nil {
+		return nil, err
+	}
+
+	if provider == "peertube" {
+		return h.savePeerTubeLogin(ctx, userID, provider, body.Body.WorkspaceID, instanceURL, string(intent), adapter, tokenResp, profile, strings.TrimSpace(body.Body.Channel))
+	}
+
+	account, err := h.accountSaver.SaveAccountFromInput(ctx, account_saver.SaveAccountInput{
+		Actor:            workspaceActor(ctx, userID),
+		UserID:           userID,
+		PlatformName:     provider,
+		WorkspaceID:      body.Body.WorkspaceID,
+		AccountID:        profile.ID,
+		AccountUsername:  firstNonEmpty(profile.Username, body.Body.Username),
+		AccountAvatarURL: profile.AvatarURL,
+		InstanceURL:      instanceURL,
+		Token:            tokenResp,
+		CapabilityState:  profile.CapabilityState,
+		Grant:            authorizationGrantInput(adapter, profile.ID),
+	})
+	if err != nil {
+		log.Printf("[FediverseLogin] Failed to save account: %v", err)
+		return nil, huma.Error403Forbidden(accountConnectionErrorMessage(err))
+	}
+	resp := h.normalizedAccountConnectionResponse(body.Body.WorkspaceID, []*models.SocialAccount{account}, account.ClaimedFirst)
+	return &FediverseLoginOutput{Body: FediverseLoginResponse{AccountConnectionResponse: resp}}, nil
+}
+
+func fediverseInstanceLogin(ctx context.Context, adapter platform.Adapter, username, password string) (*platform.TokenResult, *platform.UserProfile, error) {
+	type instanceLoginer interface {
+		Login(ctx context.Context, username, password string) (*platform.TokenResult, *platform.UserProfile, error)
+	}
+	loginer, ok := adapter.(instanceLoginer)
+	if !ok {
+		return nil, nil, fmt.Errorf("provider does not support instance credentials")
+	}
+	return loginer.Login(ctx, username, password)
+}
+
+func (h *OAuthHandler) savePeerTubeLogin(
+	ctx context.Context,
+	userID, provider, workspaceID, instanceURL, executionIntent string,
+	adapter platform.Adapter,
+	tokenResp *platform.TokenResult,
+	profile *platform.UserProfile,
+	requestedChannel string,
+) (*FediverseLoginOutput, error) {
+	selector, ok := adapter.(platform.AccountSelectionAdapter)
+	if !ok {
+		return nil, huma.Error500InternalServerError("peertube channel selection is unavailable")
+	}
+	channels, err := selector.ListAccountSelections(ctx, tokenResp)
+	if err != nil {
+		return nil, huma.Error500InternalServerError("peertube channel listing failed")
+	}
+	if len(channels) == 0 {
+		return nil, huma.Error400BadRequest("this PeerTube account owns no channels")
+	}
+	if requestedChannel != "" {
+		for _, channel := range channels {
+			if channel.ID == requestedChannel {
+				return h.saveSelectedPeerTubeChannel(ctx, userID, provider, workspaceID, instanceURL, executionIntent, adapter, tokenResp, channel.ID)
+			}
+		}
+		return nil, huma.Error400BadRequest("unknown peertube channel selection")
+	}
+	if len(channels) == 1 {
+		return h.saveSelectedPeerTubeChannel(ctx, userID, provider, workspaceID, instanceURL, executionIntent, adapter, tokenResp, channels[0].ID)
+	}
+	if err := h.requireProviderConnectionCompletion(ctx, provider, instanceURL, executionIntent, userID); err != nil {
+		return nil, err
+	}
+	pending, err := h.createPendingAccountSelection(ctx, userID, provider, workspaceID, instanceURL, executionIntent, tokenResp, channels)
+	if err != nil {
+		return nil, huma.Error500InternalServerError("failed to save pending channel selection")
+	}
+	return &FediverseLoginOutput{Body: FediverseLoginResponse{SelectionRequired: true, ConnectionID: pending.ID, Options: channels}}, nil
+}
+
+func (h *OAuthHandler) saveSelectedPeerTubeChannel(
+	ctx context.Context,
+	userID, provider, workspaceID, instanceURL, executionIntent string,
+	adapter platform.Adapter,
+	tokenResp *platform.TokenResult,
+	channelID string,
+) (*FediverseLoginOutput, error) {
+	selector, ok := adapter.(platform.AccountSelectionAdapter)
+	if !ok {
+		return nil, huma.Error500InternalServerError("peertube channel selection is unavailable")
+	}
+	selected, err := selector.SelectAccount(ctx, tokenResp, channelID)
+	if err != nil {
+		return nil, huma.Error400BadRequest(err.Error())
+	}
+	if err := h.requireProviderConnectionCompletion(ctx, provider, instanceURL, executionIntent, userID); err != nil {
+		return nil, err
+	}
+	account, err := h.accountSaver.SaveAccountFromInput(ctx, account_saver.SaveAccountInput{
+		Actor:            workspaceActor(ctx, userID),
+		UserID:           userID,
+		PlatformName:     provider,
+		WorkspaceID:      workspaceID,
+		AccountID:        selected.AccountID,
+		AccountUsername:  selected.AccountUsername,
+		AccountAvatarURL: selected.AccountAvatarURL,
+		InstanceURL:      instanceURL,
+		Token:            selected.Token,
+		CapabilityState:  selected.CapabilityState,
+		Grant:            authorizationGrantInput(adapter, selected.AccountID),
+	})
+	if err != nil {
+		log.Printf("[FediverseLogin] Failed to save account: %v", err)
+		return nil, huma.Error403Forbidden(accountConnectionErrorMessage(err))
+	}
+	resp := h.normalizedAccountConnectionResponse(workspaceID, []*models.SocialAccount{account}, account.ClaimedFirst)
+	return &FediverseLoginOutput{Body: FediverseLoginResponse{AccountConnectionResponse: resp}}, nil
+}
+
+func (h *OAuthHandler) PeerTubeLogin(api huma.API) {
+	huma.Register(api, huma.Operation{
+		OperationID: "peertube-login",
+		Method:      http.MethodPost,
+		Path:        "/accounts/peertube/login",
+		Summary:     "Connect a PeerTube account using instance credentials",
+		Tags:        []string{tagAccounts},
+		Middlewares: huma.Middlewares{middleware.AuthMiddleware(api, h.auth)},
+		Errors:      []int{400, 403, 500},
+	}, func(ctx context.Context, input *FediverseLoginInput) (*FediverseLoginOutput, error) {
+		return h.fediverseLogin(ctx, "peertube", *input)
+	})
+}
+
+func (h *OAuthHandler) LemmyLogin(api huma.API) {
+	huma.Register(api, huma.Operation{
+		OperationID: "lemmy-login",
+		Method:      http.MethodPost,
+		Path:        "/accounts/lemmy/login",
+		Summary:     "Connect a Lemmy account using instance credentials",
+		Tags:        []string{tagAccounts},
+		Middlewares: huma.Middlewares{middleware.AuthMiddleware(api, h.auth)},
+		Errors:      []int{400, 403, 500},
+	}, func(ctx context.Context, input *FediverseLoginInput) (*FediverseLoginOutput, error) {
+		return h.fediverseLogin(ctx, "lemmy", *input)
+	})
+}
+
+func (h *OAuthHandler) PieFedLogin(api huma.API) {
+	huma.Register(api, huma.Operation{
+		OperationID: "piefed-login",
+		Method:      http.MethodPost,
+		Path:        "/accounts/piefed/login",
+		Summary:     "Connect a PieFed account using instance credentials",
+		Tags:        []string{tagAccounts},
+		Middlewares: huma.Middlewares{middleware.AuthMiddleware(api, h.auth)},
+		Errors:      []int{400, 403, 500},
+	}, func(ctx context.Context, input *FediverseLoginInput) (*FediverseLoginOutput, error) {
+		return h.fediverseLogin(ctx, "piefed", *input)
+	})
+}
+
 type DiscordWebhookLoginInput struct {
 	Body struct {
 		WorkspaceID string `json:"workspace_id" doc:"Workspace ID"`
@@ -1795,6 +2131,11 @@ func (h *OAuthHandler) CompleteAccountSelection(api huma.API) {
 		adapter, err := h.getProvider(pending.Platform, "")
 		if err != nil {
 			return nil, huma.Error400BadRequest(err.Error())
+		}
+		if pending.InstanceURL != "" {
+			if rebuilt, ok := platform.NewInstanceAdapter(pending.Platform, pending.InstanceURL); ok {
+				adapter = rebuilt
+			}
 		}
 		selector, ok := adapter.(platform.AccountSelectionAdapter)
 		if !ok {
@@ -2675,6 +3016,13 @@ func accountResponse(acc models.SocialAccount, disableLinkedInThreadReplies bool
 	}
 	capabilityState := map[string]string{}
 	_ = json.Unmarshal([]byte(acc.CapabilityState), &capabilityState)
+	fediverseSoftware := capabilityState["fediverse_software"]
+	if fediverseSoftware == "" {
+		switch acc.Platform {
+		case mastodonProvider, pixelfedProvider, "peertube", "lemmy", "piefed":
+			fediverseSoftware = acc.Platform
+		}
+	}
 	accountKind := firstNonEmpty(
 		capabilityState["linkedin_account_type"],
 		capabilityState["instagram_account_type"],
@@ -2694,6 +3042,7 @@ func accountResponse(acc models.SocialAccount, disableLinkedInThreadReplies bool
 		CapabilityCheckedAt:    capabilityCheckedAt,
 		ThreadRepliesSupported: threadRepliesSupported,
 		AccountKind:            accountKind,
+		FediverseSoftware:      fediverseSoftware,
 		MessagingSupported:     accountMessagingSupported(acc.Platform),
 		MessagesEnabled:        capabilityState["messages_enabled"] == "true",
 		GrantDestinationCount:  1,

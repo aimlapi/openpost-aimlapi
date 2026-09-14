@@ -43,7 +43,7 @@ const (
 	maxThreshold        = int64(1_000_000_000_000)
 )
 
-var supportedPlatforms = []string{"bluesky", "linkedin", "mastodon", "x"}
+var supportedPlatforms = []string{"bluesky", "linkedin", "mastodon", "pixelfed", "x"}
 
 var ErrInvalidInput = errors.New("invalid repost input")
 

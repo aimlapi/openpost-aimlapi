@@ -264,6 +264,86 @@ func (p *PeerTubeAdapter) SelectAccount(ctx context.Context, token *TokenResult,
 	return nil, fmt.Errorf("unknown peertube channel selection")
 }
 
+// SearchPublishingOptions serves the composer pickers for channels,
+// categories, and licences from the connected instance.
+func (p *PeerTubeAdapter) SearchPublishingOptions(ctx context.Context, accessToken string, input PublishingOptionsInput) (PublishingOptionsPage, error) {
+	query := strings.TrimSpace(firstNonEmptyString(input.Search, input.Context["value"], input.Context["query"]))
+	limit := input.Limit
+	if limit <= 0 || limit > 50 {
+		limit = 25
+	}
+	switch strings.TrimSpace(input.Source) {
+	case "peertube_channels", "":
+		channels, err := p.listOwnChannels(ctx, accessToken)
+		if err != nil {
+			return PublishingOptionsPage{}, err
+		}
+		page := PublishingOptionsPage{}
+		for _, channel := range channels {
+			name := strings.TrimSpace(channel.Name)
+			if name == "" || (query != "" && !strings.Contains(strings.ToLower(firstNonEmptyString(channel.DisplayName, name)), strings.ToLower(query))) {
+				continue
+			}
+			page.Options = append(page.Options, DestinationOption{
+				Value: name,
+				Label: firstNonEmptyString(channel.DisplayName, name),
+			})
+			if len(page.Options) >= limit {
+				break
+			}
+		}
+		return page, nil
+	case "peertube_categories":
+		return p.searchPeerTubeStaticOptions(ctx, accessToken, "categories", query, limit)
+	case "peertube_licences":
+		return p.searchPeerTubeStaticOptions(ctx, accessToken, "licences", query, limit)
+	default:
+		return PublishingOptionsPage{}, fmt.Errorf("unknown peertube publishing option source %q", input.Source)
+	}
+}
+
+func (p *PeerTubeAdapter) searchPeerTubeStaticOptions(ctx context.Context, accessToken, collection, query string, limit int) (PublishingOptionsPage, error) {
+	var result struct {
+		Data []struct {
+			ID    int    `json:"id"`
+			Label string `json:"label"`
+		} `json:"data"`
+	}
+	body, err := DoRequest(ctx, http.MethodGet, p.instanceURL+"/api/v1/videos/"+collection, nil, map[string]string{
+		headerAuthorization: bearerPrefix + accessToken,
+	})
+	if err != nil {
+		return PublishingOptionsPage{}, fmt.Errorf("loading peertube %s: %w", collection, err)
+	}
+	if err := json.Unmarshal(body, &result); err != nil {
+		// Older instances return a plain id-to-label map.
+		var legacy map[string]string
+		if legacyErr := json.Unmarshal(body, &legacy); legacyErr != nil {
+			return PublishingOptionsPage{}, fmt.Errorf("decoding peertube %s: %w", collection, err)
+		}
+		for id, label := range legacy {
+			result.Data = append(result.Data, struct {
+				ID    int    `json:"id"`
+				Label string `json:"label"`
+			}{ID: atoiOrZero(id), Label: label})
+		}
+	}
+	page := PublishingOptionsPage{}
+	for _, item := range result.Data {
+		if query != "" && !strings.Contains(strings.ToLower(item.Label), strings.ToLower(query)) {
+			continue
+		}
+		page.Options = append(page.Options, DestinationOption{
+			Value: strconv.Itoa(item.ID),
+			Label: item.Label,
+		})
+		if len(page.Options) >= limit {
+			break
+		}
+	}
+	return page, nil
+}
+
 // ResolveAccountPublishingCapabilities advertises PeerTube's channel-scoped
 // destination model. Static catalog limits stay conservative; the instance
 // enforces quota and transcoding policy at upload time.
@@ -292,6 +372,14 @@ func (p *PeerTubeAdapter) ValidatePublishingTarget(_ context.Context, _, account
 
 func peertubeChannelForRequest(accountID string, settings map[string]interface{}) string {
 	return strings.TrimSpace(firstNonEmptyString(settingString(settings, "channel"), accountID))
+}
+
+func atoiOrZero(raw string) int {
+	value, err := strconv.Atoi(strings.TrimSpace(raw))
+	if err != nil {
+		return 0
+	}
+	return value
 }
 
 func peertubeTitle(req *PublishRequest) string {

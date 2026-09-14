@@ -92,10 +92,7 @@ func firstNonEmpty(values ...string) string {
 }
 
 func providerKeyForAccount(account models.SocialAccount) string {
-	if account.Platform == "mastodon" || account.Platform == "bluesky" {
-		return platform.AccountProviderKey(account.Platform, account.InstanceURL, "")
-	}
-	return account.Platform
+	return platform.AccountProviderKey(account.Platform, account.InstanceURL, "")
 }
 
 func mutualCountBucket(count int) string {

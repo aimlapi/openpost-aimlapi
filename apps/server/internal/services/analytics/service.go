@@ -882,7 +882,7 @@ func (s *Service) resolveRenditionAnalyticsAccount(ctx context.Context, accountI
 		Where("is_active = ?", true).
 		Order("created_at DESC").
 		Limit(1)
-	if original.Platform == "mastodon" {
+	if platform.IsInstanceScopedProvider(original.Platform) {
 		query = query.Where("instance_url = ?", original.InstanceURL)
 	}
 	var replacement models.SocialAccount
