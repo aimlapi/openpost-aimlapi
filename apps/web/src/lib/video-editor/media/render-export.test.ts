@@ -1,9 +1,10 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
 	defaultVideoCodec,
 	resolveSubtitleMode,
 	supportedExportVideoCodecs
 } from './render-export';
+import { RenderDisposalGate } from './render-disposal';
 
 describe('render export choices', () => {
 	it('offers only codecs that each container accepts', () => {
@@ -25,5 +26,21 @@ describe('render export choices', () => {
 		expect(resolveSubtitleMode('embedded', 'mov')).toBe('burn');
 		expect(resolveSubtitleMode('embedded', 'webm')).toBe('embedded');
 		expect(resolveSubtitleMode('embedded', 'mkv')).toBe('embedded');
+	});
+});
+
+describe('render disposal', () => {
+	it('waits for in-flight frame work before releasing media inputs', () => {
+		const cleanup = vi.fn();
+		const gate = new RenderDisposalGate(cleanup);
+
+		gate.enter();
+		gate.dispose();
+		expect(cleanup).not.toHaveBeenCalled();
+
+		gate.leave();
+		expect(cleanup).toHaveBeenCalledOnce();
+		expect(gate.isDisposed).toBe(true);
+		expect(() => gate.enter()).toThrow('disposed renderer');
 	});
 });

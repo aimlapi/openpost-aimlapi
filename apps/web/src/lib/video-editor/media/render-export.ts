@@ -84,6 +84,7 @@ import { applyCompositionControlOverrides } from '../sequences/composition-contr
 import { ensureProResDecoderForCodec } from './prores-decoder';
 import { ensureAc3DecoderForCodec } from './ac3-decoder';
 import { mixAudioWindows } from '../audio/bounded-audio-mixer';
+import { RenderDisposalGate } from './render-disposal';
 
 export interface RenderExportProgress {
 	phase: 'preparing' | 'mixing' | 'rendering' | 'encoding' | 'finalizing';
@@ -285,6 +286,7 @@ export class TimelineFrameRenderer {
 	private readonly lottieProvider = new LottieFrameProvider();
 	private readonly lottieBlobs = new Map<string, Blob>();
 	private readonly lottieSpecs = new Map<string, Promise<LottieRenderSpec>>();
+	private readonly disposal = new RenderDisposalGate(() => this.disposeResources());
 
 	constructor(
 		private readonly project: Project,
@@ -611,6 +613,15 @@ export class TimelineFrameRenderer {
 	}
 
 	async render(frame: number): Promise<OffscreenCanvas> {
+		this.disposal.enter();
+		try {
+			return await this.renderFrame(frame);
+		} finally {
+			this.disposal.leave();
+		}
+	}
+
+	private async renderFrame(frame: number): Promise<OffscreenCanvas> {
 		this.stackCompositor.beginFrame(this.width, this.height, this.backgroundColor);
 		const activeMasks = this.orderedItems
 			.filter(
@@ -712,6 +723,10 @@ export class TimelineFrameRenderer {
 	}
 
 	dispose(): void {
+		this.disposal.dispose();
+	}
+
+	private disposeResources(): void {
 		for (const input of this.inputs) input.dispose?.();
 		for (const renderer of this.nestedRenderers.values()) renderer.dispose();
 		this.nestedRenderers.clear();
