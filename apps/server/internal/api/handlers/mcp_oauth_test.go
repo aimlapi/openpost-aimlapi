@@ -109,82 +109,95 @@ func newMCPOAuthTestServer(t *testing.T) *mcpOAuthTestServer {
 
 func TestMCPOAuthAuthorizationCodeFlowIssuesUsableMCPToken(t *testing.T) {
 	t.Parallel()
+	for _, tc := range []struct {
+		scope   string
+		granted string
+	}{
+		{"mcp:full", "mcp:full"},
+		{"mcp:read", "mcp:read"},
+		{"mcp:read mcp:full", "mcp:full"},
+		{"mcp:full mcp:read", "mcp:full"},
+		{"mcp:read mcp:read", "mcp:read"},
+	} {
+		t.Run(tc.scope, func(t *testing.T) {
 
-	srv := newMCPOAuthTestServer(t)
-	redirectURI := "https://chatgpt.com/connector/oauth/callback/openpost"
-	client := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = fmt.Fprintf(w, `{"client_name":"ChatGPT OpenPost","redirect_uris":["%s"],"token_endpoint_auth_method":"none"}`, redirectURI)
-	}))
-	t.Cleanup(client.Close)
-	srv.oauth.SetHTTPClient(client.Client())
+			srv := newMCPOAuthTestServer(t)
+			redirectURI := "https://chatgpt.com/connector/oauth/callback/openpost"
+			client := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				_, _ = fmt.Fprintf(w, `{"client_name":"ChatGPT OpenPost","redirect_uris":["%s"],"token_endpoint_auth_method":"none","scope":"mcp:read mcp:full"}`, redirectURI)
+			}))
+			t.Cleanup(client.Close)
+			srv.oauth.SetHTTPClient(client.Client())
 
-	metadataResp := srv.request(t, http.MethodGet, "/.well-known/oauth-authorization-server", nil, "")
-	require.Equal(t, http.StatusOK, metadataResp.Code)
-	var metadata map[string]any
-	require.NoError(t, json.Unmarshal(metadataResp.Body.Bytes(), &metadata))
-	require.Equal(t, "https://app.openpost.test/oauth/authorize", metadata["authorization_endpoint"])
-	require.Equal(t, "https://app.openpost.test/oauth/token", metadata["token_endpoint"])
-	require.Subset(t, metadata["scopes_supported"], []any{"mcp:read", "mcp:full"})
-	require.Contains(t, metadata["grant_types_supported"], "refresh_token")
-	require.Equal(t, true, metadata["client_id_metadata_document_supported"])
+			metadataResp := srv.request(t, http.MethodGet, "/.well-known/oauth-authorization-server", nil, "")
+			require.Equal(t, http.StatusOK, metadataResp.Code)
+			var metadata map[string]any
+			require.NoError(t, json.Unmarshal(metadataResp.Body.Bytes(), &metadata))
+			require.Equal(t, "https://app.openpost.test/oauth/authorize", metadata["authorization_endpoint"])
+			require.Equal(t, "https://app.openpost.test/oauth/token", metadata["token_endpoint"])
+			require.Subset(t, metadata["scopes_supported"], []any{"mcp:read", "mcp:full"})
+			require.Contains(t, metadata["grant_types_supported"], "refresh_token")
+			require.Equal(t, true, metadata["client_id_metadata_document_supported"])
 
-	verifier := strings.Repeat("e", 43)
-	authorizeResp := srv.request(t, http.MethodPost, "/api/v1/mcp/oauth/authorize", map[string]any{
-		"approved":              true,
-		"workspace_id":          "ws-1",
-		"response_type":         "code",
-		"client_id":             client.URL,
-		"redirect_uri":          redirectURI,
-		"scope":                 "mcp:full",
-		"state":                 "state-chatgpt",
-		"code_challenge":        mcpOAuthPKCEChallenge(verifier),
-		"code_challenge_method": "S256",
-		"resource":              "https://app.openpost.test/mcp",
-	}, "web-token")
-	require.Equal(t, http.StatusOK, authorizeResp.Code, authorizeResp.Body.String())
-	var authorization struct {
-		RedirectURL string `json:"redirect_url"`
+			verifier := strings.Repeat("e", 43)
+			authorizeResp := srv.request(t, http.MethodPost, "/api/v1/mcp/oauth/authorize", map[string]any{
+				"approved":              true,
+				"workspace_id":          "ws-1",
+				"response_type":         "code",
+				"client_id":             client.URL,
+				"redirect_uri":          redirectURI,
+				"scope":                 tc.scope,
+				"state":                 "state-chatgpt",
+				"code_challenge":        mcpOAuthPKCEChallenge(verifier),
+				"code_challenge_method": "S256",
+				"resource":              "https://app.openpost.test/mcp",
+			}, "web-token")
+			require.Equal(t, http.StatusOK, authorizeResp.Code, authorizeResp.Body.String())
+			var authorization struct {
+				RedirectURL string `json:"redirect_url"`
+			}
+			require.NoError(t, json.Unmarshal(authorizeResp.Body.Bytes(), &authorization))
+			redirect, err := url.Parse(authorization.RedirectURL)
+			require.NoError(t, err)
+			require.Equal(t, redirectURI, redirect.Scheme+"://"+redirect.Host+redirect.Path)
+			require.Equal(t, "state-chatgpt", redirect.Query().Get("state"))
+			code := redirect.Query().Get("code")
+			require.NotEmpty(t, code)
+
+			tokenResp := srv.form(t, "/oauth/token", url.Values{
+				"grant_type":    {"authorization_code"},
+				"code":          {code},
+				"redirect_uri":  {redirectURI},
+				"client_id":     {client.URL},
+				"code_verifier": {verifier},
+				"resource":      {"https://app.openpost.test/mcp"},
+			})
+			require.Equal(t, http.StatusOK, tokenResp.Code, tokenResp.Body.String())
+			var token struct {
+				AccessToken string `json:"access_token"`
+				TokenType   string `json:"token_type"`
+				Scope       string `json:"scope"`
+				Resource    string `json:"resource"`
+			}
+			require.NoError(t, json.Unmarshal(tokenResp.Body.Bytes(), &token))
+			require.Equal(t, "Bearer", token.TokenType)
+			require.Equal(t, tc.granted, token.Scope)
+			require.Equal(t, "https://app.openpost.test/mcp", token.Resource)
+
+			initializeResp := srv.request(t, http.MethodPost, "/mcp", map[string]any{
+				"jsonrpc": "2.0",
+				"id":      "init",
+				"method":  "initialize",
+			}, token.AccessToken)
+			require.Equal(t, http.StatusOK, initializeResp.Code, initializeResp.Body.String())
+
+			var stored models.APIToken
+			require.NoError(t, srv.db.NewSelect().Model(&stored).Where("token_prefix = ?", tokenPrefix(t, token.AccessToken)).Scan(context.Background()))
+			require.Equal(t, "https://app.openpost.test/mcp", stored.Audience)
+			require.Equal(t, "ws-1", stored.WorkspaceID)
+			require.Equal(t, "ChatGPT OpenPost", stored.Name)
+		})
 	}
-	require.NoError(t, json.Unmarshal(authorizeResp.Body.Bytes(), &authorization))
-	redirect, err := url.Parse(authorization.RedirectURL)
-	require.NoError(t, err)
-	require.Equal(t, redirectURI, redirect.Scheme+"://"+redirect.Host+redirect.Path)
-	require.Equal(t, "state-chatgpt", redirect.Query().Get("state"))
-	code := redirect.Query().Get("code")
-	require.NotEmpty(t, code)
-
-	tokenResp := srv.form(t, "/oauth/token", url.Values{
-		"grant_type":    {"authorization_code"},
-		"code":          {code},
-		"redirect_uri":  {redirectURI},
-		"client_id":     {client.URL},
-		"code_verifier": {verifier},
-		"resource":      {"https://app.openpost.test/mcp"},
-	})
-	require.Equal(t, http.StatusOK, tokenResp.Code, tokenResp.Body.String())
-	var token struct {
-		AccessToken string `json:"access_token"`
-		TokenType   string `json:"token_type"`
-		Scope       string `json:"scope"`
-		Resource    string `json:"resource"`
-	}
-	require.NoError(t, json.Unmarshal(tokenResp.Body.Bytes(), &token))
-	require.Equal(t, "Bearer", token.TokenType)
-	require.Equal(t, "mcp:full", token.Scope)
-	require.Equal(t, "https://app.openpost.test/mcp", token.Resource)
-
-	initializeResp := srv.request(t, http.MethodPost, "/mcp", map[string]any{
-		"jsonrpc": "2.0",
-		"id":      "init",
-		"method":  "initialize",
-	}, token.AccessToken)
-	require.Equal(t, http.StatusOK, initializeResp.Code, initializeResp.Body.String())
-
-	var stored models.APIToken
-	require.NoError(t, srv.db.NewSelect().Model(&stored).Where("token_prefix = ?", tokenPrefix(t, token.AccessToken)).Scan(context.Background()))
-	require.Equal(t, "https://app.openpost.test/mcp", stored.Audience)
-	require.Equal(t, "ws-1", stored.WorkspaceID)
-	require.Equal(t, "ChatGPT OpenPost", stored.Name)
 }
 
 func TestOAuthDynamicClientRegistrationIsPolicyControlled(t *testing.T) {
@@ -234,6 +247,43 @@ func TestOAuthDynamicClientRegistrationIsPolicyControlled(t *testing.T) {
 	require.Equal(t, http.StatusTooManyRequests, recorder.Code)
 }
 
+func TestMCPOAuthAuthorizationRejectsUnsupportedOrDisallowedScopes(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name      string
+		requested string
+		allowed   string
+	}{
+		{"unknown alone", "mcp:unknown", "mcp:read mcp:full"},
+		{"unknown alongside full", "mcp:full mcp:unknown", "mcp:read mcp:full"},
+		{"full is not registered", "mcp:read mcp:full", "mcp:read"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			srv := newMCPOAuthTestServer(t)
+			redirectURI := "https://executor.example/oauth/callback"
+			client := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				_, _ = fmt.Fprintf(w, `{"redirect_uris":["%s"],"scope":"%s"}`, redirectURI, tc.allowed)
+			}))
+			t.Cleanup(client.Close)
+			srv.oauth.SetHTTPClient(client.Client())
+			resp := srv.request(t, http.MethodPost, "/api/v1/mcp/oauth/authorize", map[string]any{
+				"approved":              true,
+				"response_type":         "code",
+				"client_id":             client.URL,
+				"redirect_uri":          redirectURI,
+				"scope":                 tc.requested,
+				"code_challenge":        mcpOAuthPKCEChallenge(strings.Repeat("e", 43)),
+				"code_challenge_method": "S256",
+				"resource":              "https://app.openpost.test/mcp",
+			}, "web-token")
+			require.Equal(t, http.StatusBadRequest, resp.Code, resp.Body.String())
+			count, err := srv.db.NewSelect().Model((*models.MCPOAuthCode)(nil)).Count(t.Context())
+			require.NoError(t, err)
+			require.Zero(t, count)
+		})
+	}
+}
+
 func TestMCPOAuthDenyReturnsAccessDeniedRedirect(t *testing.T) {
 	t.Parallel()
 
@@ -244,6 +294,7 @@ func TestMCPOAuthDenyReturnsAccessDeniedRedirect(t *testing.T) {
 		"client_id":     "chatgpt",
 		"redirect_uri":  "https://chatgpt.com/connector/oauth/callback/openpost",
 		"state":         "state-deny",
+		"scope":         "mcp:read mcp:full",
 		"resource":      "https://app.openpost.test/mcp",
 	}, "web-token")
 	require.Equal(t, http.StatusOK, resp.Code)

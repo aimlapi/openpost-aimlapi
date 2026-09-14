@@ -431,13 +431,17 @@ func normalizeScope(scope string) (string, error) {
 	if len(parts) == 0 {
 		return apitokens.ScopeMCP, nil
 	}
-	if len(parts) == 1 {
-		switch parts[0] {
-		case apitokens.ScopeMCPRead, apitokens.ScopeMCP:
-			return parts[0], nil
+	granted := apitokens.ScopeMCPRead
+	for _, part := range parts {
+		switch part {
+		case apitokens.ScopeMCPRead:
+		case apitokens.ScopeMCP:
+			granted = apitokens.ScopeMCP
+		default:
+			return "", ErrUnsupportedScope
 		}
 	}
-	return "", ErrUnsupportedScope
+	return granted, nil
 }
 
 func normalizeResource(resource, expected string) (string, error) {
