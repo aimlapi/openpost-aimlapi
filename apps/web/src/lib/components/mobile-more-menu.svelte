@@ -3,6 +3,7 @@
 	import { primaryNavigation } from '$lib/app-navigation';
 	import { goto } from '$app/navigation';
 	import { resolveAppPath } from '$lib/app-path';
+	import { ui } from '$lib/stores/ui.svelte';
 	import { m } from '$lib/paraglide/messages';
 	import { ThemeIcon } from '$lib/themes/icons';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
@@ -64,6 +65,13 @@
 		>
 	{/each}
 	<DropdownMenu.Separator />
+	<DropdownMenu.Item
+		class="min-h-11 gap-3"
+		onclick={() => {
+			onNavigate();
+			ui.openFeedback();
+		}}><ThemeIcon role="feedback" class="size-4" />{m.feedback_open()}</DropdownMenu.Item
+	>
 	<DropdownMenu.Item
 		class="min-h-11 gap-3"
 		bind:ref={workspaceItem}

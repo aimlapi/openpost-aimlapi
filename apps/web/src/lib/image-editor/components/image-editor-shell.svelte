@@ -18,6 +18,8 @@
 	import EditorTitleInput from '$lib/components/editor-title-input.svelte';
 	import EditorWorkspaceTabs from '$lib/components/editor-workspace-tabs.svelte';
 	import { Checkbox } from '$lib/components/ui/checkbox';
+	import FeedbackDialog from '$lib/components/feedback-dialog.svelte';
+	import { ui } from '$lib/stores/ui.svelte';
 	import { Input } from '$lib/components/ui/input';
 	import * as RadioGroup from '$lib/components/ui/radio-group';
 	import { Slider } from '$lib/components/ui/slider';
@@ -2778,6 +2780,18 @@
 						>{#if returnToken}{m.image_editor_attach()}{:else}{m.image_editor_export()}{/if}</span
 					>
 				</Button>
+				{#if !guestMode}
+					<Button
+						variant="ghost"
+						size="icon-sm"
+						class="size-11 md:size-8 [@media(pointer:coarse)]:size-11"
+						aria-label={m.feedback_open()}
+						title={m.feedback_open()}
+						onclick={() => ui.openFeedback()}
+					>
+						<ThemeIcon role="feedback" />
+					</Button>
+				{/if}
 				<DropdownMenu.Root>
 					<DropdownMenu.Trigger>
 						{#snippet child({ props })}
@@ -4598,6 +4612,9 @@
 		</div>
 	</Dialog.Content>
 </Dialog.Root>
+{#if !guestMode}
+	<FeedbackDialog />
+{/if}
 
 <Dialog.Root bind:open={conflictDialogOpen}>
 	<Dialog.Content>

@@ -9,6 +9,7 @@ import (
 	"github.com/openpost/backend/internal/api/middleware"
 	"github.com/openpost/backend/internal/capabilities"
 	"github.com/openpost/backend/internal/connectors"
+	"github.com/openpost/backend/internal/diagnostics"
 	"github.com/openpost/backend/internal/memes"
 	"github.com/openpost/backend/internal/platform"
 	"github.com/openpost/backend/internal/services/accountfeatures"
@@ -127,6 +128,11 @@ type RouteDeps struct {
 	AppRevision                  string
 	Edition                      string
 	Telemetry                    telemetry.Recorder
+	DiagnosticsReporter          *diagnostics.Reporter
+	// DiagnosticsIngester serves the public cross-instance receiver.
+	// Nil disables the ingest route; the Discord webhook behind it stays
+	// in server configuration and never reaches API responses.
+	DiagnosticsIngester *diagnostics.Ingester
 
 	MediaHandler    *handlers.MediaHandler
 	BillingHandler  *handlers.BillingHandler
@@ -384,6 +390,8 @@ func RegisterHumaRoutes(api huma.API, deps RouteDeps) {
 
 	handlers.NewJobHandler(deps.DB, deps.Authenticator).RegisterRoutes(api)
 	handlers.NewFeedbackHandler(deps.FeedbackService, deps.Authenticator).RegisterRoutes(api)
+	handlers.NewDiagnosticsHandler(deps.DiagnosticsReporter, deps.Authenticator).RegisterRoutes(api)
+	handlers.NewIngestHandler(deps.DiagnosticsIngester).RegisterRoutes(api)
 
 	oauthHandler := handlers.NewOAuthHandler(
 		deps.DB,
@@ -463,6 +471,27 @@ func RegisterHumaRoutes(api huma.API, deps RouteDeps) {
 		Edition:  deps.Edition,
 	})
 	RegisterTelemetryConfig(api, deps.Telemetry)
+	RegisterDiagnosticsConfig(api, deps.DiagnosticsReporter)
+}
+
+// RegisterDiagnosticsConfig exposes the browser-safe diagnostics switch so
+// the browser knows whether it may report through its own instance. It
+// carries no receiver URL, token, or installation identifier.
+func RegisterDiagnosticsConfig(api huma.API, reporter *diagnostics.Reporter) {
+	huma.Register(api, huma.Operation{
+		OperationID: "get-diagnostics-public-config",
+		Method:      http.MethodGet,
+		Path:        "/diagnostics/public-config",
+		Summary:     "Get maintainer diagnostics reporting switch",
+		Description: "Whether this instance sends privacy-limited diagnostic reports to OpenPost. Browser reports always go through their own instance.",
+		Tags:        []string{"Diagnostics"},
+	}, func(_ context.Context, _ *struct{}) (*handlers.DiagnosticsConfigOutput, error) {
+		config := diagnostics.Status{}
+		if reporter != nil {
+			config = reporter.PublicConfig()
+		}
+		return &handlers.DiagnosticsConfigOutput{Body: config}, nil
+	})
 }
 
 func RegisterTelemetryConfig(api huma.API, recorder telemetry.Recorder) {

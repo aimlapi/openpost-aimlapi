@@ -20,6 +20,8 @@
 	import { executeQueryCachePlan } from '$lib/query/cache-plan';
 	import { queryClient } from '$lib/query/client';
 	import { workspaceCtx } from '$lib/stores/workspace.svelte';
+	import { ui } from '$lib/stores/ui.svelte';
+	import FeedbackDialog from '$lib/components/feedback-dialog.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import * as RadioGroup from '$lib/components/ui/radio-group';
@@ -464,5 +466,19 @@
 				</Button>
 			</form>
 		{/if}
+		<div class="rounded-lg border bg-muted/35 p-4">
+			<p class="flex items-center gap-2 text-sm font-medium">
+				<ThemeIcon role="feedback" class="size-4 text-primary" />
+				{m.onboarding_feedback_title()}
+			</p>
+			<p class="mt-1 text-sm leading-6 text-muted-foreground">
+				{m.onboarding_feedback_body()}
+			</p>
+			<Button variant="outline" class="mt-3" onclick={() => ui.openFeedback()}>
+				{m.feedback_open()}
+			</Button>
+		</div>
 	</div>
 </StandaloneShell>
+
+<FeedbackDialog />

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	databasemigrations "github.com/openpost/backend/internal/database/migrations"
+	"github.com/openpost/backend/internal/diagnostics"
 	"github.com/openpost/backend/internal/jobregistry"
 	"github.com/openpost/backend/internal/models"
 	accountpreflightservice "github.com/openpost/backend/internal/services/accountpreflight"
@@ -79,6 +80,7 @@ type BackgroundWorker struct {
 	accountPreflight      *accountpreflightservice.Service
 	externalWebhooks      *externalwebhooks.Service
 	telemetry             telemetry.Recorder
+	diagnostics           *diagnostics.Reporter
 	executors             map[jobregistry.ExecutionKind]jobExecutor
 	done                  chan struct{}
 	quiesce               chan struct{}
@@ -209,6 +211,153 @@ func (w *BackgroundWorker) SetPublicationBuilderService(service *publicationbuil
 
 func (w *BackgroundWorker) SetTelemetry(recorder telemetry.Recorder) {
 	w.telemetry = recorder
+}
+
+// SetDiagnosticsReporter attaches the maintainer diagnostics channel. Worker
+// failures are reported at the operation boundary independently of whether
+// the job's terminal state persisted.
+func (w *BackgroundWorker) SetDiagnosticsReporter(reporter *diagnostics.Reporter) {
+	w.diagnostics = reporter
+}
+
+// workerPanicError carries a recovered worker panic through the normal
+// failure path so panicking jobs fail durably instead of crashing the
+// worker, and are reported once with their original stack.
+type workerPanicError struct {
+	recovered any
+	frames    []diagnostics.Frame
+}
+
+func (e *workerPanicError) Error() string {
+	return fmt.Sprintf("worker panic: %v", e.recovered)
+}
+
+// executeJobGuarded runs one job, converting panics into durable failures.
+// Without this boundary a panicking job would take down the worker before
+// any failure — or diagnostic — could be recorded.
+func (w *BackgroundWorker) executeJobGuarded(ctx context.Context, job *models.Job) (err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err = &workerPanicError{recovered: recovered, frames: diagnostics.CaptureFrames(2)}
+		}
+	}()
+	return w.executeJob(ctx, job)
+}
+
+// reportWorkerDiagnostic reports an unexpected worker failure independently
+// of whether the job's final state persisted. Expected conditions (expired
+// credentials, rate limits, temporary provider outages) use structured
+// codes and aggregate as counts; validation errors, 404s, and intentional
+// cancellations are ignored.
+func (w *BackgroundWorker) reportWorkerDiagnostic(ctx context.Context, job *models.Job, processErr error) {
+	if w.diagnostics == nil || processErr == nil {
+		return
+	}
+	if errors.Is(processErr, context.Canceled) {
+		return
+	}
+	code, expected := classifyWorkerDiagnostic(processErr, job.Type)
+	if code == "" {
+		return
+	}
+	provider := ""
+	if directed := (*publisher.RetryableError)(nil); errors.As(processErr, &directed) {
+		provider = directed.Provider
+	}
+	report := diagnostics.Report{
+		Surface:      diagnostics.SurfaceWorker,
+		Operation:    normalizeWorkerOperation(job.Type),
+		ErrorCode:    code,
+		Provider:     provider,
+		AttemptCount: job.Attempts,
+		FirstSeen:    time.Now().UTC(),
+		LastSeen:     time.Now().UTC(),
+	}
+	if panicErr := (*workerPanicError)(nil); errors.As(processErr, &panicErr) {
+		report.Frames = panicErr.frames
+	} else if !expected {
+		report.Frames = diagnostics.CaptureFrames(2)
+	}
+	w.diagnostics.Report(report)
+}
+
+// classifyWorkerDiagnostic maps a job failure to a normalized diagnostics
+// code. The second return reports whether the failure is an expected
+// condition (counted, not alerted). Empty code means "do not report".
+func classifyWorkerDiagnostic(processErr error, jobType string) (string, bool) {
+	if panicErr := (*workerPanicError)(nil); errors.As(processErr, &panicErr) {
+		return diagnostics.CodeWorkerPanic, false
+	}
+	if directed := (*publisher.RetryableError)(nil); errors.As(processErr, &directed) {
+		switch directed.Failure.Kind {
+		case publisher.FailureAuthExpired, publisher.FailureReconnectRequired:
+			return diagnostics.CodeProviderAuthExpired, true
+		case publisher.FailureRateLimited:
+			return diagnostics.CodeProviderRateLimited, true
+		case publisher.FailureNetwork, publisher.FailureProviderServer:
+			return diagnostics.CodeProviderOutage, true
+		case publisher.FailureValidation, publisher.FailurePermission,
+			publisher.FailureBillingRequired, publisher.FailureDuplicateContent:
+			return "", false
+		case publisher.FailureProviderProcessing:
+			// Provider-side pending/processing polls are routine; only
+			// terminal rejections are unexpected.
+			if !directed.Failure.Retryable {
+				return diagnostics.CodePublishFailed, false
+			}
+			return "", false
+		}
+	}
+	failure := publisher.ClassifyFailure(processErr)
+	switch failure.Kind {
+	case publisher.FailureAuthExpired, publisher.FailureReconnectRequired:
+		return diagnostics.CodeProviderAuthExpired, true
+	case publisher.FailureRateLimited:
+		return diagnostics.CodeProviderRateLimited, true
+	case publisher.FailureNetwork, publisher.FailureProviderServer:
+		return diagnostics.CodeProviderOutage, true
+	case publisher.FailureValidation, publisher.FailurePermission,
+		publisher.FailureBillingRequired, publisher.FailureDuplicateContent:
+		return "", false
+	}
+	lower := strings.ToLower(processErr.Error())
+	if strings.Contains(lower, "not found") || strings.Contains(lower, "404") ||
+		strings.Contains(lower, "validation") || strings.Contains(lower, "invalid") ||
+		strings.Contains(lower, "cancel") {
+		return "", false
+	}
+	return workerCodeForJobType(jobType), false
+}
+
+// workerCodeForJobType selects the unexpected-failure code by job family.
+func workerCodeForJobType(jobType string) string {
+	lower := strings.ToLower(jobType)
+	switch {
+	case strings.Contains(lower, "publish") || strings.Contains(lower, "deliver") ||
+		strings.Contains(lower, "webhook") || strings.Contains(lower, "repost") ||
+		strings.Contains(lower, "message") || strings.Contains(lower, "notif"):
+		return diagnostics.CodePublishFailed
+	case strings.Contains(lower, "media") || strings.Contains(lower, "image") ||
+		strings.Contains(lower, "video") || strings.Contains(lower, "transcri"):
+		return diagnostics.CodeMediaFailed
+	case strings.Contains(lower, "export"):
+		return diagnostics.CodeExportFailed
+	default:
+		return diagnostics.CodeWorkerFailed
+	}
+}
+
+// normalizeWorkerOperation keeps the job type as the operation when it is a
+// known identifier, so report aggregation cannot be polluted by payloads.
+func normalizeWorkerOperation(jobType string) string {
+	jobType = strings.TrimSpace(jobType)
+	if jobType == "" {
+		return "worker_job"
+	}
+	if len(jobType) > 160 {
+		jobType = jobType[:160]
+	}
+	return jobType
 }
 
 func (w *BackgroundWorker) SetAccountPreflightService(service *accountpreflightservice.Service) {
@@ -492,7 +641,7 @@ func (w *BackgroundWorker) handleLockedJob(ctx context.Context, job *models.Job)
 		defer close(heartbeatDone)
 		w.heartbeatJobLock(heartbeatCtx, job.ID)
 	}()
-	processErr := w.executeJob(ctx, job)
+	processErr := w.executeJobGuarded(ctx, job)
 	cancelHeartbeat()
 	<-heartbeatDone
 	finalizeCtx, cancelFinalize := workerFinalizationContext(ctx)
@@ -543,6 +692,10 @@ func workerFinalizationContext(ctx context.Context) (context.Context, context.Ca
 //nolint:gocyclo // Durable retry, fencing, and terminal persistence share this transaction-aware path.
 func (w *BackgroundWorker) finishFailedJob(ctx context.Context, job *models.Job, processErr error) {
 	log.Printf("[Worker %s] job %s failed\n", w.workerID, job.ID)
+	// Report unexpected failures at the operation boundary, independently
+	// of whether the terminal state below persists. Database failures must
+	// not silence their own diagnosis.
+	w.reportWorkerDiagnostic(ctx, job, processErr)
 	failure := w.classifyJobFailure(ctx, job, processErr)
 	if !failure.preserveAttempts {
 		job.Attempts++

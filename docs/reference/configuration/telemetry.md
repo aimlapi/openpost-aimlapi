@@ -2,6 +2,8 @@
 
 OpenPost can send privacy-limited product, service, website, documentation, and error events to PostHog. The Hosted service enables this integration. Self-hosted installations leave it disabled unless their operator explicitly configures an operator-owned PostHog project.
 
+Separately, self-hosted instances send privacy-limited maintainer diagnostic reports to OpenPost so crashes get fixed everywhere. See [Maintainer diagnostics](diagnostics.md).
+
 OpenPost uses both PostHog SDKs because they observe different facts:
 
 - `posthog-js` records browser page views, explicit product interactions, and sanitized browser failures.

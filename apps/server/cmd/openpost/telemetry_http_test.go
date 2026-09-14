@@ -15,7 +15,7 @@ import (
 func TestTelemetryErrorHandlerCapturesHandledServerErrorsWithoutRawURL(t *testing.T) {
 	recorder := &telemetry.MemoryRecorder{}
 	e := echo.New()
-	installTelemetryErrorHandler(e, recorder)
+	installTelemetryErrorHandler(e, recorder, nil)
 	e.GET("/things/:id", func(echo.Context) error {
 		return errors.New("database unavailable")
 	})
@@ -35,8 +35,8 @@ func TestTelemetryPanicBoundaryCapturesOnceWithoutPanicValue(t *testing.T) {
 	recorder := &telemetry.MemoryRecorder{}
 	e := echo.New()
 	e.Use(middleware.RecoverWithConfig(middleware.RecoverConfig{DisablePrintStack: true}))
-	e.Use(capturePanics(recorder))
-	installTelemetryErrorHandler(e, recorder)
+	e.Use(capturePanics(recorder, nil))
+	installTelemetryErrorHandler(e, recorder, nil)
 	e.GET("/panic", func(echo.Context) error {
 		panic("secret panic value")
 	})

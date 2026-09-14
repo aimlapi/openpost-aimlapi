@@ -21,6 +21,8 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
 	import type { ThemeIconRole } from '$lib/themes/contracts';
 	import PanelResizeHandle from '$lib/components/panel-resize-handle.svelte';
 	import { showToast } from '$lib/toast';
+	import { ui } from '$lib/stores/ui.svelte';
+	import FeedbackDialog from '$lib/components/feedback-dialog.svelte';
 	import { editorSession } from '$lib/video-editor/editor.svelte';
 	import { timelineStore } from '$lib/video-editor/timeline/stores/timeline-store.svelte';
 	import {
@@ -2304,6 +2306,17 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
 			>
 				<ThemeIcon role="settings" class="size-3.5" />
 			</Button>
+			<Button
+				type="button"
+				variant="ghost"
+				size="icon-xs"
+				class="hidden 2xl:inline-flex"
+				aria-label={m.feedback_open()}
+				title={m.feedback_open()}
+				onclick={() => ui.openFeedback()}
+			>
+				<ThemeIcon role="feedback" class="size-3.5" />
+			</Button>
 			{#if renderProject}
 				{#key renderProject.id}
 					<RenderQueueController
@@ -3429,3 +3442,5 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
 	codec={unsupportedAudioRequest?.codec ?? ''}
 	ondecision={resolveUnsupportedAudioDecision}
 />
+
+<FeedbackDialog />

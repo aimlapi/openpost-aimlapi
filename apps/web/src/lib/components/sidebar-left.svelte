@@ -305,6 +305,15 @@
 				<NotificationBell />
 			{/if}
 			<Sidebar.MenuItem>
+				<Sidebar.MenuButton
+					class="h-9 [@media(pointer:coarse)]:h-11"
+					tooltipContent={m.feedback_open()}
+					onclick={() => ui.openFeedback()}
+					><ThemeIcon role="feedback" class="size-4" /><span>{m.feedback_open()}</span
+					></Sidebar.MenuButton
+				></Sidebar.MenuItem
+			>
+			<Sidebar.MenuItem>
 				<DropdownMenu.Root bind:open={profileMenuOpen}>
 					<DropdownMenu.Trigger>
 						{#snippet child({ props })}

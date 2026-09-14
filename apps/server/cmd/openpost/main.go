@@ -30,6 +30,7 @@ import (
 	"github.com/openpost/backend/internal/config"
 	"github.com/openpost/backend/internal/connectors"
 	"github.com/openpost/backend/internal/database"
+	"github.com/openpost/backend/internal/diagnostics"
 	"github.com/openpost/backend/internal/memes"
 	operationallogging "github.com/openpost/backend/internal/operational/logging"
 	"github.com/openpost/backend/internal/platform"
@@ -118,6 +119,22 @@ func main() {
 	}
 
 	cfg := config.Load()
+	// The diagnostics reporter resolves its decision from environment
+	// configuration only, so startup failures (database initialization,
+	// migrations) can report without the application database. It
+	// defaults to disabled: existing installations keep their previous
+	// no-external-reporting behavior on upgrade.
+	diagnosticsReporter := diagnostics.NewReporter(diagnostics.Config{
+		Enabled:            cfg.DiagnosticsEnabled,
+		EnvDisabled:        cfg.DiagnosticsEnvSet && !cfg.DiagnosticsEnabled,
+		ReceiverURL:        cfg.DiagnosticsReceiverURL,
+		InstallationIDFile: diagnostics.DefaultInstallationIDFile(),
+		Version:            version,
+		Revision:           runningBuildRevision(),
+		DBDriver:           cfg.DatabaseDriver,
+		StorageDriver:      cfg.StorageDriver,
+	})
+	defer closeDiagnostics(diagnosticsReporter)
 	if command.checkConfig {
 		if err := cfg.ValidateRuntime(); err != nil {
 			log.Fatal(err)
@@ -152,6 +169,7 @@ func main() {
 		string(command.role),
 	)
 	if err != nil {
+		diagnosticsReporter.ReportStartupFailureSync("db_init", diagnostics.CodeStartupFailed)
 		log.Fatal(err)
 	}
 	closeDatabase := func() {
@@ -161,6 +179,7 @@ func main() {
 	}
 	if command.role.autoMigrates() {
 		if err := database.CreateSchemaLocked(context.Background(), db, cfg.DatabaseDriver, cfg.DatabaseDSN()); err != nil {
+			diagnosticsReporter.ReportStartupFailureSync("db_migrate", diagnostics.CodeStartupFailed)
 			log.Fatalf("database schema initialization failed: %v", err)
 		}
 	} else if err := database.RequireCurrentSchema(context.Background(), db); err != nil {
@@ -284,7 +303,8 @@ func main() {
 		},
 	}))
 	e.Use(middleware.Recover())
-	e.Use(capturePanics(telemetryRecorder))
+	e.Use(capturePanics(telemetryRecorder, diagnosticsReporter))
+	e.Use(observeDiagnosticFailures(diagnosticsReporter))
 	e.Use(middleware.Secure())
 	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
 		AllowOrigins:     cfg.CORSOrigins,
@@ -292,7 +312,7 @@ func main() {
 		AllowHeaders:     []string{echo.HeaderOrigin, echo.HeaderContentType, echo.HeaderAuthorization, "MCP-Protocol-Version", "Mcp-Session-Id", "Last-Event-ID", "X-PostHog-Distinct-ID", "X-PostHog-Session-ID"},
 		AllowCredentials: true,
 	}))
-	installTelemetryErrorHandler(e, telemetryRecorder)
+	installTelemetryErrorHandler(e, telemetryRecorder, diagnosticsReporter)
 
 	authService := auth.NewService(cfg.JWTSecret)
 	if cfg.ProxyAuthSecret != "" {
@@ -782,6 +802,7 @@ func main() {
 		worker.SetAccountPreflightService(accountPreflightService)
 		worker.SetExternalWebhookService(externalWebhookService)
 		worker.SetTelemetry(telemetryRecorder)
+		worker.SetDiagnosticsReporter(diagnosticsReporter)
 		if err := videoProcessingService.EnqueuePendingAnalysis(context.Background()); err != nil {
 			log.Fatalf("failed to schedule pending video analysis: %v", err)
 		}
@@ -955,6 +976,8 @@ func main() {
 		AppRevision:                  runningBuildRevision(),
 		Edition:                      cfg.Edition,
 		Telemetry:                    telemetryRecorder,
+		DiagnosticsReporter:          diagnosticsReporter,
+		DiagnosticsIngester:          newDiagnosticsIngester(cfg),
 		MediaHandler:                 mediaHandler,
 		PublicMediaVerifier:          publicMediaVerifier,
 		ProfileHandler:               profileHandler,
@@ -1033,12 +1056,82 @@ func closeTelemetry(recorder telemetry.Recorder) {
 
 const telemetryPanicCapturedKey = "openpost.telemetry.panic-captured"
 
-func capturePanics(recorder telemetry.Recorder) echo.MiddlewareFunc {
+// diagnosticsCapturedKey marks requests already reported through the
+// diagnostics channel (panic capture or error handler) so the final-status
+// observer does not double-report. Deduplication in the reporter is the
+// backstop; this flag keeps the common path to one observation.
+const diagnosticsCapturedKey = "openpost.diagnostics.captured"
+
+// observeDiagnosticFailures reports unexpected API failures based on the
+// final response status. The pinned Huma adapter writes its response and
+// returns nil, so the Echo error hook never sees those failures; observing
+// the committed status closes that gap. Already-captured requests are
+// skipped, and the reporter's deduplication folds repeats into counts.
+func observeDiagnosticFailures(reporter *diagnostics.Reporter) echo.MiddlewareFunc {
+	return func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			err := next(c)
+			if reporter == nil || !reporter.Enabled() {
+				return err
+			}
+			if c.Response().Committed && c.Response().Status >= http.StatusInternalServerError {
+				if captured, _ := c.Get(diagnosticsCapturedKey).(bool); !captured {
+					c.Set(diagnosticsCapturedKey, true)
+					reporter.Report(diagnostics.Report{
+						Surface:    diagnostics.SurfaceBackend,
+						Operation:  normalizedRequestRoute(c.Path()),
+						ErrorCode:  diagnostics.CodeAPI5xx,
+						HTTPStatus: c.Response().Status,
+						FirstSeen:  time.Now().UTC(),
+						LastSeen:   time.Now().UTC(),
+					})
+				}
+			}
+			return err
+		}
+	}
+}
+
+func closeDiagnostics(reporter *diagnostics.Reporter) {
+	if reporter == nil {
+		return
+	}
+	if err := reporter.Close(); err != nil {
+		log.Printf("diagnostics shutdown failed: %v", err)
+	}
+}
+
+// newDiagnosticsIngester builds the public cross-instance receiver. It is
+// enabled only when the operator runs the official receiver and configures
+// the maintainer Discord webhook. The webhook URL is a secret: it is passed
+// by value and never logged here or anywhere downstream.
+func newDiagnosticsIngester(cfg *config.Config) *diagnostics.Ingester {
+	if cfg == nil {
+		return diagnostics.NewIngester(diagnostics.IngestConfig{})
+	}
+	return diagnostics.NewIngester(diagnostics.IngestConfig{
+		Enabled:           cfg.DiagnosticsIngestEnabled,
+		DiscordWebhookURL: cfg.DiagnosticsDiscordWebhookURL,
+	})
+}
+
+func capturePanics(recorder telemetry.Recorder, diagnosticsReporter *diagnostics.Reporter) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) (err error) {
 			defer func() {
 				if recovered := recover(); recovered != nil {
 					c.Set(telemetryPanicCapturedKey, true)
+					c.Set(diagnosticsCapturedKey, true)
+					if diagnosticsReporter != nil {
+						diagnosticsReporter.Report(diagnostics.Report{
+							Surface:   diagnostics.SurfaceBackend,
+							Operation: normalizedRequestRoute(c.Path()),
+							ErrorCode: diagnostics.CodeHTTPPanic,
+							Frames:    diagnostics.CaptureFrames(3),
+							FirstSeen: time.Now().UTC(),
+							LastSeen:  time.Now().UTC(),
+						})
+					}
 					captureErr := recorder.CaptureException(c.Request().Context(), telemetry.Exception{
 						Title:       "OpenPost request panic",
 						Description: "An HTTP request panicked",
@@ -1061,7 +1154,7 @@ func capturePanics(recorder telemetry.Recorder) echo.MiddlewareFunc {
 	}
 }
 
-func installTelemetryErrorHandler(e *echo.Echo, recorder telemetry.Recorder) {
+func installTelemetryErrorHandler(e *echo.Echo, recorder telemetry.Recorder, diagnosticsReporter *diagnostics.Reporter) {
 	defaultHandler := e.DefaultHTTPErrorHandler
 	e.HTTPErrorHandler = func(err error, c echo.Context) {
 		status := http.StatusInternalServerError
@@ -1071,6 +1164,17 @@ func installTelemetryErrorHandler(e *echo.Echo, recorder telemetry.Recorder) {
 		}
 		panicCaptured, _ := c.Get(telemetryPanicCapturedKey).(bool)
 		if status >= http.StatusInternalServerError && !panicCaptured {
+			c.Set(diagnosticsCapturedKey, true)
+			if diagnosticsReporter != nil {
+				diagnosticsReporter.Report(diagnostics.Report{
+					Surface:    diagnostics.SurfaceBackend,
+					Operation:  normalizedRequestRoute(c.Path()),
+					ErrorCode:  diagnostics.CodeAPI5xx,
+					HTTPStatus: status,
+					FirstSeen:  time.Now().UTC(),
+					LastSeen:   time.Now().UTC(),
+				})
+			}
 			captureErr := recorder.CaptureException(c.Request().Context(), telemetry.Exception{
 				Title:       "OpenPost HTTP " + strconv.Itoa(status),
 				Description: "An HTTP request failed",

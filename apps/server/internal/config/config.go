@@ -29,6 +29,13 @@ type AnalyticsSourceConfig struct {
 	BearerToken string `json:"bearer_token"`
 }
 
+// defaultDiagnosticsReceiverURL is the official OpenPost diagnostics
+// receiver. Instances report here unless the operator overrides
+// OPENPOST_DIAGNOSTICS_RECEIVER_URL or disables reporting with
+// OPENPOST_DIAGNOSTICS_ENABLED=false. It is a public endpoint address,
+// not a secret.
+const defaultDiagnosticsReceiverURL = "https://app.openpo.st/api/v1/diagnostics/ingest"
+
 type Config struct {
 	Edition                  string
 	AppE2EHostedSignup       bool
@@ -76,24 +83,34 @@ type Config struct {
 	FeedbackDestinationURL   string
 	FeedbackRecipient        string
 	FeedbackSupportURL       string
-	TelemetryEnabled         bool
-	PostHogProjectToken      string
-	PostHogAPIHost           string
-	PostHogBrowserHost       string
-	PostHogUIHost            string
-	TelemetryEnvironment     string
-	UpdateCheckEnabled       bool
-	OIDCIssuer               string
-	OIDCClientID             string
-	OIDCClientSecret         string
-	OIDCName                 string
-	OIDCScopes               []string
-	OIDCJITEnabled           bool
-	OIDCBootstrapAllowlist   []string
-	OIDCBreakGlassEmails     []string
-	OIDCNativeCallbackURL    string
-	GoogleAuthClientID       string
-	GoogleAuthClientSecret   string
+	DiagnosticsEnabled       bool
+	DiagnosticsEnvSet        bool
+	DiagnosticsReceiverURL   string
+	// DiagnosticsIngestEnabled gates the public cross-instance ingest
+	// endpoint. It stays off unless the operator runs the official
+	// receiver (Hosted sets it alongside DiagnosticsDiscordWebhookURL).
+	// The webhook URL is a secret: it lives only in the environment and
+	// is never logged, exposed, or committed.
+	DiagnosticsIngestEnabled     bool
+	DiagnosticsDiscordWebhookURL string
+	TelemetryEnabled             bool
+	PostHogProjectToken          string
+	PostHogAPIHost               string
+	PostHogBrowserHost           string
+	PostHogUIHost                string
+	TelemetryEnvironment         string
+	UpdateCheckEnabled           bool
+	OIDCIssuer                   string
+	OIDCClientID                 string
+	OIDCClientSecret             string
+	OIDCName                     string
+	OIDCScopes                   []string
+	OIDCJITEnabled               bool
+	OIDCBootstrapAllowlist       []string
+	OIDCBreakGlassEmails         []string
+	OIDCNativeCallbackURL        string
+	GoogleAuthClientID           string
+	GoogleAuthClientSecret       string
 
 	EmailVerificationRequired  bool
 	EmailProvider              string
@@ -258,17 +275,22 @@ func Load() *Config {
 			),
 			"/",
 		),
-		StockMediaEnabled:      getEnvBoolWithAliases(false, "OPENPOST_STOCK_MEDIA_ENABLED"),
-		PexelsAPIKey:           strings.TrimSpace(getEnvDefault("OPENPOST_PEXELS_API_KEY", "")),
-		UnsplashAccessKey:      strings.TrimSpace(getEnvDefault("OPENPOST_UNSPLASH_ACCESS_KEY", "")),
-		PixabayAPIKey:          strings.TrimSpace(getEnvDefault("OPENPOST_PIXABAY_API_KEY", "")),
-		FeedbackEnabled:        getEnvBoolWithAliases(false, "OPENPOST_FEEDBACK_ENABLED"),
-		FeedbackDestinationURL: getEnvDefault("OPENPOST_FEEDBACK_DESTINATION_URL", ""),
-		FeedbackRecipient:      getEnvDefault("OPENPOST_FEEDBACK_RECIPIENT", ""),
-		FeedbackSupportURL:     getEnvDefault("OPENPOST_FEEDBACK_SUPPORT_URL", "https://github.com/getopenpost/openpost/issues/new"),
-		TelemetryEnabled:       getEnvBoolWithAliases(telemetryEnabledByDefault, "OPENPOST_TELEMETRY_ENABLED"),
-		PostHogProjectToken:    strings.TrimSpace(getEnvDefault("OPENPOST_POSTHOG_PROJECT_TOKEN", "")),
-		PostHogAPIHost:         postHogAPIHost,
+		StockMediaEnabled:            getEnvBoolWithAliases(false, "OPENPOST_STOCK_MEDIA_ENABLED"),
+		PexelsAPIKey:                 strings.TrimSpace(getEnvDefault("OPENPOST_PEXELS_API_KEY", "")),
+		UnsplashAccessKey:            strings.TrimSpace(getEnvDefault("OPENPOST_UNSPLASH_ACCESS_KEY", "")),
+		PixabayAPIKey:                strings.TrimSpace(getEnvDefault("OPENPOST_PIXABAY_API_KEY", "")),
+		FeedbackEnabled:              getEnvBoolWithAliases(false, "OPENPOST_FEEDBACK_ENABLED"),
+		FeedbackDestinationURL:       getEnvDefault("OPENPOST_FEEDBACK_DESTINATION_URL", ""),
+		FeedbackRecipient:            getEnvDefault("OPENPOST_FEEDBACK_RECIPIENT", ""),
+		FeedbackSupportURL:           getEnvDefault("OPENPOST_FEEDBACK_SUPPORT_URL", "https://github.com/getopenpost/openpost/issues/new"),
+		DiagnosticsEnabled:           getEnvBoolWithAliases(true, "OPENPOST_DIAGNOSTICS_ENABLED"),
+		DiagnosticsEnvSet:            isEnvSet("OPENPOST_DIAGNOSTICS_ENABLED"),
+		DiagnosticsReceiverURL:       strings.TrimRight(strings.TrimSpace(getEnvDefault("OPENPOST_DIAGNOSTICS_RECEIVER_URL", defaultDiagnosticsReceiverURL)), "/"),
+		DiagnosticsIngestEnabled:     getEnvBoolWithAliases(false, "OPENPOST_DIAGNOSTICS_INGEST_ENABLED"),
+		DiagnosticsDiscordWebhookURL: strings.TrimSpace(getEnvDefault("OPENPOST_DIAGNOSTICS_DISCORD_WEBHOOK_URL", "")),
+		TelemetryEnabled:             getEnvBoolWithAliases(telemetryEnabledByDefault, "OPENPOST_TELEMETRY_ENABLED"),
+		PostHogProjectToken:          strings.TrimSpace(getEnvDefault("OPENPOST_POSTHOG_PROJECT_TOKEN", "")),
+		PostHogAPIHost:               postHogAPIHost,
 		PostHogBrowserHost: strings.TrimRight(strings.TrimSpace(
 			getEnvDefault("OPENPOST_POSTHOG_BROWSER_HOST", postHogBrowserHost),
 		), "/"),
@@ -1129,6 +1151,17 @@ func warnOnPlaceholderURL(cfg *Config) {
 	log.Printf("         Set OPENPOST_APP_URL=https://your-public-host in")
 	log.Printf("         production. See .env.example for details.")
 	log.Printf("============================================================")
+}
+
+// isEnvSet reports whether an explicit environment choice exists for key,
+// either directly or through its _FILE companion. Diagnostics uses it so an
+// explicit OPENPOST_DIAGNOSTICS_ENABLED=false always wins over stored
+// settings, even though the default is also disabled.
+func isEnvSet(key string) bool {
+	if _, _, ok := getEnvValue(key); ok {
+		return true
+	}
+	return false
 }
 
 func getEnvDefault(key, fallback string) string {
