@@ -159,7 +159,7 @@ func (s *Service) ResolveCertificationContext(
 	accountKind := AccountKind(account)
 	var contract CertificationContract
 	var err error
-	mandatoryCertification := requiresCertifiedOperation(account.Platform, accountConfigurationRef(account))
+	mandatoryCertification := requiresCertifiedOperation(account.Platform)
 	// Production identity and provider environment remain production-scoped even
 	// when the optional evidence gate is off. Only the explicit gate or a
 	// provider's mandatory certification policy should require recorded proof.
@@ -218,7 +218,7 @@ func (s *Service) CurrentRevision() string {
 
 func (s *Service) DecideConnection(ctx context.Context, provider, instanceURL string, intent ExecutionIntent) Decision {
 	configuration := s.resolveConnectionConfiguration(provider, instanceURL)
-	mandatoryCertification := requiresCertifiedOperation(provider, instanceURL)
+	mandatoryCertification := requiresCertifiedOperation(provider)
 	contract, _ := ConnectionContract(provider, (s != nil && s.enforceCertification) || mandatoryCertification)
 	if mandatoryCertification && (s == nil || !s.managedProduction) {
 		allowNonProductionCertification(&contract)
@@ -274,7 +274,7 @@ func (s *Service) DecideAccountOperation(ctx context.Context, account models.Soc
 	configuration := s.resolveConfiguration(account.Platform, accountConfigurationRef(account))
 	accountKind := AccountKind(account)
 	policyMode := account.Platform + "." + string(operation)
-	mandatoryCertification := requiresCertifiedOperation(account.Platform, accountConfigurationRef(account))
+	mandatoryCertification := requiresCertifiedOperation(account.Platform)
 	contract, _ := OperationContract(account.Platform, operation, (s != nil && s.enforceCertification) || mandatoryCertification, accountKind)
 	if mandatoryCertification && (s == nil || !s.managedProduction) {
 		allowNonProductionCertification(&contract)
@@ -326,7 +326,7 @@ func (s *Service) decidePublication(ctx context.Context, input PublicationDecisi
 		accountKind = "standard"
 	}
 	policyMode := normalizedPolicyToken(input.PolicyMode, input.Provider+".unspecified")
-	mandatoryCertification := requiresCertifiedOperation(input.Provider, input.InstanceURL)
+	mandatoryCertification := requiresCertifiedOperation(input.Provider)
 	contract, _ := PublicationContract(
 		input.Capability,
 		input.Operation,
@@ -409,7 +409,7 @@ func (s *Service) resolveConnectionConfiguration(provider, instanceURL string) R
 	return configuration
 }
 
-func requiresCertifiedOperation(provider, configurationRef string) bool {
+func requiresCertifiedOperation(provider string) bool {
 	provider = strings.ToLower(strings.TrimSpace(provider))
 	switch provider {
 	case capabilities.ProviderPinterest, capabilities.ProviderTelegram:
