@@ -137,6 +137,42 @@ const providerFixtures = [
     description: "Connect any public Mastodon instance.",
   },
   {
+    platform: "pixelfed",
+    display_name: "Pixelfed",
+    auth_mode: "oauth_oob",
+    configured: true,
+    status: "available",
+    readiness: connectionReadiness("healthy", true),
+    description: "Connect any public Pixelfed instance.",
+  },
+  {
+    platform: "peertube",
+    display_name: "PeerTube",
+    auth_mode: "app_password",
+    configured: true,
+    status: "available",
+    readiness: connectionReadiness("healthy", true),
+    description: "Connect with instance credentials.",
+  },
+  {
+    platform: "lemmy",
+    display_name: "Lemmy",
+    auth_mode: "app_password",
+    configured: true,
+    status: "available",
+    readiness: connectionReadiness("healthy", true),
+    description: "Connect with instance credentials.",
+  },
+  {
+    platform: "piefed",
+    display_name: "PieFed",
+    auth_mode: "app_password",
+    configured: true,
+    status: "available",
+    readiness: connectionReadiness("healthy", true),
+    description: "Connect with instance credentials.",
+  },
+  {
     platform: "bluesky",
     display_name: "Bluesky",
     auth_mode: "app_password",
@@ -1687,7 +1723,9 @@ test.describe("product screenshot capture", () => {
         route.fulfill({
           json: [
             ...providerFixtures.filter(({ platform }) =>
-              ["bluesky", "mastodon"].includes(platform),
+              ["bluesky", "mastodon", "pixelfed", "peertube", "lemmy", "piefed"].includes(
+                platform,
+              ),
             ),
             ...[
               { platform: "discord", display_name: "Discord", auth_mode: "webhook" },
@@ -1710,17 +1748,27 @@ test.describe("product screenshot capture", () => {
         await document.fonts.ready;
       });
 
-      for (const provider of ["bluesky", "mastodon", "discord", "telegram"]) {
+      for (const provider of ["bluesky", "mastodon", "pixelfed", "peertube", "lemmy", "piefed", "discord", "telegram"]) {
         await page.getByTestId(`provider-card-${provider}`).getByRole("button").click();
         let dialog = page.getByRole("dialog");
         await expect(dialog).toBeVisible();
-        if (provider === "mastodon") {
-          await dialog.getByRole("button", { name: "Continue to Mastodon" }).click();
-          dialog = page.getByRole("dialog").filter({ has: page.locator("#mastodon-server") });
-          await expect(dialog.locator("#mastodon-server")).toBeVisible();
-          await dialog.locator("#mastodon-server").fill("mastodon.social");
+        if (provider === "mastodon" || provider === "pixelfed") {
+          const continueName =
+            provider === "pixelfed" ? "Continue to Pixelfed" : "Continue to Mastodon";
+          await dialog.getByRole("button", { name: continueName }).click();
+          const serverInput = provider === "pixelfed" ? "#pixelfed-server" : "#mastodon-server";
+          dialog = page.getByRole("dialog").filter({ has: page.locator(serverInput) });
+          await expect(dialog.locator(serverInput)).toBeVisible();
+          await dialog
+            .locator(serverInput)
+            .fill(provider === "pixelfed" ? "pixelfed.social" : "mastodon.social");
         }
         if (provider === "bluesky") await dialog.locator("#bluesky-handle").fill("you.bsky.social");
+        if (provider === "peertube" || provider === "lemmy" || provider === "piefed") {
+          await dialog.locator("#fediverse-instance").fill("https://fedi.example");
+          await dialog.locator("#fediverse-username").fill("rodrigo");
+          await dialog.locator("#fediverse-password").fill("example-password");
+        }
         if (provider === "telegram")
           await dialog.locator("#telegram-chat-id").fill("-1001234567890");
         await captureDetail(dialog, `connect-${provider}-${captureScheme}.png`);

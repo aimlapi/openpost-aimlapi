@@ -114,3 +114,41 @@ func TestAccountProviderKeyIsolatesNonDefaultBlueskyPDS(t *testing.T) {
 	require.Equal(t, "bluesky", AccountProviderKey("bluesky", BlueskyDefaultPDSURL+"/", ""))
 	require.Equal(t, "bluesky:https://pds.example", AccountProviderKey("bluesky", "https://pds.example/", ""))
 }
+
+func TestBuildAdapterRegistryAcceptsBuiltinCredentialProviders(t *testing.T) {
+	// Built-in credential providers (no operator secrets) must always
+	// produce template adapters so the server boots with them enabled.
+	// This is the startup path that once rejected instance-less apps.
+	adapters, _, err := BuildAdapterRegistry([]AppConfig{
+		{Provider: providerPeerTube},
+		{Provider: providerLemmy},
+		{Provider: providerPieFed},
+		{Provider: providerBluesky},
+	}, RegistryOptions{})
+	if err != nil {
+		t.Fatalf("BuildAdapterRegistry returned error: %v", err)
+	}
+	for _, provider := range []string{providerPeerTube, providerLemmy, providerPieFed, providerBluesky} {
+		if adapters[provider] == nil {
+			t.Fatalf("expected template adapter for %s", provider)
+		}
+	}
+}
+
+func TestNewInstanceAdapterCoversCredentialProviders(t *testing.T) {
+	for _, provider := range []string{providerPeerTube, providerLemmy, providerPieFed} {
+		adapter, ok := NewInstanceAdapter(provider, "https://instance.example")
+		if !ok || adapter == nil {
+			t.Fatalf("expected instance adapter for %s", provider)
+		}
+		if key := AccountProviderKey(provider, "https://instance.example/", ""); key != provider+":https://instance.example" {
+			t.Fatalf("unexpected provider key %q", key)
+		}
+	}
+	if _, ok := NewInstanceAdapter(providerMastodon, "https://instance.example"); ok {
+		t.Fatal("mastodon must not use the stateless instance adapter path")
+	}
+	if _, ok := NewInstanceAdapter(providerPeerTube, ""); ok {
+		t.Fatal("empty instance URL must not produce an adapter")
+	}
+}

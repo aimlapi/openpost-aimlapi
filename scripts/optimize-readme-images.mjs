@@ -25,6 +25,10 @@ const images = [
     "video-timeline-detail",
     "connect-bluesky",
     "connect-mastodon",
+    "connect-pixelfed",
+    "connect-peertube",
+    "connect-lemmy",
+    "connect-piefed",
     "connect-discord",
     "connect-telegram",
   ].flatMap((name) =>
@@ -34,6 +38,13 @@ const images = [
     })),
   ),
   { name: "readme-hero-dark", width: 2880 },
+  ...[768, 1536].flatMap((width) =>
+    ["light", "dark"].map((scheme) => ({
+      name: `main-${scheme}`,
+      outputName: `main-${scheme}-${width}`,
+      width,
+    })),
+  ),
 ];
 
 export async function optimizeReadmeImages() {
@@ -53,7 +64,10 @@ export async function optimizeReadmeImages() {
     for (const image of images) {
       const source = await readFile(path.join(screenshotDirectory, `${image.name}.png`));
       const output = await encodeWebp(page, source, image.width);
-      await writeFile(path.join(screenshotDirectory, `${image.name}.webp`), output);
+      await writeFile(
+        path.join(screenshotDirectory, `${image.outputName ?? image.name}.webp`),
+        output,
+      );
       sourceBytes += source.byteLength;
       outputBytes += output.byteLength;
     }

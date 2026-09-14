@@ -2136,13 +2136,13 @@
 			}}
 		>
 			<div class="space-y-2">
-				<Label for="compat-server">
+				<Label for={compatModalProvider === 'pixelfed' ? 'pixelfed-server' : 'mastodon-server'}>
 					{compatModalProvider === 'pixelfed'
 						? m.accounts_pixelfed_server_address()
 						: m.accounts_mastodon_server_address()}
 				</Label>
 				<Input
-					id="compat-server"
+					id={compatModalProvider === 'pixelfed' ? 'pixelfed-server' : 'mastodon-server'}
 					class="h-11 sm:h-9"
 					bind:value={customCompatInstance}
 					placeholder={compatModalProvider === 'pixelfed' ? 'pixelfed.social' : 'mastodon.social'}
