@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
 import { authenticatePage, createWorkspace, registerUser } from "./helpers";
 
@@ -11,7 +12,7 @@ for (const width of [1280, 390, 320])
       await page.emulateMedia({ colorScheme: scheme, reducedMotion: "reduce" });
       const errors: string[] = [];
       page.on("pageerror", (error) => errors.push(error.message));
-      const auth = await registerUser(request, `query-settings-${Date.now()}@example.com`);
+      const auth = await registerUser(request, `query-settings-${randomUUID()}@example.com`);
       await createWorkspace(request, auth.token, "Query settings");
       await authenticatePage(page, auth.token);
       await page.goto("/settings?tab=profile");

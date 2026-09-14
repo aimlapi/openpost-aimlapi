@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
 import { authenticatePage, createWorkspace, registerUser } from "./helpers";
 
@@ -5,7 +6,7 @@ import { authenticatePage, createWorkspace, registerUser } from "./helpers";
 test.use({ serviceWorkers: "block" });
 
 test("Appearance does not download every settings panel", async ({ page, request }) => {
-  const { token } = await registerUser(request, `settings-budget-${Date.now()}@example.com`);
+  const { token } = await registerUser(request, `settings-budget-${randomUUID()}@example.com`);
   await createWorkspace(request, token, "Settings performance");
   await authenticatePage(page, token);
   await page.goto("/settings?tab=appearance");
@@ -48,7 +49,7 @@ test("a failed settings download leaves navigation usable and can recover", asyn
   page,
   request,
 }) => {
-  const { token } = await registerUser(request, `settings-recovery-${Date.now()}@example.com`);
+  const { token } = await registerUser(request, `settings-recovery-${randomUUID()}@example.com`);
   await createWorkspace(request, token, "Settings recovery");
   await authenticatePage(page, token);
   await page.goto("/settings?tab=profile");

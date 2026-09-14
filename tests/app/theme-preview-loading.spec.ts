@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
 import { authenticatePage, createWorkspace, registerUser } from "./helpers";
 
@@ -7,7 +8,7 @@ test("Dither loading previews preserve unknown progress and reduced motion", asy
 }) => {
   test.setTimeout(120_000);
   page.setDefaultTimeout(10_000);
-  const { token } = await registerUser(request, `dither-loading-${Date.now()}@example.com`);
+  const { token } = await registerUser(request, `dither-loading-${randomUUID()}@example.com`);
   const workspace = await createWorkspace(request, token, "Dither loading");
   const created = await request.post("/api/v1/themes", {
     headers: { Authorization: `Bearer ${token}` },

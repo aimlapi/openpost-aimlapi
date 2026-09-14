@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
 import { authenticatePage, createPublication, createWorkspace, registerUser } from "./helpers";
 import { themeColorContrastRatio } from "../../apps/web/src/lib/themes/validation";
@@ -10,7 +11,7 @@ test("Dither keeps the app's main routes usable on desktop and phones", async ({
   request,
 }) => {
   test.setTimeout(180_000);
-  const { token } = await registerUser(request, `dither-polish-${Date.now()}@example.com`);
+  const { token } = await registerUser(request, `dither-polish-${randomUUID()}@example.com`);
   const workspace = await createWorkspace(request, token, "Dither studio");
   await createPublication(request, token, workspace.id, "A small release with clearer controls.");
   await authenticatePage(page, token);
@@ -122,7 +123,7 @@ test.describe("touch theme controls", () => {
     request,
   }) => {
     test.setTimeout(90_000);
-    const { token } = await registerUser(request, `dither-accent-${Date.now()}@example.com`);
+    const { token } = await registerUser(request, `dither-accent-${randomUUID()}@example.com`);
     const workspace = await createWorkspace(request, token, "Custom Dither");
     const created = await request.post("/api/v1/themes", {
       headers: { Authorization: `Bearer ${token}` },
@@ -216,7 +217,7 @@ test("Dither button gradients respond to hover, focus, and press with reduced mo
   page,
   request,
 }) => {
-  const { token } = await registerUser(request, `dither-effects-${Date.now()}@example.com`);
+  const { token } = await registerUser(request, `dither-effects-${randomUUID()}@example.com`);
   await createWorkspace(request, token, "Dither effects");
   await authenticatePage(page, token);
   for (const scheme of ["light", "dark"] as const) {

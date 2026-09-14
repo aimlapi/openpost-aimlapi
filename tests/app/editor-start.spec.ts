@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { authenticatePage, createWorkspace, registerUser } from "./helpers";
@@ -51,7 +52,7 @@ for (const signedIn of [false, true]) {
     request,
   }, testInfo) => {
     if (signedIn) {
-      const auth = await registerUser(request, `editor-start-${Date.now()}@example.com`);
+      const auth = await registerUser(request, `editor-start-${randomUUID()}@example.com`);
       await createWorkspace(request, auth.token, "Editor start checks");
       await authenticatePage(page, auth.token);
     }

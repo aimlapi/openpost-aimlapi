@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rm } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { expect, test, type Page } from "@playwright/test";
@@ -418,7 +419,7 @@ test.describe("touch editor headers", () => {
   }) => {
     test.setTimeout(60000);
     await page.setViewportSize({ width: 1440, height: 960 });
-    const { token } = await registerUser(request, `touch-headers-${Date.now()}@example.com`);
+    const { token } = await registerUser(request, `touch-headers-${randomUUID()}@example.com`);
     await createWorkspace(request, token, "Touch headers");
     await authenticatePage(page, token);
     const videoURL = await createVideoProject(page, "Touch project");

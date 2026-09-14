@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
 import { authenticatePage, createWorkspace, registerUser } from "./helpers";
 
@@ -6,7 +7,7 @@ test("Dither themes render readable controls and charts at desktop and phone wid
   request,
 }) => {
   test.setTimeout(180_000);
-  const { token } = await registerUser(request, `dither-${Date.now()}@example.com`);
+  const { token } = await registerUser(request, `dither-${randomUUID()}@example.com`);
   await createWorkspace(request, token, "Dither studio");
   await authenticatePage(page, token);
   const errors: string[] = [];
@@ -90,7 +91,7 @@ test("Dither themes render readable controls and charts at desktop and phone wid
 
 test("Dither themes apply, survive reload, and restore Workshop", async ({ page, request }) => {
   test.setTimeout(180_000);
-  const { token } = await registerUser(request, `dither-${Date.now()}@example.com`);
+  const { token } = await registerUser(request, `dither-${randomUUID()}@example.com`);
   await createWorkspace(request, token, "Dither studio");
   await authenticatePage(page, token);
   const errors: string[] = [];

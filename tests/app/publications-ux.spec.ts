@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
 import { authenticatePage, createPublication, createWorkspace, registerUser } from "./helpers";
 
@@ -5,7 +6,7 @@ test("publications keeps the main workflow clear across list, search, and calend
   page,
   request,
 }) => {
-  const auth = await registerUser(request, `publications-ux-${Date.now()}@example.com`);
+  const auth = await registerUser(request, `publications-ux-${randomUUID()}@example.com`);
   const workspace = await createWorkspace(request, auth.token, "Publication workspace");
   const created = await createPublication(
     request,
@@ -89,7 +90,7 @@ test("publication delivery details keep distinct targets for the same account", 
   page,
   request,
 }) => {
-  const auth = await registerUser(request, `publication-targets-${Date.now()}@example.com`);
+  const auth = await registerUser(request, `publication-targets-${randomUUID()}@example.com`);
   const workspace = await createWorkspace(request, auth.token, "Multiple targets");
   const publication = await createPublication(
     request,

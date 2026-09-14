@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
 import { authenticatePage, createWorkspace, registerUser } from "./helpers";
 
@@ -11,7 +12,7 @@ for (const width of [1280, 390, 320]) {
       await page.emulateMedia({ colorScheme: scheme, reducedMotion: "reduce" });
       const auth = await registerUser(
         request,
-        `synced-layout-${width}-${scheme}-${Date.now()}@example.com`,
+        `synced-layout-${width}-${scheme}-${randomUUID()}@example.com`,
       );
       const workspace = await createWorkspace(request, auth.token, "Composer layout");
       await authenticatePage(page, auth.token);

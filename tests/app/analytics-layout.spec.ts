@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
 import builtins from "../../apps/server/internal/services/themes/builtins.v1.json" with { type: "json" };
 import { authenticatePage, createWorkspace, registerUser } from "./helpers";
@@ -57,7 +58,7 @@ for (const [themeID, scheme] of [
       }, testInfo) => {
         const { token } = await registerUser(
           request,
-          `analytics-layout-${width}-${Date.now()}@example.com`,
+          `analytics-layout-${width}-${randomUUID()}@example.com`,
         );
         const workspace = await createWorkspace(request, token, "Analytics layout");
         await authenticatePage(page, token);
@@ -237,7 +238,7 @@ test("Developer shortcut uses the theme chevron and opens from the keyboard", as
   page,
   request,
 }, testInfo) => {
-  const { token } = await registerUser(request, `account-chevron-${Date.now()}@example.com`);
+  const { token } = await registerUser(request, `account-chevron-${randomUUID()}@example.com`);
   const workspace = await createWorkspace(request, token, "Account disclosure");
   await page.emulateMedia({ reducedMotion: "reduce" });
   await authenticatePage(page, token);

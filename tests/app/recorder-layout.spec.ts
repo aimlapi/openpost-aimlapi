@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
 import { createWorkspace, registerUser } from "./helpers";
 
@@ -6,7 +7,7 @@ test("Recorder keeps its identity and save controls usable on phones", async ({
   request,
   baseURL,
 }, testInfo) => {
-  const { token } = await registerUser(request, `recorder-layout-${Date.now()}@example.com`);
+  const { token } = await registerUser(request, `recorder-layout-${randomUUID()}@example.com`);
   await createWorkspace(request, token, "Recorder layout");
   await page
     .context()

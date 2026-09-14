@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
 import { authenticatePage, createPublication, createWorkspace, registerUser } from "./helpers";
 
@@ -7,7 +8,7 @@ test("thread authoring reorder supports keyboard preview, drop, cancel, and undo
 }, testInfo) => {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
-  const unique = `authoring-order-${Date.now()}@example.com`;
+  const unique = `authoring-order-${randomUUID()}@example.com`;
   const auth = await registerUser(request, unique);
   const workspace = await createWorkspace(request, auth.token, "Authoring order");
   const publication = await createPublication(

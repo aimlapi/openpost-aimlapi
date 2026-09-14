@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
 import { authenticatePage, createWorkspace, registerUser } from "./helpers";
 import { readFile } from "node:fs/promises";
@@ -170,7 +171,7 @@ for (const scheme of ["light", "dark"] as const) {
     request,
   }, testInfo) => {
     await page.emulateMedia({ colorScheme: scheme, reducedMotion: "reduce" });
-    const user = await registerUser(request, `pwa-${Date.now()}@example.com`);
+    const user = await registerUser(request, `pwa-${randomUUID()}@example.com`);
     await createWorkspace(request, user.token, "Desktop PWA");
     await authenticatePage(page, user.token);
     await page.goto("/publications");

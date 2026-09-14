@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { authenticatePage, createWorkspace, registerUser } from "./helpers";
 
@@ -21,7 +22,7 @@ test("cloud editing saves text, preserves spaces and reopens without a refresh",
   request,
 }) => {
   test.setTimeout(90000);
-  const auth = await registerUser(request, `editor-repair-${Date.now()}@example.com`);
+  const auth = await registerUser(request, `editor-repair-${randomUUID()}@example.com`);
   await createWorkspace(request, auth.token, "Editor repair");
   await authenticatePage(page, auth.token);
   const errors: string[] = [];
@@ -87,7 +88,7 @@ test("a new cloud project cannot edit the previous project while its document lo
   request,
 }) => {
   test.setTimeout(60_000);
-  const auth = await registerUser(request, `editor-switch-${Date.now()}@example.com`);
+  const auth = await registerUser(request, `editor-switch-${randomUUID()}@example.com`);
   await createWorkspace(request, auth.token, "Editor switch");
   await authenticatePage(page, auth.token);
   await page.setViewportSize({ width: 1440, height: 900 });
@@ -150,7 +151,7 @@ test("switching projects hides the old editor until its pending save finishes", 
   request,
 }) => {
   test.setTimeout(90_000);
-  const auth = await registerUser(request, `editor-pending-save-${Date.now()}@example.com`);
+  const auth = await registerUser(request, `editor-pending-save-${randomUUID()}@example.com`);
   await createWorkspace(request, auth.token, "Editor pending save");
   await authenticatePage(page, auth.token);
   await page.setViewportSize({ width: 1440, height: 900 });
@@ -217,7 +218,7 @@ test("switching projects hides the old editor until its pending save finishes", 
 
 test("a failed save blocks the project switch until retry succeeds", async ({ page, request }) => {
   test.setTimeout(90_000);
-  const auth = await registerUser(request, `editor-save-retry-${Date.now()}@example.com`);
+  const auth = await registerUser(request, `editor-save-retry-${randomUUID()}@example.com`);
   await createWorkspace(request, auth.token, "Editor save retry");
   await authenticatePage(page, auth.token);
   await page.setViewportSize({ width: 1440, height: 900 });
@@ -309,7 +310,7 @@ test("recording setup fits both themes and imports a real streaming WebM", async
   request,
 }) => {
   test.setTimeout(150000);
-  const auth = await registerUser(request, `recorder-repair-${Date.now()}@example.com`);
+  const auth = await registerUser(request, `recorder-repair-${randomUUID()}@example.com`);
   await createWorkspace(request, auth.token, "Recording repair");
   await authenticatePage(page, auth.token);
   await page.addInitScript(() => {
@@ -444,7 +445,7 @@ test("editing text over a background does not leave the old lettering underneath
   page,
   request,
 }) => {
-  const auth = await registerUser(request, `composited-text-${Date.now()}@example.com`);
+  const auth = await registerUser(request, `composited-text-${randomUUID()}@example.com`);
   await createWorkspace(request, auth.token, "Composited text");
   await authenticatePage(page, auth.token);
   await page.setViewportSize({ width: 1440, height: 900 });

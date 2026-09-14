@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
 import { assignBuiltInTheme, authenticatePage, createWorkspace, registerUser } from "./helpers";
 
@@ -7,7 +8,7 @@ test("public profiles retain the viewer's theme on direct entry and reload", asy
   page,
   request,
 }) => {
-  const { token } = await registerUser(request, `profile-theme-${Date.now()}@example.com`);
+  const { token } = await registerUser(request, `profile-theme-${randomUUID()}@example.com`);
   const workspace = await createWorkspace(request, token, "Profile theme");
   const response = await request.patch("/api/v1/auth/profile", {
     headers: { Authorization: `Bearer ${token}` },
@@ -65,7 +66,7 @@ test("public profiles retain the viewer's theme on direct entry and reload", asy
 });
 
 test("page headers stay compact and use theme icons", async ({ page, request }) => {
-  const { token } = await registerUser(request, `compact-headers-${Date.now()}@example.com`);
+  const { token } = await registerUser(request, `compact-headers-${randomUUID()}@example.com`);
   await createWorkspace(request, token, "Compact headers");
   await authenticatePage(page, token);
   for (const path of ["/media", "/settings?tab=profile", "/prompts", "/analytics"]) {

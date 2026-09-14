@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
 import {
   assignBuiltInTheme,
@@ -12,7 +13,7 @@ test("the default Dither workspace keeps real app controls usable in both scheme
   request,
 }) => {
   test.setTimeout(180_000);
-  const { token } = await registerUser(request, `dither-default-${Date.now()}@example.com`);
+  const { token } = await registerUser(request, `dither-default-${randomUUID()}@example.com`);
   const workspace = await createWorkspace(request, token, "Dither studio");
   const publication = "A smaller release, with clearer controls and fewer repeated steps.";
   await createPublication(request, token, workspace.id, publication);

@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
 import { authenticatePage, createWorkspace, registerUser } from "./helpers";
 
@@ -17,7 +18,7 @@ for (const section of ["publications", "messages", "engagement"] as const) {
       await page.emulateMedia({ colorScheme: width === 320 ? "dark" : "light" });
       const { token } = await registerUser(
         request,
-        `view-loading-${section}-${Date.now()}@example.com`,
+        `view-loading-${section}-${randomUUID()}@example.com`,
       );
       await createWorkspace(request, token, "View loading");
       await authenticatePage(page, token);
@@ -84,7 +85,7 @@ for (const width of [1280, 390, 320]) {
     }, testInfo) => {
       await page.setViewportSize({ width, height: 900 });
       await page.emulateMedia({ colorScheme: scheme, reducedMotion: "reduce" });
-      const { token } = await registerUser(request, `loading-boundary-${Date.now()}@example.com`);
+      const { token } = await registerUser(request, `loading-boundary-${randomUUID()}@example.com`);
       await createWorkspace(request, token, "Loading boundaries");
       await authenticatePage(page, token);
       await page.goto("/settings?tab=general");
@@ -153,7 +154,7 @@ for (const surface of ["calendar", "media"] as const) {
   }, testInfo) => {
     const { token } = await registerUser(
       request,
-      `scope-loading-${surface}-${Date.now()}@example.com`,
+      `scope-loading-${surface}-${randomUUID()}@example.com`,
     );
     await createWorkspace(request, token, "First workspace");
     await createWorkspace(request, token, "Second workspace");
@@ -201,7 +202,7 @@ for (const surface of ["calendar", "media"] as const) {
 }
 
 test("Grow can switch back while another account is still loading", async ({ page, request }) => {
-  const { token } = await registerUser(request, `grow-loading-${Date.now()}@example.com`);
+  const { token } = await registerUser(request, `grow-loading-${randomUUID()}@example.com`);
   const workspace = await createWorkspace(request, token, "Grow loading");
   await authenticatePage(page, token);
   const accounts = ["first", "second"].map((name) => ({

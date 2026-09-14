@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
 import { authenticatePage, createWorkspace, registerUser } from "./helpers";
 
@@ -20,7 +21,7 @@ for (const viewport of [
     });
     const auth = await registerUser(
       request,
-      `repost-cycle-${viewport.width}-${viewport.scheme}-${Date.now()}@example.com`,
+      `repost-cycle-${viewport.width}-${viewport.scheme}-${randomUUID()}@example.com`,
     );
     const workspace = (await createWorkspace(request, auth.token, "Repost cycle")) as {
       id: string;

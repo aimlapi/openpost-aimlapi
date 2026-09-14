@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
 import { authenticatePage, createWorkspace, registerUser } from "./helpers";
 
@@ -5,7 +6,7 @@ test("create a theme, reopen its draft, publish, apply, and return to Appearance
   page,
   request,
 }) => {
-  const { token } = await registerUser(request, `theme-management-${Date.now()}@example.com`);
+  const { token } = await registerUser(request, `theme-management-${randomUUID()}@example.com`);
   await createWorkspace(request, token, "Theme management");
   await authenticatePage(page, token);
   await page.goto("/settings?tab=appearance");
@@ -83,7 +84,7 @@ for (const width of [1440, 390, 320]) {
       page.on("pageerror", (error) => errors.push(error.message));
       const { token } = await registerUser(
         request,
-        `theme-layout-${width}-${scheme}-${Date.now()}@example.com`,
+        `theme-layout-${width}-${scheme}-${randomUUID()}@example.com`,
       );
       await createWorkspace(request, token, "Theme layout");
       await authenticatePage(page, token);
@@ -127,7 +128,7 @@ test("tests every built-in theme and restores the saved theme when leaving Appea
   page,
   request,
 }) => {
-  const { token } = await registerUser(request, `theme-catalog-${Date.now()}@example.com`);
+  const { token } = await registerUser(request, `theme-catalog-${randomUUID()}@example.com`);
   const workspace = await createWorkspace(request, token, "Theme catalog");
   await authenticatePage(page, token);
   const response = await request.get("/api/v1/themes/available", {
