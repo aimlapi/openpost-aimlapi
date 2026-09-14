@@ -55,10 +55,11 @@ type Config struct {
 	Now          func() time.Time
 }
 
-// PublicConfig is the browser-safe surface: whether the browser may report
+// Status is the browser-safe surface: whether the browser may report
 // through its own instance, plus the build it runs against. It carries no
-// receiver URL, tokens, or installation identifiers.
-type PublicConfig struct {
+// receiver URL, tokens, or installation identifiers. The type name is
+// unique across the API so Huma schema registration cannot collide.
+type Status struct {
 	Enabled  bool   `json:"enabled"`
 	Version  string `json:"version"`
 	Revision string `json:"revision"`
@@ -162,10 +163,10 @@ func (r *Reporter) Enabled() bool {
 }
 
 // PublicConfig exposes the browser-safe reporting switch.
-func (r *Reporter) PublicConfig() PublicConfig {
+func (r *Reporter) PublicConfig() Status {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	return PublicConfig{
+	return Status{
 		Enabled:  r.decided,
 		Version:  r.config.Version,
 		Revision: r.config.Revision,
@@ -261,6 +262,45 @@ func (r *Reporter) ReportStartupFailureSync(operation, errorCode string) {
 	ctx, cancel := context.WithTimeout(context.Background(), defaultStartupSendTO)
 	defer cancel()
 	_ = postReport(ctx, r.client, strings.TrimRight(config.ReceiverURL, "/"), report)
+}
+
+// Flush delivers pending reports synchronously with the normal per-report
+// timeouts, stopping at the hourly cap or a ten-second budget. It exists so
+// tests can assert delivery deterministically and shutdown can make a
+// best-effort attempt; leftovers are dropped rather than retried.
+func (r *Reporter) Flush() {
+	deadline := r.now().Add(10 * time.Second)
+	for {
+		r.mu.Lock()
+		if !r.decided || len(r.queue) == 0 {
+			r.mu.Unlock()
+			return
+		}
+		now := r.now().UTC()
+		if now.Sub(r.windowStart) >= time.Hour {
+			r.windowStart = now.Truncate(time.Hour)
+			r.sendCount = 0
+		}
+		limit := r.config.SendsPerHour
+		if limit <= 0 {
+			limit = defaultSendsPerHour
+		}
+		if r.sendCount >= limit || now.After(deadline) {
+			r.mu.Unlock()
+			return
+		}
+		next := r.queue[0]
+		r.queue = r.queue[1:]
+		r.sendCount++
+		receiver := strings.TrimRight(r.config.ReceiverURL, "/")
+		r.mu.Unlock()
+		ctx, cancel := context.WithTimeout(context.Background(), defaultSendTimeout)
+		err := postReport(ctx, r.client, receiver, next)
+		cancel()
+		if err != nil {
+			log.Printf("diagnostics delivery failed: %v", err)
+		}
+	}
 }
 
 // Close stops the background sender and drops pending reports.

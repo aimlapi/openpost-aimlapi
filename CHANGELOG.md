@@ -4,6 +4,16 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Maintainer diagnostic reports are available as an opt-in channel for self-hosted instances. When `OPENPOST_DIAGNOSTICS_ENABLED=true` and `OPENPOST_DIAGNOSTICS_RECEIVER_URL` are set, the instance collects privacy-limited failure reports (normalized error codes, build, sanitized stack frames) through a bounded queue that never blocks application work and never touches the application database. Reporting stays disabled by default, existing installations keep their previous behavior on upgrade, and an explicit `OPENPOST_DIAGNOSTICS_ENABLED=false` always wins.
+- Send feedback is now one click away in the app sidebar, the mobile More menu, and the Video and Image Editor headers, and onboarding invites new workspaces to report anything missing or broken.
+
+### Fixed
+
+- The feedback dialog category options (Bug, Idea, Question) are truly centered: the radio input no longer occupies flex layout.
+- The dialog overlay no longer applies a full-screen backdrop blur, removing a suspected source of the intermittent horizontal white line and lowering compositing cost.
+
 ## [4.31.2] - 2026-09-14
 
 ### Fixed

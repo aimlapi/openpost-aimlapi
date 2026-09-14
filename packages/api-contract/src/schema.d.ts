@@ -1949,6 +1949,66 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/diagnostics/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get maintainer diagnostics reporting settings
+         * @description Whether this instance sends privacy-limited diagnostic reports to OpenPost. No receiver URL, token, or installation identifier is exposed.
+         */
+        get: operations["get-diagnostics-config"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/diagnostics/public-config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get maintainer diagnostics reporting switch
+         * @description Whether this instance sends privacy-limited diagnostic reports to OpenPost. Browser reports always go through their own instance.
+         */
+        get: operations["get-diagnostics-public-config"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/diagnostics/report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Submit a sanitized diagnostic report to this instance
+         * @description Only the allowlisted diagnostic envelope is accepted. User content, credentials, and request bodies are rejected during validation.
+         */
+        post: operations["submit-diagnostics"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/engagement": {
         parameters: {
             query?: never;
@@ -7844,6 +7904,17 @@ export interface components {
             route_path: string;
             viewport: components["schemas"]["Viewport"];
         };
+        DiagnosticsFrame: {
+            /** @description Function name */
+            function: string;
+            /**
+             * Format: int64
+             * @description Source line
+             */
+            line: number;
+            /** @description Normalized module path and file, never a URL or domain */
+            module: string;
+        };
         DirectMediaUploadTarget: {
             /** @description Upload URL expiration time */
             expires_at: string;
@@ -12993,6 +13064,17 @@ export interface components {
             /** @description Whether this request recorded the Workspace's first meaningful composition */
             claimed: boolean;
         };
+        Status: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/api/v1/schemas/Status.json
+             */
+            readonly $schema?: string;
+            enabled: boolean;
+            revision: string;
+            version: string;
+        };
         StockMediaProvenance: {
             attribution_text: string;
             creator_name: string;
@@ -13013,6 +13095,52 @@ export interface components {
             provider_url: string;
             video_filters?: string[] | null;
             videos: boolean;
+        };
+        SubmitDiagnosticsInputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/api/v1/schemas/SubmitDiagnosticsInputBody.json
+             */
+            readonly $schema?: string;
+            /**
+             * Format: int64
+             * @description Attempt count, when relevant
+             */
+            attempt_count?: number;
+            /** @description Normalized error code from the diagnostics catalog */
+            error_code: string;
+            /** @description Sanitized stack frames without domains or local paths */
+            frames?: components["schemas"]["DiagnosticsFrame"][] | null;
+            /**
+             * Format: int64
+             * @description HTTP status, when relevant
+             */
+            http_status?: number;
+            /** @description Route template, job type, or operation name */
+            operation: string;
+            /** @description First-party platform, when relevant */
+            provider?: string;
+            /**
+             * Format: int64
+             * @description Retry count, when relevant
+             */
+            retry_count?: number;
+            /**
+             * @description Surface where the failure was observed
+             * @enum {string}
+             */
+            surface: "browser" | "backend" | "worker";
+        };
+        SubmitDiagnosticsOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/api/v1/schemas/SubmitDiagnosticsOutputBody.json
+             */
+            readonly $schema?: string;
+            accepted: boolean;
+            enabled: boolean;
         };
         SubmitFeedbackInputBody: {
             /**
@@ -21558,6 +21686,133 @@ export interface operations {
             };
             /** @description Not Implemented */
             501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "get-diagnostics-config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Status"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "get-diagnostics-public-config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Status"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "submit-diagnostics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SubmitDiagnosticsInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubmitDiagnosticsOutputBody"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request Entity Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
                 headers: {
                     [name: string]: unknown;
                 };

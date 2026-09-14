@@ -37,6 +37,7 @@ const (
 	CodeAPI5xx              = "api_5xx"
 	CodeHTTPPanic           = "http_panic"
 	CodeWorkerPanic         = "worker_panic"
+	CodeWorkerFailed        = "worker_failed"
 	CodePublishFailed       = "publish_failed"
 	CodeMediaFailed         = "media_failed"
 	CodeExportFailed        = "export_failed"
@@ -50,6 +51,7 @@ var allowedErrorCodes = map[string]struct{}{
 	CodeAPI5xx:              {},
 	CodeHTTPPanic:           {},
 	CodeWorkerPanic:         {},
+	CodeWorkerFailed:        {},
 	CodePublishFailed:       {},
 	CodeMediaFailed:         {},
 	CodeExportFailed:        {},
@@ -140,8 +142,12 @@ var (
 	// modulePattern permits normalized Go/JS module paths after domain and
 	// user-directory stripping.
 	modulePattern   = regexp.MustCompile(`^[A-Za-z0-9_@./~+-]{1,240}$`)
-	functionPattern = regexp.MustCompile(`^[A-Za-z0-9_.$#/()\[\]-]{1,160}$`)
+	functionPattern = regexp.MustCompile(`^[A-Za-z0-9_.$#/()\[\]*,-]{1,160}$`)
 	sensitiveValue  = regexp.MustCompile(`(?i)(bearer\s+\S+|authorization\s*[:=]\s*(?:bearer\s+)?\S+|(?:cookie|oauth|access[_-]?token|refresh[_-]?token|client[_-]?secret|password|api[_-]?key)\s*[:=]\s*\S+)`)
+	// moduleVersionSuffix matches Go module version suffixes
+	// ("testify@v1.11.1"). They are public dependency versions, safe to
+	// drop for low-cardinality aggregation.
+	moduleVersionSuffix = regexp.MustCompile(`@[A-Za-z0-9._~+-]+`)
 )
 
 const (
@@ -226,10 +232,10 @@ func ValidateReport(report Report) error {
 
 func validateFrame(frame Frame) error {
 	if !modulePattern.MatchString(frame.Module) {
-		return fmt.Errorf("diagnostics report has an invalid frame module")
+		return fmt.Errorf("diagnostics report has an invalid frame module %q", frame.Module)
 	}
 	if !functionPattern.MatchString(frame.Function) {
-		return fmt.Errorf("diagnostics report has an invalid frame function")
+		return fmt.Errorf("diagnostics report has an invalid frame function %q", frame.Function)
 	}
 	if frame.Line < 0 || frame.Line > 1<<30 {
 		return fmt.Errorf("diagnostics report has an invalid frame line")
@@ -317,6 +323,16 @@ func normalizeModule(value string) string {
 	// stay actionable.
 	value = strings.ReplaceAll(value, "\\", "/")
 	segments := strings.Split(value, "/")
+	for i, segment := range segments {
+		// Drop module version suffixes, then any segment that still
+		// looks like an email or credential-bearing value.
+		segment = moduleVersionSuffix.ReplaceAllString(segment, "")
+		if strings.Contains(segment, "@") {
+			segments[i] = ""
+			continue
+		}
+		segments[i] = segment
+	}
 	var kept []string
 	skipNext := false
 	for i, segment := range segments {
@@ -331,6 +347,9 @@ func normalizeModule(value string) string {
 		if lower == "home" || lower == "users" || lower == "private" ||
 			lower == "var" || lower == "tmp" || lower == "opt" {
 			skipNext = true
+			continue
+		}
+		if segment == "" {
 			continue
 		}
 		kept = append(kept, segment)
@@ -407,6 +426,9 @@ func CaptureFrames(skip int) []Frame {
 	var result []Frame
 	for {
 		frame, more := frames.Next()
+		if frame.PC == 0 {
+			break
+		}
 		if isCaptureFrame(frame.Function) {
 			if !more {
 				break

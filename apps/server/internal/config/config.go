@@ -76,6 +76,9 @@ type Config struct {
 	FeedbackDestinationURL   string
 	FeedbackRecipient        string
 	FeedbackSupportURL       string
+	DiagnosticsEnabled       bool
+	DiagnosticsEnvSet        bool
+	DiagnosticsReceiverURL   string
 	TelemetryEnabled         bool
 	PostHogProjectToken      string
 	PostHogAPIHost           string
@@ -265,6 +268,9 @@ func Load() *Config {
 		FeedbackDestinationURL: getEnvDefault("OPENPOST_FEEDBACK_DESTINATION_URL", ""),
 		FeedbackRecipient:      getEnvDefault("OPENPOST_FEEDBACK_RECIPIENT", ""),
 		FeedbackSupportURL:     getEnvDefault("OPENPOST_FEEDBACK_SUPPORT_URL", "https://github.com/getopenpost/openpost/issues/new"),
+		DiagnosticsEnabled:     getEnvBoolWithAliases(false, "OPENPOST_DIAGNOSTICS_ENABLED"),
+		DiagnosticsEnvSet:      isEnvSet("OPENPOST_DIAGNOSTICS_ENABLED"),
+		DiagnosticsReceiverURL: strings.TrimRight(strings.TrimSpace(getEnvDefault("OPENPOST_DIAGNOSTICS_RECEIVER_URL", "")), "/"),
 		TelemetryEnabled:       getEnvBoolWithAliases(telemetryEnabledByDefault, "OPENPOST_TELEMETRY_ENABLED"),
 		PostHogProjectToken:    strings.TrimSpace(getEnvDefault("OPENPOST_POSTHOG_PROJECT_TOKEN", "")),
 		PostHogAPIHost:         postHogAPIHost,
@@ -1109,6 +1115,17 @@ func warnOnPlaceholderURL(cfg *Config) {
 	log.Printf("         Set OPENPOST_APP_URL=https://your-public-host in")
 	log.Printf("         production. See .env.example for details.")
 	log.Printf("============================================================")
+}
+
+// isEnvSet reports whether an explicit environment choice exists for key,
+// either directly or through its _FILE companion. Diagnostics uses it so an
+// explicit OPENPOST_DIAGNOSTICS_ENABLED=false always wins over stored
+// settings, even though the default is also disabled.
+func isEnvSet(key string) bool {
+	if _, _, ok := getEnvValue(key); ok {
+		return true
+	}
+	return false
 }
 
 func getEnvDefault(key, fallback string) string {
