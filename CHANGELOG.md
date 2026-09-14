@@ -6,7 +6,9 @@ All notable changes to this project are documented in this file.
 
 ### Added
 
-- Maintainer diagnostic reports are available as an opt-in channel for self-hosted instances. When `OPENPOST_DIAGNOSTICS_ENABLED=true` and `OPENPOST_DIAGNOSTICS_RECEIVER_URL` are set, the instance collects privacy-limited failure reports (normalized error codes, build, sanitized stack frames) through a bounded queue that never blocks application work and never touches the application database. Reporting stays disabled by default, existing installations keep their previous behavior on upgrade, and an explicit `OPENPOST_DIAGNOSTICS_ENABLED=false` always wins.
+- Maintainer diagnostic reports are on by default for self-hosted instances. Upgrading activates an external reporting channel where previous versions sent nothing: instances send privacy-limited failure reports (normalized error codes, build, sanitized stack frames, occurrence counts) to the official OpenPost receiver through a bounded queue that never blocks application work and never touches the application database. Set `OPENPOST_DIAGNOSTICS_ENABLED=false` to opt out; the environment disable always wins and clears pending reports. Browser reports additionally stop on Do Not Track or Global Privacy Control.
+- The official receiver (`POST /api/v1/diagnostics/ingest`, enabled with `OPENPOST_DIAGNOSTICS_INGEST_ENABLED` plus the server-only `OPENPOST_DIAGNOSTICS_DISCORD_WEBHOOK_URL`) validates, quota-limits, and forwards accepted cross-instance reports to the maintainer Discord channel.
+- Uncaught browser exceptions and unhandled promise rejections now report through the viewer's own instance as normalized codes with app-relative locations, never message text. Chunk-load deployment skew stays excluded.
 - Send feedback is now one click away in the app sidebar, the mobile More menu, and the Video and Image Editor headers, and onboarding invites new workspaces to report anything missing or broken.
 
 ### Fixed
