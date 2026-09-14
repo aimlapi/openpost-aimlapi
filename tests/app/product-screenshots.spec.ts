@@ -1723,9 +1723,7 @@ test.describe("product screenshot capture", () => {
         route.fulfill({
           json: [
             ...providerFixtures.filter(({ platform }) =>
-              ["bluesky", "mastodon", "pixelfed", "peertube", "lemmy", "piefed"].includes(
-                platform,
-              ),
+              ["bluesky", "mastodon", "pixelfed", "peertube", "lemmy", "piefed"].includes(platform),
             ),
             ...[
               { platform: "discord", display_name: "Discord", auth_mode: "webhook" },
@@ -1748,7 +1746,16 @@ test.describe("product screenshot capture", () => {
         await document.fonts.ready;
       });
 
-      for (const provider of ["bluesky", "mastodon", "pixelfed", "peertube", "lemmy", "piefed", "discord", "telegram"]) {
+      for (const provider of [
+        "bluesky",
+        "mastodon",
+        "pixelfed",
+        "peertube",
+        "lemmy",
+        "piefed",
+        "discord",
+        "telegram",
+      ]) {
         await page.getByTestId(`provider-card-${provider}`).getByRole("button").click();
         let dialog = page.getByRole("dialog");
         await expect(dialog).toBeVisible();
