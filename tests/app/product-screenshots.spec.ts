@@ -1549,10 +1549,10 @@ test.describe("product screenshot capture", () => {
       await page.goto("/settings?tab=accounts");
       await expect(page.getByRole("heading", { name: "Connected channels" })).toBeVisible();
       await expect(page.getByText("@rodrgds").first()).toBeVisible();
-      await expect(page.getByTestId("provider-card-bluesky")).toBeVisible();
       await capture(page, `accounts-${captureScheme}.png`, [
         page.getByRole("heading", { name: "Connected channels" }),
-        page.getByTestId("provider-card-youtube"),
+        page.getByRole("heading", { name: "Add a channel", exact: true }),
+        page.getByTestId("provider-card-x"),
       ]);
 
       await page.goto("/media");
