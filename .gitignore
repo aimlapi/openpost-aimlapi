@@ -53,6 +53,7 @@ apps/docs/public/assets/screenshots/*
 !apps/docs/public/assets/screenshots/.gitkeep
 !apps/docs/public/assets/screenshots/*.png
 apps/docs/public/openapi.json
+apps/docs/public/og/
 apps/docs/.generated/openapi.json
 apps/docs/.next/
 apps/docs/.source/
@@ -102,6 +103,7 @@ apps/marketing/yarn.lock
 apps/marketing/.vite/
 apps/marketing/public/assets/
 apps/marketing/static/assets/
+apps/marketing/static/og/
 
 # Local reference checkouts
 /references/

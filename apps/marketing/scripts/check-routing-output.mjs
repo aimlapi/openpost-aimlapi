@@ -16,8 +16,13 @@ assert.equal(
 );
 assert.match(
 	redirects,
-	/^\/og \/assets\/brand\/og-image\.png 302$/mu,
-	'legacy social image URLs must recover through the static marketing card'
+	/^\/og \/og\/home\.png 302$/mu,
+	'legacy social image URLs must recover through the generated home card'
+);
+assert.match(
+	redirects,
+	/^\/assets\/brand\/og-image\.png \/og\/home\.png 302$/mu,
+	'legacy static social images must recover through the generated home card'
 );
 
 const headers = await readFile(path.join(outputRoot, '_headers'), 'utf8');

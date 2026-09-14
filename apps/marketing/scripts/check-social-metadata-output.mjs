@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { marketingSocialEntries } from '@openpost/social-images';
@@ -6,6 +6,7 @@ import { marketingSocialEntries } from '@openpost/social-images';
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const dist = path.resolve(scriptDir, '../dist');
 const problems = [];
+const imageUrls = new Set();
 
 function outputFile(routePath) {
 	return routePath === '/'
@@ -28,6 +29,7 @@ for (const entry of marketingSocialEntries) {
 	}
 
 	const image = entry.imageUrl;
+	imageUrls.add(image);
 	const serializedImage = image.replaceAll('&', '&amp;');
 	const expected = [
 		['property="og:title"', entry.socialTitle],
@@ -48,9 +50,29 @@ for (const entry of marketingSocialEntries) {
 	if (count(html, 'property="og:image"') !== 1) {
 		problems.push(`${entry.path}: expected exactly one og:image tag`);
 	}
-	if (image !== 'https://openpo.st/assets/brand/og-image.png') {
-		problems.push(`${entry.path}: does not use the published marketing social image`);
+	const imageFile = path.join(dist, new URL(image).pathname.slice(1));
+	try {
+		const png = await readFile(imageFile);
+		if (!png.subarray(1, 4).equals(Buffer.from('PNG'))) {
+			problems.push(`${entry.path}: social image is not a PNG`);
+		} else if (png.readUInt32BE(16) !== 1200 || png.readUInt32BE(20) !== 630) {
+			problems.push(`${entry.path}: social image is not 1200x630`);
+		}
+	} catch {
+		problems.push(`${entry.path}: missing social image at ${path.relative(dist, imageFile)}`);
 	}
+}
+
+if (imageUrls.size !== marketingSocialEntries.length) {
+	problems.push('marketing routes do not have unique social image URLs');
+}
+const generatedImages = (await readdir(path.join(dist, 'og'))).filter((file) =>
+	file.endsWith('.png')
+);
+if (generatedImages.length !== marketingSocialEntries.length) {
+	problems.push(
+		`expected ${marketingSocialEntries.length} generated images, found ${generatedImages.length}`
+	);
 }
 
 if (problems.length) {

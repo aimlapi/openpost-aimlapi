@@ -71,8 +71,8 @@ export interface DocumentationPageEntry extends SocialEntry {
 
 export const marketingSiteUrl: "https://openpo.st";
 export const docsSiteUrl: "https://docs.openpo.st";
-export const marketingSocialImageUrl: "https://openpo.st/assets/brand/og-image.png";
-export const docsSocialImageUrl: "https://docs.openpo.st/assets/brand/og-docs.png";
+export function docsSocialImageKey(route: string): string;
+export function docsSocialImageUrlForRoute(route: string): string;
 export const marketingRouteManifest: readonly MarketingRouteEntry[];
 export const marketingSocialEntries: readonly MarketingRouteEntry[];
 export const docsSocialEntries: readonly DocumentationPageEntry[];

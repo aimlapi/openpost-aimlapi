@@ -1,3 +1,3 @@
 ### Fixed
 
-- Restored social preview images for the marketing and documentation sites.
+- Restored distinct social preview images for every marketing and documentation page.

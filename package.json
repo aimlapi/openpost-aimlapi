@@ -32,6 +32,7 @@
   },
   "devDependencies": {
     "@axe-core/playwright": "4.13.0",
+    "@napi-rs/canvas": "0.1.80",
     "@playwright/test": "^1.61.1",
     "js-yaml": "4.3.2",
     "knip": "6.32.0",

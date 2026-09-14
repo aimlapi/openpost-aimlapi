@@ -1,6 +1,6 @@
 import { OpenAPIPage } from "@/components/api-page";
 import type { OpenAPIPageProps } from "fumadocs-openapi/ui";
-import { resolveDocsSocial } from "@openpost/social-images";
+import { docsSocialImageUrlForRoute } from "@openpost/social-images";
 import { source, documentationIcon } from "@/lib/source";
 import { openapi } from "@/lib/openapi";
 import { operationDocument } from "@/lib/api-document";
@@ -107,11 +107,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const title = page.data.title;
   const description = page.data.description;
   const canonical = `https://docs.openpo.st${page.url}`;
-  const image = resolveDocsSocial({
-    page: page.data._openapi ? "api-reference/index.mdx" : page.path,
-    title,
-    description,
-  }).imageUrl;
+  const image = docsSocialImageUrlForRoute(page.url);
   return {
     title,
     description,
@@ -133,8 +129,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       url: canonical,
       siteName: "OpenPost Docs",
       type: "website",
+      images: [{ url: image, width: 1200, height: 630, type: "image/png", alt: title }],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
       images: [{ url: image, width: 1200, height: 630, alt: title }],
     },
-    twitter: { card: "summary_large_image", title, description, images: [image] },
   };
 }

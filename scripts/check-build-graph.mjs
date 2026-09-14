@@ -110,9 +110,12 @@ for (const [label, turboConfig] of [
 ]) {
   for (const input of [
     "$TURBO_ROOT$/assets/**",
+    "$TURBO_ROOT$/packages/social-images/src/**",
     "$TURBO_ROOT$/scripts/asset-surfaces.mjs",
     "$TURBO_ROOT$/scripts/asset-surfaces.ts",
     "$TURBO_ROOT$/scripts/check-public-telemetry-env.mjs",
+    "$TURBO_ROOT$/scripts/generate-social-images.mjs",
+    "$TURBO_ROOT$/scripts/social-images/render.mjs",
     "$TURBO_ROOT$/scripts/sync-assets.mjs",
   ]) {
     requireCondition(

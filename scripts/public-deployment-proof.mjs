@@ -181,19 +181,19 @@ const nativeBoundaries = Object.freeze([
   {
     label: "marketing social image",
     name: "marketing social preview image",
-    canonicalURL: "https://openpo.st/assets/brand/og-image.png",
+    canonicalURL: "https://openpo.st/og/home.png",
     contentType: "image/png",
     deployment: "marketing",
-    localPath: "assets/brand/og-image.png",
+    localPath: "og/home.png",
     binary: true,
   },
   {
     label: "documentation social image",
     name: "documentation social preview image",
-    canonicalURL: "https://docs.openpo.st/assets/brand/og-docs.png",
+    canonicalURL: "https://docs.openpo.st/og/home.png",
     contentType: "image/png",
     deployment: "documentation",
-    localPath: "assets/brand/og-docs.png",
+    localPath: "og/home.png",
     binary: true,
   },
   {

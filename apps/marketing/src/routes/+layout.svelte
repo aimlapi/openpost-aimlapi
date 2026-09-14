@@ -18,9 +18,8 @@
 	import TelemetryConsent from '$lib/components/telemetry-consent.svelte';
 
 	let { children } = $props();
-	const marketingSocialImagePath = '/assets/brand/og-image.png';
 	const social = $derived(resolveMarketingSocial(page.url.pathname));
-	const socialImage = $derived(new URL(marketingSocialImagePath, social.canonical).href);
+	const socialImage = $derived(social.imageUrl);
 	const agentMarkdown = $derived(marketingAgentMarkdownUrl(social));
 	const structuredData = $derived(structuredDataForMarketingPage(social));
 	const structuredDataJSON = $derived(JSON.stringify(structuredData).replaceAll('<', '\\u003c'));

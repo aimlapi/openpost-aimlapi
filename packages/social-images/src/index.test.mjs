@@ -6,8 +6,11 @@ import { docsPageCatalog } from "./docs-catalog.js";
 import {
   docsSocialEntries,
   docsRouteFromPage,
+  docsSocialImageKey,
+  docsSocialImageUrlForRoute,
   marketingPrerenderEntries,
   marketingSocialEntries,
+  resolveMarketingSocial,
 } from "./index.js";
 
 function assertStaticImageUrl(entry, owner, expected) {
@@ -21,29 +24,31 @@ async function pngDimensions(relativePath) {
   return { width: bytes.readUInt32BE(16), height: bytes.readUInt32BE(20) };
 }
 
-test("every social entry is unique and uses the published static image", () => {
+test("every social entry is unique and uses its published static image", () => {
   const seen = new Set();
+  const images = new Set();
   for (const entry of marketingSocialEntries) {
     for (const key of [`path:${entry.path}`, `key:${entry.key}`, `id:${entry.id}`]) {
       assert.ok(!seen.has(key), `duplicate social entry ${key}`);
       seen.add(key);
     }
-    assertStaticImageUrl(entry, entry.key, "https://openpo.st/assets/brand/og-image.png");
-    assert.equal(
-      entry.imageAlt,
-      "OpenPost. Turn what you're building into content. Publish it everywhere.",
-    );
+    assertStaticImageUrl(entry, entry.key, `https://openpo.st/og/${entry.key}.png`);
+    images.add(entry.imageUrl);
+    assert.match(entry.imageAlt, /OpenPost social preview\.$/u);
     assert.match(entry.canonical, /^https:\/\/openpo\.st(?:\/|$)/);
     assert.ok(entry.socialTitle.length <= 72, `${entry.key} social title is too long`);
     assert.ok(entry.description.length <= 160, `${entry.key} description is too long`);
   }
+  assert.equal(images.size, marketingSocialEntries.length);
 
   const pages = new Map(docsPageCatalog.map((page) => [page.page, page]));
+  images.clear();
   for (const entry of docsSocialEntries) {
     assert.ok(!seen.has(`id:${entry.id}`), `duplicate social entry id:${entry.id}`);
     seen.add(`id:${entry.id}`);
-    assertStaticImageUrl(entry, entry.id, "https://docs.openpo.st/assets/brand/og-docs.png");
-    assert.equal(entry.imageAlt, "OpenPost Docs. Use OpenPost. Run OpenPost.");
+    assertStaticImageUrl(entry, entry.id, `https://docs.openpo.st/og/${entry.key}.png`);
+    images.add(entry.imageUrl);
+    assert.match(entry.imageAlt, /OpenPost documentation social preview\.$/u);
     const page = pages.get(entry.page);
     assert.ok(page, `${entry.id} points at an unknown docs page`);
     assert.equal(entry.route, page.route, `${entry.id} disagrees with the catalog route`);
@@ -53,9 +58,16 @@ test("every social entry is unique and uses the published static image", () => {
       `${entry.id} disagrees with the VitePress route convention`,
     );
   }
+  assert.equal(images.size, docsSocialEntries.length);
 
   assert.equal(docsRouteFromPage("index.md"), "/");
   assert.equal(docsRouteFromPage("providers/x.md"), "/providers/x");
+  assert.equal(docsSocialImageKey("/guides/quickstart/"), "guides--quickstart");
+  assert.equal(docsSocialImageKey("/guides/quickstart?source=test"), "guides--quickstart");
+  assert.equal(
+    docsSocialImageUrlForRoute("/api-reference/accounts/list-accounts"),
+    "https://docs.openpo.st/og/api-reference--accounts--list-accounts.png",
+  );
   assertUniqueDocumentationRoutes(docsPageCatalog);
   assert.throws(
     () =>
@@ -69,6 +81,7 @@ test("every social entry is unique and uses the published static image", () => {
     () => marketingPrerenderEntries("/pricing"),
     /Unknown marketing prerender section/u,
   );
+  assert.equal(resolveMarketingSocial("/unknown").imageUrl, "https://openpo.st/og/home.png");
 });
 
 test("documentation corpus policy is complete canonical metadata", () => {

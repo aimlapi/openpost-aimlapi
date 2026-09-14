@@ -3,7 +3,7 @@ import { Providers } from "@/components/providers";
 import "@fontsource-variable/geist";
 import "./global.css";
 
-const docsSocialImagePath = "/assets/brand/og-docs.png";
+const docsSocialImagePath = "/og/home.png";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://docs.openpo.st"),
@@ -19,11 +19,22 @@ export const metadata: Metadata = {
         url: docsSocialImagePath,
         width: 1200,
         height: 630,
-        alt: "OpenPost Docs. Use OpenPost. Run OpenPost.",
+        type: "image/png",
+        alt: "OpenPost documentation social preview.",
       },
     ],
   },
-  twitter: { card: "summary_large_image", images: [docsSocialImagePath] },
+  twitter: {
+    card: "summary_large_image",
+    images: [
+      {
+        url: docsSocialImagePath,
+        width: 1200,
+        height: 630,
+        alt: "OpenPost documentation social preview.",
+      },
+    ],
+  },
   other: {
     "integration-screenshot-sources": "/assets/screenshots/integrations/SOURCES.txt",
     "integration-screenshot-license": "/assets/screenshots/integrations/POSTIZ-LICENSE.txt",

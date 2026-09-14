@@ -274,8 +274,8 @@ test("the live sample plan covers every required public category and machine bou
     ["marketing favicon", "https://openpo.st/favicon.ico", "image/x-icon"],
     ["MCP", "https://app.openpo.st/mcp", "application/json"],
     ["marketing asset", "https://openpo.st/assets/brand/logo.svg", "image/svg+xml"],
-    ["marketing social image", "https://openpo.st/assets/brand/og-image.png", "image/png"],
-    ["documentation social image", "https://docs.openpo.st/assets/brand/og-docs.png", "image/png"],
+    ["marketing social image", "https://openpo.st/og/home.png", "image/png"],
+    ["documentation social image", "https://docs.openpo.st/og/home.png", "image/png"],
     [
       "documentation asset",
       "https://docs.openpo.st/assets/screenshots/integrations/google-enable-api.png",

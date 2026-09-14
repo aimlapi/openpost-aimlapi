@@ -121,7 +121,7 @@ const checks = {
   ]),
   "social-images": stage("social images", [
     bun("scripts/social-images/catalog.mjs", "--check"),
-    bunTest("packages/social-images/src/index.test.mjs"),
+    bunTest("packages/social-images/src/index.test.mjs", "scripts/social-images/render.test.mjs"),
   ]),
   reachability: stage("production reachability", [
     commandStep("scripts/check-go-deadcode.sh"),
