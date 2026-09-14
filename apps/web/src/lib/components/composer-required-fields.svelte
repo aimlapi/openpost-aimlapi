@@ -62,6 +62,9 @@
 			(resolvedByAccount[account.id]?.issues ?? []).some((issue) => issue.code === 'media_required')
 		)
 	);
+	const singleRequiredField = $derived(
+		formatAccounts.length === 0 && requiredFields.length === 1 && mediaAccounts.length === 0
+	);
 	const visible = $derived(
 		requiredFields.length > 0 || formatAccounts.length > 0 || mediaAccounts.length > 0
 	);
@@ -147,7 +150,14 @@
 				{#if account}
 					{@const setting = field.setting}
 					{@const missing = requiredFieldIsMissing(setting, valuesByAccount[account.id] ?? {})}
-					<div class={setting.type === 'textarea' ? 'sm:col-span-2' : ''}>
+					<div
+						class={[
+							setting.type === 'textarea' ? 'sm:col-span-2' : '',
+							singleRequiredField && setting.type !== 'textarea' ? 'sm:col-start-2' : ''
+						]
+							.filter(Boolean)
+							.join(' ')}
+					>
 						{#if setting.type === 'boolean'}
 							<label
 								class="flex min-h-11 items-center gap-3 rounded-md border bg-background px-3 py-2 text-sm"
