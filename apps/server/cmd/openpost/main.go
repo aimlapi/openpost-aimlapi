@@ -969,6 +969,7 @@ func main() {
 		Edition:                      cfg.Edition,
 		Telemetry:                    telemetryRecorder,
 		DiagnosticsReporter:          diagnosticsReporter,
+		DiagnosticsIngester:          newDiagnosticsIngester(cfg),
 		MediaHandler:                 mediaHandler,
 		PublicMediaVerifier:          publicMediaVerifier,
 		ProfileHandler:               profileHandler,
@@ -1090,6 +1091,20 @@ func closeDiagnostics(reporter *diagnostics.Reporter) {
 	if err := reporter.Close(); err != nil {
 		log.Printf("diagnostics shutdown failed: %v", err)
 	}
+}
+
+// newDiagnosticsIngester builds the public cross-instance receiver. It is
+// enabled only when the operator runs the official receiver and configures
+// the maintainer Discord webhook. The webhook URL is a secret: it is passed
+// by value and never logged here or anywhere downstream.
+func newDiagnosticsIngester(cfg *config.Config) *diagnostics.Ingester {
+	if cfg == nil {
+		return diagnostics.NewIngester(diagnostics.IngestConfig{})
+	}
+	return diagnostics.NewIngester(diagnostics.IngestConfig{
+		Enabled:           cfg.DiagnosticsIngestEnabled,
+		DiscordWebhookURL: cfg.DiagnosticsDiscordWebhookURL,
+	})
 }
 
 func capturePanics(recorder telemetry.Recorder, diagnosticsReporter *diagnostics.Reporter) echo.MiddlewareFunc {

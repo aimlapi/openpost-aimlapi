@@ -129,6 +129,10 @@ type RouteDeps struct {
 	Edition                      string
 	Telemetry                    telemetry.Recorder
 	DiagnosticsReporter          *diagnostics.Reporter
+	// DiagnosticsIngester serves the public cross-instance receiver.
+	// Nil disables the ingest route; the Discord webhook behind it stays
+	// in server configuration and never reaches API responses.
+	DiagnosticsIngester *diagnostics.Ingester
 
 	MediaHandler    *handlers.MediaHandler
 	BillingHandler  *handlers.BillingHandler
@@ -387,6 +391,7 @@ func RegisterHumaRoutes(api huma.API, deps RouteDeps) {
 	handlers.NewJobHandler(deps.DB, deps.Authenticator).RegisterRoutes(api)
 	handlers.NewFeedbackHandler(deps.FeedbackService, deps.Authenticator).RegisterRoutes(api)
 	handlers.NewDiagnosticsHandler(deps.DiagnosticsReporter, deps.Authenticator).RegisterRoutes(api)
+	handlers.NewIngestHandler(deps.DiagnosticsIngester).RegisterRoutes(api)
 
 	oauthHandler := handlers.NewOAuthHandler(
 		deps.DB,

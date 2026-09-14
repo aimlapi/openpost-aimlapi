@@ -25,9 +25,11 @@ const (
 	summaryTickInterval  = time.Minute
 )
 
-// Config is the complete diagnostics contract. Enabled defaults to false:
-// existing installations retain their previous behavior (no external
-// reporting) on upgrade, and fresh installations must opt in.
+// Config is the complete diagnostics contract. Reporting is enabled by
+// default and delivers to the official OpenPost receiver unless the
+// operator overrides the receiver or disables reporting. The
+// OPENPOST_DIAGNOSTICS_ENABLED=false environment value is a hard
+// kill-switch that wins over every other setting.
 type Config struct {
 	// Enabled is the operator's opt-in. The OPENPOST_DIAGNOSTICS_ENABLED=false
 	// environment value is a hard kill-switch that wins over every other
@@ -36,8 +38,9 @@ type Config struct {
 	// EnvDisabled is true when the environment explicitly disables reporting
 	// (OPENPOST_DIAGNOSTICS_ENABLED=false). It wins over Enabled.
 	EnvDisabled bool
-	// ReceiverURL is the OpenPost-owned diagnostics receiver. Empty means
-	// disabled: reports are validated and dropped, never sent.
+	// ReceiverURL is the diagnostics receiver endpoint. It defaults to the
+	// official OpenPost receiver; empty means disabled: reports are
+	// validated and dropped, never sent.
 	ReceiverURL string
 	// InstallationIDFile persists the random installation ID without the
 	// application database. Empty means the reporting decision is unknown
@@ -422,7 +425,7 @@ func postReport(ctx context.Context, client *http.Client, receiver string, repor
 	if len(body) > maxReportBodyBytes {
 		return fmt.Errorf("diagnostics report exceeds %d bytes", maxReportBodyBytes)
 	}
-	request, err := http.NewRequestWithContext(ctx, http.MethodPost, receiver+"/v1/reports", bytes.NewReader(body))
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, receiver, bytes.NewReader(body))
 	if err != nil {
 		return fmt.Errorf("build diagnostics request: %w", err)
 	}

@@ -118,6 +118,10 @@ Bootstrap and data-plane settings stay deployment-only because OpenPost needs th
 | `OPENPOST_FEEDBACK_DESTINATION_URL` | Required when feedback is enabled | empty | Server-only HTTPS Discord-compatible webhook. Use `OPENPOST_FEEDBACK_DESTINATION_URL_FILE` for a managed secret. |
 | `OPENPOST_FEEDBACK_RECIPIENT` | Required when feedback is enabled | empty | Plain recipient name shown to users before they send a report, such as `OpenPost team` or `Example operator`. |
 | `OPENPOST_FEEDBACK_SUPPORT_URL` | No | OpenPost GitHub new-issue URL | HTTPS support link shown when the report form is disabled. Query strings and fragments are removed. |
+| `OPENPOST_DIAGNOSTICS_ENABLED` | No | `true` | Sends privacy-limited diagnostic reports to OpenPost. Set `false` to opt out; the environment disable always wins. See `docs/reference/configuration/diagnostics.md`. |
+| `OPENPOST_DIAGNOSTICS_RECEIVER_URL` | No | official OpenPost receiver | Diagnostics receiver endpoint. |
+| `OPENPOST_DIAGNOSTICS_INGEST_ENABLED` | No | `false` | Serves the public cross-instance ingest endpoint. Enable only on the official receiver. |
+| `OPENPOST_DIAGNOSTICS_DISCORD_WEBHOOK_URL` | Required when ingest is enabled | empty | Server-only maintainer Discord webhook for accepted reports. Use `OPENPOST_DIAGNOSTICS_DISCORD_WEBHOOK_URL_FILE` for a managed secret. Never commit this value. |
 | `OPENPOST_UPDATE_CHECK_ENABLED` | No | `true` | Enables the read-only stable release check for self-hosted instance admins. Cloud mode never checks. |
 | `OPENPOST_PADDLE_API_KEY` | Required in cloud mode | empty | Server-only Paddle API key used to reconcile customers and subscriptions and create portal sessions. Backend-only; set `OPENPOST_PADDLE_*` in the backend process environment. Bare `PADDLE_*` is ignored and triggers a startup warning with the ignored names (no values). |
 | `OPENPOST_PADDLE_ENVIRONMENT` | Required in cloud mode | empty | Explicit Paddle environment: `sandbox` or `production`. API-key and client-token prefixes must match. Backend-only; bare `PADDLE_*` is ignored. |

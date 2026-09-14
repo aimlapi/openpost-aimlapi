@@ -34,31 +34,35 @@ import (
 // Normalized error codes. Reports must use one of these codes so the receiver
 // can aggregate without inspecting free-form text.
 const (
-	CodeAPI5xx              = "api_5xx"
-	CodeHTTPPanic           = "http_panic"
-	CodeWorkerPanic         = "worker_panic"
-	CodeWorkerFailed        = "worker_failed"
-	CodePublishFailed       = "publish_failed"
-	CodeMediaFailed         = "media_failed"
-	CodeExportFailed        = "export_failed"
-	CodeStartupFailed       = "startup_failed"
-	CodeProviderAuthExpired = "provider_auth_expired"
-	CodeProviderRateLimited = "provider_rate_limited"
-	CodeProviderOutage      = "provider_outage"
+	CodeAPI5xx                    = "api_5xx"
+	CodeHTTPPanic                 = "http_panic"
+	CodeWorkerPanic               = "worker_panic"
+	CodeWorkerFailed              = "worker_failed"
+	CodePublishFailed             = "publish_failed"
+	CodeMediaFailed               = "media_failed"
+	CodeExportFailed              = "export_failed"
+	CodeStartupFailed             = "startup_failed"
+	CodeBrowserUncaught           = "browser_uncaught"
+	CodeBrowserUnhandledRejection = "browser_unhandled_rejection"
+	CodeProviderAuthExpired       = "provider_auth_expired"
+	CodeProviderRateLimited       = "provider_rate_limited"
+	CodeProviderOutage            = "provider_outage"
 )
 
 var allowedErrorCodes = map[string]struct{}{
-	CodeAPI5xx:              {},
-	CodeHTTPPanic:           {},
-	CodeWorkerPanic:         {},
-	CodeWorkerFailed:        {},
-	CodePublishFailed:       {},
-	CodeMediaFailed:         {},
-	CodeExportFailed:        {},
-	CodeStartupFailed:       {},
-	CodeProviderAuthExpired: {},
-	CodeProviderRateLimited: {},
-	CodeProviderOutage:      {},
+	CodeAPI5xx:                    {},
+	CodeHTTPPanic:                 {},
+	CodeWorkerPanic:               {},
+	CodeWorkerFailed:              {},
+	CodePublishFailed:             {},
+	CodeMediaFailed:               {},
+	CodeExportFailed:              {},
+	CodeStartupFailed:             {},
+	CodeBrowserUncaught:           {},
+	CodeBrowserUnhandledRejection: {},
+	CodeProviderAuthExpired:       {},
+	CodeProviderRateLimited:       {},
+	CodeProviderOutage:            {},
 }
 
 // ExpectedFailureCodes are structured failure codes for anticipated
