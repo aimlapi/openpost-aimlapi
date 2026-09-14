@@ -37,7 +37,26 @@ test("keeps the fragment instructions out of release notes", async (t) => {
     readFile(path.join(root, "CHANGELOG.md"), "utf8"),
     readFile(path.join(root, "changes", "README.md"), "utf8"),
   ]);
-  assert.match(changelog, /Fixed the real issue\./u);
+  assert.equal(
+    changelog,
+    [
+      "# Changelog",
+      "",
+      "## [Unreleased]",
+      "",
+      "### Fixed",
+      "",
+      "- Fixed the real issue.",
+      "- Kept the existing item.",
+      "",
+      "### Changed",
+      "",
+      "- Changed the real workflow.",
+      "",
+      "## [1.0.0]",
+      "",
+    ].join("\n"),
+  );
   assert.match(changelog, /### Fixed\n\n- Fixed the real issue\./u);
   assert.match(changelog, /### Changed\n\n- Changed the real workflow\./u);
   assert.doesNotMatch(changelog, /Describe the user-visible fix\./u);

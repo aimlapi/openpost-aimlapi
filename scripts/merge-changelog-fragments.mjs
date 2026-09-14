@@ -80,7 +80,8 @@ if (newGroups.length > 0) {
       .map(({ group, items }) => `### ${group}\n\n${items.map((item) => `- ${item}`).join("\n")}`)
       .join("\n\n") +
     "\n";
-  result = result.slice(0, bodyEnd) + newBlock + result.slice(bodyEnd);
+  const expandedBodyEnd = bodyEnd + result.length - changelog.length;
+  result = result.slice(0, expandedBodyEnd) + newBlock + result.slice(expandedBodyEnd);
 }
 
 writeFileSync(changelogPath, result);
