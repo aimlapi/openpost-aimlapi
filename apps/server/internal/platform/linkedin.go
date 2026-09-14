@@ -810,6 +810,14 @@ func (l *LinkedInAdapter) postComment(ctx context.Context, accessToken, actorURN
 			jsonFieldText: content,
 		},
 	}
+	if strings.HasPrefix(activityURN, "urn:li:comment:(") {
+		objectURN, err := linkedInCommentObjectURN(activityURN)
+		if err != nil {
+			return "", err
+		}
+		payload["object"] = objectURN
+		payload["parentComment"] = activityURN
+	}
 
 	respBody, err := DoJSON(ctx, "POST", "https://api.linkedin.com/rest/socialActions/"+encodedActivityURN+"/comments", payload, linkedinHeaders(accessToken, apiVersion))
 	if err != nil {
@@ -817,13 +825,16 @@ func (l *LinkedInAdapter) postComment(ctx context.Context, accessToken, actorURN
 	}
 
 	var result struct {
-		ID string `json:"id"`
+		ID         string `json:"id"`
+		CommentURN string `json:"commentUrn"`
 	}
 	if err := json.Unmarshal(respBody, &result); err != nil {
 		return "", fmt.Errorf("decoding linkedin comment: %w", err)
 	}
 
-	return result.ID, nil
+	// Later segments reply to this comment, which LinkedIn only accepts as a
+	// comment URN.
+	return firstNonEmptyString(result.CommentURN, result.ID), nil
 }
 
 func (l *LinkedInAdapter) ListComments(ctx context.Context, accessToken, accountID string, externalID string) ([]Comment, error) {
@@ -896,7 +907,10 @@ func (l *LinkedInAdapter) ReplyToComment(ctx context.Context, accessToken, accou
 	if err := json.Unmarshal(respBody, &result); err != nil {
 		return "", fmt.Errorf("decoding linkedin comment reply: %w", err)
 	}
-	return firstNonEmptyString(result.ID, result.CommentURN), nil
+	// Replies stay addressable as comment URNs, the same order ListComments
+	// and postComment use: LinkedIn only accepts a comment URN for nested
+	// targets and comment management.
+	return firstNonEmptyString(result.CommentURN, result.ID), nil
 }
 
 func (l *LinkedInAdapter) HideComment(context.Context, string, string, string) error {
