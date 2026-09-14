@@ -120,7 +120,6 @@ func TestMCPOAuthAuthorizationCodeFlowIssuesUsableMCPToken(t *testing.T) {
 		{"mcp:read mcp:read", "mcp:read"},
 	} {
 		t.Run(tc.scope, func(t *testing.T) {
-
 			srv := newMCPOAuthTestServer(t)
 			redirectURI := "https://chatgpt.com/connector/oauth/callback/openpost"
 			client := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
