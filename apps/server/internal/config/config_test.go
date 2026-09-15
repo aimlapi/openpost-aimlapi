@@ -51,6 +51,8 @@ var configTestEnvKeys = []string{
 	"OPENPOST_PRIVACY_VERSION",
 	"OPENPOST_SUPPORT_EMAIL",
 	"OPENROUTER_API_KEY",
+	"OPENPOST_AI_API_KEY",
+	"OPENPOST_AI_BASE_URL",
 	"OPENPOST_CONTENT_AI_PROVIDER",
 	"OPENPOST_CONTENT_AI_REQUIRE_ZDR",
 	"OPENPOST_IMAGE_CAPTION_MODEL",
@@ -168,6 +170,17 @@ func TestLoadResolvesRelativeMediaURLAgainstCanonicalPublicURL(t *testing.T) {
 	cfg := Load()
 
 	require.Equal(t, "https://public.example.com/openpost/assets/media", cfg.MediaURL)
+}
+
+func TestLoadPointsAIAtAnotherGateway(t *testing.T) {
+	// The gateway key can be given under either name; the base URL is optional
+	// and loses a trailing slash.
+	t.Setenv("OPENPOST_AI_API_KEY", "aiml-key")
+	t.Setenv("OPENPOST_AI_BASE_URL", "https://api.aimlapi.com/v1/")
+
+	cfg := Load()
+	require.Equal(t, "aiml-key", cfg.OpenRouterAPIKey)
+	require.Equal(t, "https://api.aimlapi.com/v1", cfg.AIBaseURL)
 }
 
 func TestLoadControlsOAuthDynamicClientRegistration(t *testing.T) {

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"mime"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -21,16 +22,24 @@ const (
 	defaultOpenRouterBaseURL     = "https://openrouter.ai/api/v1"
 	defaultOpenRouterHTTPReferer = "https://openpo.st"
 	defaultOpenRouterTitle       = "OpenPost"
-	defaultOpenRouterTimeout     = 15 * time.Second
-	defaultOpenRouterMaxRetries  = 4
-	defaultRetryMaxInterval      = 2 * time.Second
-	minWebSearchResults          = 1
-	maxWebSearchResults          = 25
-	minWebSearchUses             = 1
-	maxWebSearchUses             = 30
-	minWebSearchCharacters       = 1
-	maxWebSearchCharacters       = 100_000
-	maxMultimodalSourceIDBytes   = 256
+	// AI/ML API is an OpenAI-compatible gateway that serves the same
+	// vendor/model ids. Requests that go to its host carry its attribution
+	// headers; OpenRouter-only request fields are left out for it.
+	aimlapiHost                 = "api.aimlapi.com"
+	aimlapiSourceHeader         = "X-AIMLAPI-Source"
+	aimlapiPartnerHeader        = "X-AIMLAPI-Partner-ID"
+	aimlapiSource               = "agent/openpost"
+	aimlapiPartnerID            = "part_7E4P8JE8KkjEdPb7lHFXjiOZ"
+	defaultOpenRouterTimeout    = 15 * time.Second
+	defaultOpenRouterMaxRetries = 4
+	defaultRetryMaxInterval     = 2 * time.Second
+	minWebSearchResults         = 1
+	maxWebSearchResults         = 25
+	minWebSearchUses            = 1
+	maxWebSearchUses            = 30
+	minWebSearchCharacters      = 1
+	maxWebSearchCharacters      = 100_000
+	maxMultimodalSourceIDBytes  = 256
 )
 
 type HTTPClient interface {
@@ -57,6 +66,21 @@ type OpenRouter struct {
 	client     openai.Client
 	provider   string
 	requireZDR bool
+	// openRouterDialect is true when the base URL is OpenRouter itself, whose
+	// request body accepts provider preferences and web-search plugins. Another
+	// OpenAI-compatible gateway gets a plain chat-completions request.
+	openRouterDialect bool
+}
+
+// isAimlapiBaseURL reports whether requests will leave for AI/ML API. The
+// hostname is compared exactly, so a proxy or a look-alike host gets none of
+// its attribution headers.
+func isAimlapiBaseURL(baseURL string) bool {
+	parsed, err := url.Parse(strings.TrimSpace(baseURL))
+	if err != nil {
+		return false
+	}
+	return strings.EqualFold(parsed.Hostname(), aimlapiHost)
 }
 
 // OpenRouter may return assistant content as either a string or an array of
@@ -122,19 +146,30 @@ func NewOpenRouter(config OpenRouterConfig) (*OpenRouter, error) {
 		option.WithMaxRetries(maxRetries),
 		option.WithMaxRetryDelay(retryMax),
 	}
+	if isAimlapiBaseURL(baseURL) {
+		options = append(options,
+			option.WithHeader(aimlapiSourceHeader, aimlapiSource),
+			option.WithHeader(aimlapiPartnerHeader, aimlapiPartnerID),
+		)
+	}
 	if config.HTTPClient != nil {
 		options = append(options, option.WithHTTPClient(config.HTTPClient))
 	}
 
+	// Anything that is not AI/ML API — OpenRouter itself, or a test server
+	// standing in for it — speaks OpenRouter's request dialect.
+	openRouterDialect := !isAimlapiBaseURL(baseURL)
+
 	return &OpenRouter{
-		client:     openai.NewClient(options...),
-		provider:   strings.TrimSpace(config.Provider),
-		requireZDR: config.RequireZDR,
+		client:            openai.NewClient(options...),
+		provider:          strings.TrimSpace(config.Provider),
+		requireZDR:        config.RequireZDR,
+		openRouterDialect: openRouterDialect,
 	}, nil
 }
 
 func (o *OpenRouter) Generate(ctx context.Context, request GenerateRequest) (GenerateResult, error) {
-	chatRequest, requestOptions, err := buildOpenRouterRequest(request, o.provider, o.requireZDR)
+	chatRequest, requestOptions, err := buildOpenRouterRequest(request, o.provider, o.requireZDR, o.openRouterDialect)
 	if err != nil {
 		return GenerateResult{}, err
 	}
@@ -174,6 +209,7 @@ func buildOpenRouterRequest(
 	request GenerateRequest,
 	providerSlug string,
 	requireZDR bool,
+	openRouterDialect bool,
 ) (openai.ChatCompletionNewParams, []option.RequestOption, error) {
 	model := strings.TrimSpace(request.Model)
 	if model == "" {
@@ -188,6 +224,9 @@ func buildOpenRouterRequest(
 	webSearchTool, hasWebSearch, err := openRouterWebSearchTool(request.WebSearch)
 	if err != nil {
 		return openai.ChatCompletionNewParams{}, nil, err
+	}
+	if hasWebSearch && !openRouterDialect {
+		return openai.ChatCompletionNewParams{}, nil, errors.New("AI web search is only available through OpenRouter")
 	}
 
 	messages := make([]openai.ChatCompletionMessageParamUnion, 0, 2)
@@ -268,7 +307,11 @@ func buildOpenRouterRequest(
 	}
 	requestOptions := []option.RequestOption{
 		option.WithJSONSet("stream", false),
-		option.WithJSONSet("provider", providerPreferences),
+	}
+	// Provider preferences are OpenRouter's routing contract; another gateway
+	// would either reject or silently drop them.
+	if openRouterDialect {
+		requestOptions = append(requestOptions, option.WithJSONSet("provider", providerPreferences))
 	}
 	if hasWebSearch {
 		requestOptions = append(requestOptions, option.WithJSONSet("tools", []any{webSearchTool}))
