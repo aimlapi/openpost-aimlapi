@@ -65,27 +65,30 @@ type Config struct {
 	PrivacyVersion           string
 	SupportEmail             string
 	OpenRouterAPIKey         string
-	ContentAIProvider        string
-	ContentAIRequireZDR      bool
-	ImageCaptionModel        string
-	ImageCaptionProvider     string
-	ImageCaptionRequireZDR   bool
-	TextGenerationModel      string
-	MemeGeneratorEnabled     bool
-	MemeGenerationModel      string
-	ImageEditorEnabled       bool
-	ImageEditorModelBaseURL  string
-	StockMediaEnabled        bool
-	PexelsAPIKey             string
-	UnsplashAccessKey        string
-	PixabayAPIKey            string
-	FeedbackEnabled          bool
-	FeedbackDestinationURL   string
-	FeedbackRecipient        string
-	FeedbackSupportURL       string
-	DiagnosticsEnabled       bool
-	DiagnosticsEnvSet        bool
-	DiagnosticsReceiverURL   string
+	// AIBaseURL points the AI features at another OpenAI-compatible gateway
+	// (AI/ML API) instead of OpenRouter. Empty keeps OpenRouter.
+	AIBaseURL               string
+	ContentAIProvider       string
+	ContentAIRequireZDR     bool
+	ImageCaptionModel       string
+	ImageCaptionProvider    string
+	ImageCaptionRequireZDR  bool
+	TextGenerationModel     string
+	MemeGeneratorEnabled    bool
+	MemeGenerationModel     string
+	ImageEditorEnabled      bool
+	ImageEditorModelBaseURL string
+	StockMediaEnabled       bool
+	PexelsAPIKey            string
+	UnsplashAccessKey       string
+	PixabayAPIKey           string
+	FeedbackEnabled         bool
+	FeedbackDestinationURL  string
+	FeedbackRecipient       string
+	FeedbackSupportURL      string
+	DiagnosticsEnabled      bool
+	DiagnosticsEnvSet       bool
+	DiagnosticsReceiverURL  string
 	// DiagnosticsIngestEnabled gates the public cross-instance ingest
 	// endpoint. It stays off unless the operator runs the official
 	// receiver (Hosted sets it alongside DiagnosticsDiscordWebhookURL).
@@ -253,7 +256,8 @@ func Load() *Config {
 		TermsVersion:            getEnvDefault("OPENPOST_TERMS_VERSION", defaultTermsVersion),
 		PrivacyVersion:          getEnvDefault("OPENPOST_PRIVACY_VERSION", defaultPrivacyVersion),
 		SupportEmail:            getEnvDefault("OPENPOST_SUPPORT_EMAIL", defaultSupportEmail),
-		OpenRouterAPIKey:        strings.TrimSpace(getEnvDefault("OPENROUTER_API_KEY", "")),
+		OpenRouterAPIKey:        strings.TrimSpace(getEnvWithFallbacks("OPENROUTER_API_KEY", "", "OPENPOST_AI_API_KEY")),
+		AIBaseURL:               strings.TrimRight(strings.TrimSpace(getEnvDefault("OPENPOST_AI_BASE_URL", "")), "/"),
 		ContentAIProvider:       strings.TrimSpace(getEnvWithFallbacks("OPENPOST_CONTENT_AI_PROVIDER", "", "OPENPOST_IMAGE_CAPTION_PROVIDER")),
 		ContentAIRequireZDR:     getEnvBoolWithAliases(false, "OPENPOST_CONTENT_AI_REQUIRE_ZDR", "OPENPOST_IMAGE_CAPTION_REQUIRE_ZDR"),
 		ImageCaptionModel:       strings.TrimSpace(getEnvDefault("OPENPOST_IMAGE_CAPTION_MODEL", "openai/gpt-5.6-luna")),

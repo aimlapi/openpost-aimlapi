@@ -242,3 +242,93 @@ func TestOpenRouterGenerateValidatesImageBeforeRequest(t *testing.T) {
 	var providerError *ProviderError
 	require.False(t, errors.As(err, &providerError))
 }
+
+// A base URL on AI/ML API's host gets the gateway's attribution headers and a
+// plain chat-completions body: OpenRouter's provider preferences are its own
+// routing contract and are not sent elsewhere.
+func TestNewOpenRouterOnAimlapiHostSendsAttributionAndPlainBody(t *testing.T) {
+	var received map[string]any
+	var headers http.Header
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		headers = r.Header.Clone()
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&received))
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":"chatcmpl-1","object":"chat.completion","created":1730000000,"model":"openai/gpt-5.6-luna","choices":[{"index":0,"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}}`))
+	}))
+	defer server.Close()
+
+	// Route the AI/ML API hostname to the test server so the host check is real.
+	client := server.Client()
+	client.Transport = rewriteHostTransport{host: server.Listener.Addr().String(), inner: client.Transport}
+
+	generator, err := NewOpenRouter(OpenRouterConfig{
+		APIKey:     "test-api-key",
+		BaseURL:    "https://api.aimlapi.com/v1",
+		HTTPClient: client,
+		Provider:   "azure/eu",
+		RequireZDR: true,
+	})
+	require.NoError(t, err)
+
+	_, err = generator.Generate(context.Background(), GenerateRequest{
+		Model:      "openai/gpt-5.6-luna",
+		UserPrompt: "hi",
+	})
+	require.NoError(t, err)
+	require.Equal(t, "agent/openpost", headers.Get("X-AIMLAPI-Source"))
+	require.NotEmpty(t, headers.Get("X-AIMLAPI-Partner-ID"))
+	require.NotContains(t, received, "provider")
+	require.Equal(t, false, received["stream"])
+}
+
+// The attribution headers belong to the host, not to the configuration: a
+// proxy or a look-alike hostname gets none, and keeps OpenRouter's dialect.
+func TestNewOpenRouterElsewhereSendsNoAimlapiHeaders(t *testing.T) {
+	var headers http.Header
+	var received map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		headers = r.Header.Clone()
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&received))
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":"gen-1","object":"chat.completion","created":1730000000,"model":"m","choices":[{"index":0,"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}}`))
+	}))
+	defer server.Close()
+
+	for _, baseURL := range []string{server.URL + "/api/v1", "https://api.aimlapi.com.evil.example/v1"} {
+		client := server.Client()
+		client.Transport = rewriteHostTransport{host: server.Listener.Addr().String(), inner: client.Transport}
+		generator, err := NewOpenRouter(OpenRouterConfig{APIKey: "k", BaseURL: baseURL, HTTPClient: client})
+		require.NoError(t, err)
+		_, err = generator.Generate(context.Background(), GenerateRequest{Model: "m", UserPrompt: "hi"})
+		require.NoError(t, err, baseURL)
+		require.Empty(t, headers.Get("X-AIMLAPI-Source"), baseURL)
+		require.Empty(t, headers.Get("X-AIMLAPI-Partner-ID"), baseURL)
+		require.Contains(t, received, "provider", baseURL)
+	}
+}
+
+// Web search is an OpenRouter plugin; asking for it on another gateway is an
+// error rather than a request that silently loses the tool.
+func TestBuildOpenRouterRequestRejectsWebSearchOffOpenRouter(t *testing.T) {
+	_, _, err := buildOpenRouterRequest(GenerateRequest{
+		Model:      "m",
+		UserPrompt: "hi",
+		WebSearch:  WebSearchConfig{Enabled: true, MaxResults: 5, MaxUses: 1, MaxTotalResults: 5, MaxCharactersPerResult: 1000, Context: WebSearchContextLow},
+	}, "", false, false)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "only available through OpenRouter")
+}
+
+// rewriteHostTransport sends every request to a fixed address while leaving
+// the URL's hostname — and therefore the client's host-based decisions — intact.
+type rewriteHostTransport struct {
+	host  string
+	inner http.RoundTripper
+}
+
+func (t rewriteHostTransport) RoundTrip(r *http.Request) (*http.Response, error) {
+	clone := r.Clone(r.Context())
+	clone.URL.Scheme = "http"
+	clone.URL.Host = t.host
+	return t.inner.RoundTrip(clone)
+}

@@ -15,6 +15,7 @@ const (
 func openRouterConfigs(cfg *config.Config) (ai.OpenRouterConfig, ai.OpenRouterConfig) {
 	base := ai.OpenRouterConfig{
 		APIKey:      cfg.OpenRouterAPIKey,
+		BaseURL:     cfg.AIBaseURL,
 		HTTPReferer: cfg.PublicURL,
 		XTitle:      "OpenPost",
 	}
