@@ -29,7 +29,7 @@ const (
 	aimlapiSourceHeader         = "X-AIMLAPI-Source"
 	aimlapiPartnerHeader        = "X-AIMLAPI-Partner-ID"
 	aimlapiSource               = "agent/openpost"
-	aimlapiPartnerID            = "part_PLACEHOLDER_OPENPOST"
+	aimlapiPartnerID            = "part_7E4P8JE8KkjEdPb7lHFXjiOZ"
 	defaultOpenRouterTimeout    = 15 * time.Second
 	defaultOpenRouterMaxRetries = 4
 	defaultRetryMaxInterval     = 2 * time.Second
