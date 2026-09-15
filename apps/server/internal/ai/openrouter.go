@@ -291,9 +291,14 @@ func buildOpenRouterRequest(
 		providerPreferences["zdr"] = true
 	}
 	chatRequest := openai.ChatCompletionNewParams{
-		Messages:        messages,
-		Model:           model,
-		ReasoningEffort: reasoningEffort,
+		Messages: messages,
+		Model:    model,
+	}
+	// OpenRouter accepts "none" as an explicit off switch; an OpenAI-compatible
+	// gateway validates the field against the model's own ladder, where "none"
+	// is not a rung. Leaving the field out asks for the model's default there.
+	if openRouterDialect || reasoningEffort != shared.ReasoningEffortNone {
+		chatRequest.ReasoningEffort = reasoningEffort
 	}
 	if request.ResponseSchema != nil {
 		responseFormat, err := openRouterResponseFormat(*request.ResponseSchema)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/openai/openai-go/v3/shared"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -279,6 +280,22 @@ func TestNewOpenRouterOnAimlapiHostSendsAttributionAndPlainBody(t *testing.T) {
 	require.NotEmpty(t, headers.Get("X-AIMLAPI-Partner-ID"))
 	require.NotContains(t, received, "provider")
 	require.Equal(t, false, received["stream"])
+}
+
+// "none" is OpenRouter's off switch; another gateway validates the field per
+// model and refuses it, so off the OpenRouter dialect the field is omitted and
+// any real rung still goes through.
+func TestBuildOpenRouterRequestOmitsNoneEffortOffOpenRouter(t *testing.T) {
+	off, opts, err := buildOpenRouterRequest(GenerateRequest{Model: "m", UserPrompt: "hi", ReasoningEffort: ReasoningEffortNone}, "", false, false)
+	require.NoError(t, err)
+	require.Empty(t, off.ReasoningEffort)
+	require.Len(t, opts, 1) // stream only; no provider preferences
+	low, _, err := buildOpenRouterRequest(GenerateRequest{Model: "m", UserPrompt: "hi", ReasoningEffort: ReasoningEffortLow}, "", false, false)
+	require.NoError(t, err)
+	require.Equal(t, shared.ReasoningEffortLow, low.ReasoningEffort)
+	onRouter, _, err := buildOpenRouterRequest(GenerateRequest{Model: "m", UserPrompt: "hi", ReasoningEffort: ReasoningEffortNone}, "", false, true)
+	require.NoError(t, err)
+	require.Equal(t, shared.ReasoningEffortNone, onRouter.ReasoningEffort)
 }
 
 // The attribution headers belong to the host, not to the configuration: a
